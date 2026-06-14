@@ -1,10 +1,36 @@
 # wonderlands
 
-Monorepo layout:
+Wonderlands is a self-hosted, multi-tenant platform for conversational AI agents. You chat with agents in threads; each turn runs as a background job through a multiagent runtime rather than a single blocking request, so agents can take multiple turns, call tools, and wait on input without tying up the connection.
 
-- `apps/client`: Svelte + Vite frontend
-- `apps/server`: Hono + TypeScript backend
-- `packages/contracts`: shared client/server API contract types
+Core capabilities:
+
+- **Agents and conversations** — an assistant plus custom agents, each with its own instructions and model, talking in persisted sessions/threads backed by an event-sourced run/job model.
+- **Tools via MCP** — agents call external tools through Model Context Protocol servers, scoped per agent by tool profiles (e.g. the bundled Firecrawl web-search and filesystem servers).
+- **Browser sandbox** — optional Kernel-backed headless browser for web automation tools.
+- **Scheduled tasks** — run an agent on a cron schedule; each fire starts a normal conversation automatically.
+- **Garden** — publish notes and essays from a workspace vault as a static site.
+
+The backend (`apps/server`) exposes a versioned HTTP API under `/v1` and the frontend (`apps/client`) is the chat UI; they share typed contracts from `packages/contracts`.
+
+## Layout
+
+npm workspaces (`apps/*`, `packages/*`):
+
+- `apps/client` — Svelte + Vite frontend (`@wonderlands/client`)
+- `apps/server` — Hono + TypeScript backend (`@wonderlands/server`)
+- `packages/contracts` — shared client/server API contract types (`@wonderlands/contracts`)
+- `packages/sandbox-runtime-lo` — optional `lo` sandbox runtime (`@wonderlands/sandbox-runtime-lo`)
+
+Standalone MCP servers (run with `bun`, not part of the npm workspaces):
+
+- `mcp/web` — Firecrawl-backed web search/scrape server
+- `mcp/files-mcp` — filesystem server
+
+Supporting directories:
+
+- `setup/` — local bootstrap wizard (`npm run setup`)
+- `scripts/` — `dev` and `kernel:up` helpers
+- `docs/` — additional documentation
 
 ## Requirements
 
@@ -19,7 +45,7 @@ Install dependencies from the repo root:
 npm install
 ```
 
-Use the root workspace commands after that. Do not install `apps/client` and `apps/server` separately unless you have a specific reason.
+Always run workspace commands from the repo root, not from inside individual apps.
 
 For the full local bootstrap flow, run:
 
@@ -43,7 +69,7 @@ After setup, start the Kernel browser container with `npm run kernel:up` (requir
 
 ## Server Setup
 
-If you ran `npm run setup`, the env file and API keys are already configured. The sections below are for manual setup or for adjusting individual settings after the wizard.
+Skip this section if you ran `npm run setup` — it covers manual setup and adjusting individual settings afterward.
 
 Create the backend env file if you do not already have one:
 
@@ -160,8 +186,6 @@ npm run dev:client
 ```
 
 ## Repository hygiene
-
-This repository is intended to keep local secrets and mutable runtime data out of git.
 
 Do not commit:
 
