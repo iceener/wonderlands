@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "useDefineForClassFields": true,
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "shared/**/*.ts",
+    "vite.config.ts",
+    "svelte.config.js"
+  ],
+  "exclude": ["src/**/*.test.ts"]
+}

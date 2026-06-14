@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multiagent Tool UI — Demo</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --surface-0: #0f0f12;
+    --surface-1: #17171c;
+    --surface-2: #1f1f26;
+    --surface-3: #28282f;
+    --border: #ffffff0d;
+    --border-strong: #ffffff18;
+    --text-primary: #ececef;
+    --text-secondary: #a0a0ab;
+    --text-tertiary: #63636e;
+    --accent: #3b82f6;
+    --danger: #ef4444;
+    --danger-text: #f87171;
+    --success-text: #4ade80;
+    --hl-string: #a5d6ff;
+    --hl-variable: #ffa657;
+    --hl-literal: #79c0ff;
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--text-primary); -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--font-sans); font-size: 15px; line-height: 1.6; }
+
+  .app { max-width: 780px; margin: 0 auto; padding: 24px 20px 80px; }
+
+  /* ── Keyframes ────────────────────────── */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes caret-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  @keyframes approval-breathe {
+    0%, 100% { border-color: rgba(59,130,246,0.15); background: transparent; }
+    50% { border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.03); }
+  }
+
+  /* ── Nav ───────────────────────────────── */
+  .scenario-nav {
+    position: sticky; top: 0; z-index: 50; background: var(--bg);
+    border-bottom: 1px solid var(--border); padding: 12px 0 14px;
+    margin-bottom: 24px; display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .scenario-nav button {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--surface-1);
+    color: var(--text-secondary); border-radius: 6px; padding: 5px 12px; font: inherit;
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  .scenario-nav button:hover { color: var(--text-primary); border-color: var(--accent); }
+  .scenario-nav button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .scenario { display: none; }
+  .scenario.visible { display: block; }
+  .scenario-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-tertiary); margin-bottom: 16px;
+    animation: fade-up 180ms cubic-bezier(0.23,1,0.32,1) both;
+  }
+
+  /* ── Message card — heaviest element ──── */
+  .message-card {
+    background: var(--surface-0); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px; margin-bottom: 16px;
+    animation: fade-up 300ms cubic-bezier(0.23,1,0.32,1) both;
+  }
+  .message-meta {
+    font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .message-meta .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    transition: background 300ms ease;
+  }
+  .message-meta .dot.streaming { background: var(--accent); animation: dot-pulse 1.5s ease-in-out infinite; }
+  .message-meta .dot.complete  { background: var(--success-text); }
+  .message-meta .dot.failed    { background: var(--danger); }
+
+  .message-text {
+    font-size: 15px; line-height: 1.75; color: var(--text-primary); margin-bottom: 12px;
+    animation: fade-up 220ms cubic-bezier(0.23,1,0.32,1) both;
+  }
+  .message-text code {
+    padding: 2px 6px; border-radius: 4px; background: var(--surface-2);
+    font-size: 0.85em; font-family: var(--font-mono);
+  }
+
+  /* ── Shared block entrance ────────────── */
+  .tool-block, .delegation-block, .tool-group, .tool-chain, .deleg-accent {
+    animation: fade-up 180ms cubic-bezier(0.23,1,0.32,1) both;
+  }
+
+  /* ── Shared panel collapse ────────────── */
+  .tool-panel, .deleg-panel, .group-panel {
+    display: grid; grid-template-rows: 0fr;
+    transition: grid-template-rows 220ms cubic-bezier(0.4,0,0.2,1);
+  }
+  .tool-panel.open, .deleg-panel.open, .group-panel.open {
+    grid-template-rows: 1fr;
+  }
+  .tool-panel > div, .deleg-panel > div, .group-panel > div {
+    overflow: hidden; opacity: 0;
+    transition: opacity 120ms ease;          /* fast fade-out on close */
+  }
+  .tool-panel.open > div, .deleg-panel.open > div, .group-panel.open > div {
+    opacity: 1;
+    transition: opacity 180ms ease 50ms;     /* slower fade-in, waits for panel to start opening */
+  }
+
+  /* ── Shared chevron ───────────────────── */
+  .chevron {
+    width: 14px; height: 14px; flex-shrink: 0; margin-left: auto;
+    opacity: 0;
+    transition: opacity 120ms ease, transform 150ms cubic-bezier(0.2,0,0,1);
+  }
+  .chevron.open { opacity: 0.5; transform: rotate(180deg); }
+
+  /* ── Shared icon-box ──────────────────── */
+  .icon-box {
+    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: color 200ms ease;
+  }
+  .icon-box svg { width: 14px; height: 14px; }
+  .icon-box.st-complete  { color: var(--text-tertiary); }
+  .icon-box.st-running   { color: var(--text-primary); }
+  .icon-box.st-error     { color: var(--danger-text); }
+  .icon-box.st-awaiting  { color: var(--accent); }
+  .icon-box.st-rejected  { color: var(--danger-text); }
+  .icon-box.st-pending   { color: var(--text-tertiary); }
+  .icon-box.st-cancelled { color: var(--text-tertiary); }
+
+  /* ── Shared badge ─────────────────────── */
+  .badge { font-size: 11px; white-space: nowrap; margin-left: 2px; transition: color 150ms ease; }
+  .badge.needs-approval { color: var(--accent); }
+  .badge.resolving      { color: var(--text-tertiary); }
+  .badge.failed         { color: var(--danger-text); }
+  .badge.trusted        { color: var(--accent); }
+  .badge.rejected       { color: var(--danger-text); }
+
+  /* ── Tool block ───────────────────────── */
+  .tool-block { margin-bottom: 2px; }
+  .tool-header {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    background: none; border: none; color: var(--text-secondary); font: inherit;
+    font-size: 13px; text-align: left; cursor: pointer;
+    transition: color 120ms ease;
+  }
+  .tool-name { font-size: 13px; color: var(--text-secondary); transition: color 120ms ease; }
+  .tool-duration { font-size: 11px; color: var(--text-tertiary); margin-left: 2px; white-space: nowrap; }
+  .agent-sep { color: var(--text-tertiary); margin: 0 5px; font-size: 11px; }
+  .tool-header:hover { color: var(--text-primary); }
+  .tool-header:hover .tool-name { color: var(--text-primary); }
+  .tool-header:hover .chevron { opacity: 1; }
+  .tool-header:hover .chevron.open { opacity: 0.7; }
+  .tool-header.no-expand { cursor: default; }
+  .tool-header.no-expand:hover .chevron { opacity: 0; }
+
+  .approval-focus .tool-name { color: var(--text-primary); }
+
+  .tool-content { padding: 0 16px 10px 24px; display: flex; flex-direction: column; gap: 12px; }
+  .section-label { font-size: 10px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .tool-pre {
+    margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+    color: var(--text-secondary); white-space: pre-wrap; word-break: break-word;
+    max-height: calc(12 * 1.6em); overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+  }
+  .hl-key { color: var(--hl-variable); }
+  .hl-str { color: var(--hl-string); }
+  .hl-lit { color: var(--hl-literal); }
+
+  /* ── Confirmation buttons ─────────────── */
+  .confirm-row { display: flex; gap: 6px; }
+  .confirm-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 6px; font: inherit; font-size: 12px;
+    font-weight: 500; cursor: pointer; border: 1px solid transparent; line-height: 1;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .confirm-btn .kbd { font-size: 10px; opacity: 0.55; font-weight: 400; }
+
+  .confirm-btn.trust {
+    background: rgba(59,130,246,0.12); color: #93bbfc; border-color: rgba(59,130,246,0.3);
+  }
+  .confirm-btn.trust:hover:not(:disabled) { background: rgba(59,130,246,0.2); color: #bdd4fd; border-color: rgba(59,130,246,0.45); }
+  .confirm-btn.trust:active:not(:disabled) { background: rgba(59,130,246,0.28); }
+  .confirm-btn.trust:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(59,130,246,0.5); }
+
+  .confirm-btn.once {
+    background: transparent; color: var(--text-secondary); border-color: var(--border-strong);
+  }
+  .confirm-btn.once:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
+  .confirm-btn.once:active:not(:disabled) { background: rgba(255,255,255,0.04); }
+  .confirm-btn.once:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255,255,255,0.15); }
+
+  .confirm-btn.reject {
+    background: transparent; color: var(--text-tertiary); border-color: rgba(239,68,68,0.15);
+  }
+  .confirm-btn.reject:hover:not(:disabled) { background: rgba(239,68,68,0.06); color: var(--danger-text); border-color: rgba(239,68,68,0.35); }
+  .confirm-btn.reject:active:not(:disabled) { background: rgba(239,68,68,0.12); }
+  .confirm-btn.reject:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(239,68,68,0.4); }
+
+  .resolve-line { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .resolve-line span { font-size: 12px; color: var(--text-secondary); }
+  .resolve-error { font-size: 12px; color: var(--danger-text); margin-bottom: 4px; }
+
+  /* ── Delegation block ─────────────────── */
+  .delegation-block { margin-bottom: 2px; }
+  .deleg-header {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    background: none; border: none; color: var(--text-secondary); font: inherit;
+    font-size: 13px; text-align: left; cursor: pointer;
+    transition: color 120ms ease;
+  }
+  .deleg-name { font-size: 13px; font-weight: 500; color: var(--text-secondary); transition: color 120ms ease; }
+  .deleg-meta { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; transition: color 120ms ease; }
+  .deleg-header:hover { color: var(--text-primary); }
+  .deleg-header:hover .deleg-name { color: var(--text-primary); }
+  .deleg-header:hover .chevron { opacity: 1; }
+  .deleg-header:hover .chevron.open { opacity: 0.7; }
+  .deleg-children { padding: 0 0 4px 24px; }
+
+  /* ── Tool group ────────────────────────── */
+  .tool-group { margin-bottom: 2px; }
+  .group-header {
+    width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    background: none; border: none; color: var(--text-secondary); font: inherit;
+    font-size: 13px; text-align: left; cursor: pointer;
+    transition: color 120ms ease;
+  }
+  .group-label { font-size: 13px; color: var(--text-secondary); transition: color 120ms ease; }
+  .group-count { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; }
+  .group-header:hover { color: var(--text-primary); }
+  .group-header:hover .group-label { color: var(--text-primary); }
+  .group-header:hover .chevron { opacity: 1; }
+  .group-header:hover .chevron.open { opacity: 0.7; }
+  .group-children { padding: 0 0 4px 24px; }
+
+  /* ── Tool chain (inline completed) ────── */
+  .tool-chain {
+    display: flex; align-items: center; gap: 0; padding: 5px 0; flex-wrap: wrap;
+  }
+  .tool-chain .icon-box { margin-right: 8px; }
+  .chain-item { font-size: 13px; color: var(--text-tertiary); transition: color 120ms ease; }
+  .chain-multi { font-size: 11px; color: var(--text-tertiary); opacity: 0.65; margin-left: 2px; }
+  .chain-sep { color: var(--text-tertiary); opacity: 0.35; margin: 0 6px; font-size: 10px; }
+  .chain-time { font-size: 11px; color: var(--text-tertiary); margin-left: auto; padding-left: 12px; white-space: nowrap; }
+  .tool-chain:hover .chain-item { color: var(--text-secondary); }
+
+  /* ── Delegation with accent bar ────────── */
+  .deleg-accent {
+    border-left: 2px solid var(--border-strong); padding-left: 12px; margin: 4px 0 4px 7px;
+    transition: border-color 300ms ease, opacity 200ms ease;
+  }
+  .deleg-accent.running   { border-color: var(--accent); }
+  .deleg-accent.completed { border-color: var(--text-tertiary); opacity: 0.7; }
+  .deleg-accent.completed:hover { opacity: 1; }
+  .deleg-accent.failed    { border-color: var(--danger-text); }
+  .deleg-accent.awaiting  { border-color: var(--accent); }
+  .deleg-accent.pending   { border-color: var(--border-strong); opacity: 0.5; }
+
+  .deleg-inline-header {
+    display: flex; align-items: center; gap: 8px; padding: 2px 0;
+    transition: color 120ms ease;
+  }
+  .deleg-inline-header[style*="cursor"] .deleg-name { transition: color 120ms ease; }
+  .deleg-inline-header:hover .deleg-name { color: var(--text-primary); }
+  .deleg-inline-header:hover .chevron { opacity: 1; }
+  .deleg-inline-header:hover .chevron.open { opacity: 0.7; }
+
+  /* ── Approval breathing glow ──────────── */
+  .approval-focus {
+    border-radius: 8px; border: 1px solid rgba(59,130,246,0.2);
+    padding: 12px; margin: 4px 0;
+    animation: approval-breathe 3s ease-in-out infinite;
+  }
+
+  /* ── Caret blink ──────────────────────── */
+  .caret-blink {
+    display: inline-block; width: 2px; height: 14px; border-radius: 1px;
+    background: var(--accent); vertical-align: text-bottom;
+    animation: caret-pulse 1s ease-in-out infinite;
+  }
+
+  /* ── Utility ──────────────────────────── */
+  .flex-1 { flex: 1; min-width: 0; }
+  .name-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+
+  /* ── Action bar ───────────────────────── */
+  .action-bar { margin: 12px 0 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .action-btn {
+    appearance: none; background: var(--surface-2); border: 1px solid var(--border-strong);
+    color: var(--text-secondary); border-radius: 6px; padding: 4px 10px;
+    font: inherit; font-size: 11px; font-weight: 500; cursor: pointer;
+    transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+  .action-btn:hover { color: var(--text-primary); background: var(--surface-3); }
+  .action-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .action-btn.active:hover { opacity: 0.9; }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="scenario-nav" id="nav"></nav>
+  <div id="scenes"></div>
+</div>
+<script>
+const svg = {
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
+  question: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18h.01"/><path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4"/></svg>`,
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>`,
+  ban: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>`,
+  dash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`,
+  circle: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`,
+  chev: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>`,
+}
+const caret = `<span class="caret-blink" style="width:2px;height:12px"></span>`
+
+function hl(o) {
+  return JSON.stringify(o, null, 2)
+    .replace(/"([^"]+)":/g, '<span class="hl-key">"$1"</span>:')
+    .replace(/: "(.*?)"/g, ': <span class="hl-str">"$1"</span>')
+    .replace(/: (null|true|false|\d+)/g, ': <span class="hl-lit">$1</span>')
+}
+
+function statusIcon(status) {
+  const map = { complete: svg.check, running: caret, error: svg.alert, rejected: svg.ban, awaiting: svg.question, resolving: caret, pending: svg.circle, cancelled: svg.dash }
+  return map[status] || ''
+}
+function statusClass(status) {
+  const map = { complete: 'st-complete', running: 'st-running', error: 'st-error', rejected: 'st-rejected', awaiting: 'st-awaiting', resolving: 'st-running', pending: 'st-pending', cancelled: 'st-cancelled' }
+  return map[status] || ''
+}
+
+function tool(id, o) {
+  const st = o.resolving ? 'resolving' : o.status === 'awaiting_confirmation' ? 'awaiting' : o.status
+  const hasContent = o.args || o.output || o.confirmation || o.resolving
+  const nameHtml = o.agent
+    ? `<span class="tool-name">${o.agent}<span class="agent-sep">\u203A</span>${o.name}</span>`
+    : `<span class="tool-name">${o.name}</span>`
+  const badgeHtml = o.badge ? `<span class="badge ${o.badge.c}">${o.badge.t}</span>` : ''
+  const durationHtml = o.duration ? `<span class="tool-duration">${o.duration}</span>` : ''
+
+  let inner = ''
+  if (o.args) inner += `<div><div class="section-label">Input</div><pre class="tool-pre">${hl(o.args)}</pre></div>`
+  if (o.resolveError) inner += `<p class="resolve-error">${o.resolveError}</p>`
+  if (o.resolving) {
+    inner += `<div class="resolve-line">${caret}<span>${o.resolving}</span></div>`
+  } else if (o.confirmation) {
+    inner += `<div class="confirm-row">
+      <button class="confirm-btn trust">Accept &amp; trust<span class="kbd">\u2318\u21E7\u23CE</span></button>
+      <button class="confirm-btn once">Accept once<span class="kbd">\u2318\u23CE</span></button>
+      <button class="confirm-btn reject">Reject<span class="kbd">Esc</span></button>
+    </div>`
+  }
+  if (o.output) inner += `<div><div class="section-label">Output</div><pre class="tool-pre">${hl(o.output)}</pre></div>`
+
+  return `<div class="tool-block" id="${id}">
+    <button class="tool-header${hasContent ? '' : ' no-expand'}" ${hasContent ? `onclick="toggle('${id}')"` : ''}>
+      <div class="icon-box ${statusClass(st)}">${statusIcon(st)}</div>
+      <div class="name-row">${nameHtml}${badgeHtml}${durationHtml}</div>
+      ${hasContent ? `<div class="chevron${o.expanded ? ' open' : ''}" id="${id}-chev">${svg.chev}</div>` : ''}
+    </button>
+    ${hasContent ? `<div class="tool-panel${o.expanded ? ' open' : ''}" id="${id}-panel"><div><div class="tool-content">${inner}</div></div></div>` : ''}
+  </div>`
+}
+
+function deleg(id, o) {
+  const st = o.status
+  const hasChildren = o.children && o.children.trim().length > 0
+  return `<div class="delegation-block" id="${id}">
+    <button class="deleg-header" ${hasChildren ? `onclick="toggle('${id}')"` : ''}>
+      <div class="icon-box ${statusClass(st)}">${statusIcon(st)}</div>
+      <span class="deleg-name">${o.name}</span>
+      <span class="deleg-meta">${o.meta}</span>
+      ${hasChildren ? `<div class="chevron${o.expanded ? ' open' : ''}" id="${id}-chev">${svg.chev}</div>` : ''}
+    </button>
+    ${hasChildren ? `<div class="deleg-panel${o.expanded ? ' open' : ''}" id="${id}-panel"><div><div class="deleg-children">${o.children}</div></div></div>` : ''}
+  </div>`
+}
+
+function toolGroup(id, o) {
+  return `<div class="tool-group" id="${id}">
+    <button class="group-header" onclick="toggle('${id}')">
+      <div class="icon-box st-complete">${svg.check}</div>
+      <span class="group-label">${o.label}</span>
+      <span class="group-count">${o.count}</span>
+      <div class="chevron${o.expanded ? ' open' : ''}" id="${id}-chev">${svg.chev}</div>
+    </button>
+    <div class="group-panel${o.expanded ? ' open' : ''}" id="${id}-panel">
+      <div><div class="group-children">${o.children}</div></div>
+    </div>
+  </div>`
+}
+
+function toolChain(names, time) {
+  // collapse consecutive duplicates: [a, a, b] → [{name:a, count:2}, {name:b, count:1}]
+  const segments = []
+  for (const n of names) {
+    const last = segments[segments.length - 1]
+    if (last && last.name === n) last.count++
+    else segments.push({ name: n, count: 1 })
+  }
+  const items = segments.map(s => {
+    const multi = s.count > 1 ? ` <span class="chain-multi">\u00d7${s.count}</span>` : ''
+    return `<span class="chain-item">${s.name}${multi}</span>`
+  }).join(`<span class="chain-sep">\u2192</span>`)
+
+  return `<div class="tool-chain">
+    <div class="icon-box st-complete">${svg.check}</div>
+    ${items}
+    ${time ? `<span class="chain-time">${time}</span>` : ''}
+  </div>`
+}
+
+function delegAccent(id, o) {
+  const st = o.status
+  const iconHtml = st === 'running' || st === 'awaiting' ? caret : st === 'completed' ? svg.check : st === 'failed' ? svg.alert : svg.circle
+  const iconCls = statusClass(st === 'awaiting' ? 'running' : st)
+  return `<div class="deleg-accent ${st}" id="${id}">
+    <div class="deleg-inline-header" ${o.children ? `onclick="toggle('${id}')" style="cursor:pointer"` : ''}>
+      <div class="icon-box ${iconCls}">${iconHtml}</div>
+      <span class="deleg-name">${o.name}</span>
+      <span class="deleg-meta">${o.meta}</span>
+      ${o.children ? `<div class="chevron${o.expanded ? ' open' : ''}" id="${id}-chev">${svg.chev}</div>` : ''}
+    </div>
+    ${o.children ? `<div class="deleg-panel${o.expanded ? ' open' : ''}" id="${id}-panel"><div><div style="padding:0 0 4px 0">${o.children}</div></div></div>` : ''}
+  </div>`
+}
+
+function toggle(id) {
+  document.getElementById(`${id}-panel`)?.classList.toggle('open')
+  document.getElementById(`${id}-chev`)?.classList.toggle('open')
+}
+
+// ── Scenarios ────────────────────────────────
+const scenes = [
+  { id:'s1', label:'1. Single Agent', title:'Single-agent tool calls', render: () => `
+    <div class="message-card">
+      <div class="message-meta"><span class="dot complete"></span>10:42 AM</div>
+      <div class="message-text">I'll send that email and check the calendar.</div>
+      ${tool('s1a',{name:'calendar_check',status:'complete',duration:'0.3s',args:{date:"2026-03-30",query:"meetings"},output:{events:[{title:"Standup",time:"09:00"},{title:"Design review",time:"14:00"}]}})}
+      ${tool('s1b',{name:'resend__send',status:'complete',duration:'0.5s',badge:{t:'Trusted',c:'trusted'},args:{to:"demo@example.com",subject:"Schedule",body:"You have 2 meetings.",format:"text"},output:{ok:true,id:"eml_a8f2c"}})}
+    </div>`},
+
+  { id:'s2', label:'2. Confirmation', title:'Approval flow states', render: (st='awaiting') => {
+    const m = {
+      awaiting:{status:'awaiting_confirmation',badge:{t:'Needs approval',c:'needs-approval'},expanded:true,confirmation:true},
+      resolving:{status:'awaiting_confirmation',badge:{t:'Approving\u2026',c:'resolving'},expanded:true,resolving:'Approving\u2026'},
+      error:{status:'awaiting_confirmation',badge:{t:'Needs approval',c:'needs-approval'},expanded:true,confirmation:true,resolveError:'Could not approve. Try again.'},
+      approved:{status:'complete',duration:'0.4s',expanded:false},
+      trusted:{status:'complete',duration:'0.4s',badge:{t:'Trusted',c:'trusted'},expanded:false},
+      rejected:{status:'error',badge:{t:'Rejected',c:'rejected'},expanded:false},
+    }[st]
+    const args = {to:"demo@example.com",subject:"Confirmation",body:"Confirming I can send email via Resend.",format:"text"}
+    const output = (st==='approved'||st==='trusted') ? {ok:true,id:"eml_b3e1f"} : undefined
+    const finalStatus = st==='rejected' ? 'error' : m.status
+    return `<div class="action-bar">${['awaiting','resolving','error','approved','trusted','rejected'].map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s2','${s}')">${s}</button>`).join('')}</div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot ${st==='awaiting'||st==='resolving'||st==='error'?'streaming':'complete'}"></span>10:44 AM</div>
+      ${tool('s2a',{name:'resend__send',...m,status:finalStatus,args,output})}
+    </div>`}},
+
+  { id:'s3', label:'3. Delegation', title:'Single delegation to researcher', render: (st='running') => {
+    const ds = {running:'running',completed:'completed',failed:'failed'}[st]
+    const dm = {running:'Running \u00b7 2 tools',completed:'Completed \u00b7 3 tools \u00b7 2.1s',failed:'Failed \u00b7 2 tools'}[st]
+    const ch = st==='running'
+      ? tool('s3a',{name:'web_search',agent:'researcher',status:'complete',duration:'0.8s',args:{query:"AI safety papers 2026"},output:{results:3}})
+        +tool('s3b',{name:'fetch_url',agent:'researcher',status:'running'})
+      : st==='completed'
+      ? tool('s3a',{name:'web_search',agent:'researcher',status:'complete',duration:'0.8s',args:{query:"AI safety papers 2026"},output:{results:3}})
+        +tool('s3b',{name:'fetch_url',agent:'researcher',status:'complete',duration:'1.0s',args:{url:"https://arxiv.org/paper/123"},output:{length:4200}})
+        +tool('s3c',{name:'complete_run',agent:'researcher',status:'complete',duration:'0.1s'})
+      : tool('s3a',{name:'web_search',agent:'researcher',status:'complete',duration:'0.8s',args:{query:"AI safety papers 2026"},output:{results:3}})
+        +tool('s3b',{name:'fetch_url',agent:'researcher',status:'error',badge:{t:'Failed',c:'failed'},args:{url:"https://arxiv.org/paper/123"}})
+    return `<div class="action-bar">${['running','completed','failed'].map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s3','${s}')">${s}</button>`).join('')}</div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot ${st==='running'?'streaming':st==='completed'?'complete':'failed'}"></span>10:48 AM</div>
+      <div class="message-text">Let me research that for you.</div>
+      ${deleg('s3d',{name:'researcher',status:ds,meta:dm,expanded:st!=='completed',children:ch})}
+      ${st==='completed'?'<div class="message-text" style="margin-top:12px">Found 3 recent papers on AI safety. Here are the key findings\u2026</div>':''}
+    </div>`}},
+
+  { id:'s4', label:'4. Parallel Agents', title:'Researcher + writer running concurrently', render: () => `
+    <div class="message-card">
+      <div class="message-meta"><span class="dot streaming"></span>10:52 AM</div>
+      <div class="message-text">I'll research the topic and draft the email simultaneously.</div>
+      ${deleg('s4a',{name:'researcher',status:'completed',meta:'Completed \u00b7 3 tools \u00b7 1.4s',expanded:false,
+        children: tool('s4a1',{name:'web_search',agent:'researcher',status:'complete',duration:'0.6s',args:{query:"AI safety"},output:{results:3}})
+          +tool('s4a2',{name:'fetch_url',agent:'researcher',status:'complete',duration:'0.7s',args:{url:"https://arxiv.org/latest"},output:{length:3400}})
+          +tool('s4a3',{name:'complete_run',agent:'researcher',status:'complete',duration:'0.1s'})})}
+      ${deleg('s4b',{name:'writer',status:'running',meta:'Running \u00b7 2 tools',expanded:true,
+        children: tool('s4b1',{name:'read_file',agent:'writer',status:'complete',duration:'0.2s',args:{path:"research_output.md"},output:{length:2800}})
+          +tool('s4b2',{name:'resend__send',agent:'writer',status:'running'})})}
+    </div>`},
+
+  { id:'s5', label:'5. Child Approval', title:'Child agent needs confirmation', render: (st='awaiting') => {
+    const topts = {
+      awaiting:{status:'awaiting_confirmation',badge:{t:'Needs approval',c:'needs-approval'},expanded:true,confirmation:true,
+        args:{to:"demo@example.com",subject:"AI Safety Report",body:"Hi Adam,\n\nAttached is the report.\n\nBest,\nWriter",format:"text"}},
+      resolving:{status:'awaiting_confirmation',badge:{t:'Approving\u2026',c:'resolving'},expanded:true,resolving:'Approving\u2026',
+        args:{to:"demo@example.com",subject:"AI Safety Report",body:"Hi Adam,\n\nAttached is the report.\n\nBest,\nWriter",format:"text"}},
+      done:{status:'complete',duration:'0.5s',expanded:false,
+        args:{to:"demo@example.com",subject:"AI Safety Report",body:"Hi Adam,...",format:"text"},
+        output:{ok:true,id:"eml_d9f4a"}},
+    }[st]
+    const ds = st==='done'?'completed':'running'
+    const dm = st==='done'?'Completed \u00b7 3 tools \u00b7 3.2s':'Running \u00b7 2 tools \u00b7 1 pending'
+    return `<div class="action-bar">${['awaiting','resolving','done'].map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s5','${s}')">${s}</button>`).join('')}</div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot streaming"></span>10:55 AM</div>
+      <div class="message-text">Drafting and sending the report now.</div>
+      ${deleg('s5a',{name:'researcher',status:'completed',meta:'Completed \u00b7 4 tools \u00b7 1.8s',expanded:false,
+        children: tool('s5a1',{name:'web_search',agent:'researcher',status:'complete',duration:'0.5s',args:{query:"AI safety"},output:{results:5}})
+          +tool('s5a2',{name:'fetch_url',agent:'researcher',status:'complete',duration:'0.7s',args:{url:"https://arxiv.org/latest"},output:{length:3400}})
+          +tool('s5a3',{name:'summarize',agent:'researcher',status:'complete',duration:'0.4s'})
+          +tool('s5a4',{name:'complete_run',agent:'researcher',status:'complete',duration:'0.1s'})})}
+      ${deleg('s5b',{name:'writer',status:ds,meta:dm,expanded:true,
+        children: tool('s5b1',{name:'read_file',agent:'writer',status:'complete',duration:'0.2s',args:{path:"research_output.md"},output:{length:2800}})
+          +tool('s5b2',{name:'resend__send',agent:'writer',...topts})
+          +(st==='done'?tool('s5b3',{name:'complete_run',agent:'writer',status:'complete',duration:'0.1s'}):'')
+      })}
+      ${st==='done'?'<div class="message-text" style="margin-top:12px">Done! Report sent to demo@example.com.</div>':''}
+    </div>`}},
+
+  { id:'s6', label:'6. Full Scenario', title:'Complete orchestration flow', render: (st='delegating') => {
+    const steps = ['delegating','researching','writing','approval','approved','complete']
+    const si = steps.indexOf(st)
+
+    const rs = si===0?'pending':si===1?'running':'completed'
+    const rm = si===0?'Pending':si===1?'Running \u00b7 2 tools':'Completed \u00b7 3 tools \u00b7 1.4s'
+    let rc = ''
+    if(si>=1){
+      rc += tool('s6r1',{name:'web_search',agent:'researcher',status:'complete',duration:'0.6s',args:{query:"AI trends 2026"},output:{results:5}})
+      rc += tool('s6r2',{name:'fetch_url',agent:'researcher',status:si===1?'running':'complete',...(si>=2?{duration:'0.7s',args:{url:"https://arxiv.org/latest"},output:{length:3400}}:{})})
+      if(si>=2) rc += tool('s6r3',{name:'complete_run',agent:'researcher',status:'complete',duration:'0.1s'})
+    }
+
+    const ws = si<2?'pending':si>=4?'completed':'running'
+    const wm = si<2?'Pending':si>=4?'Completed \u00b7 3 tools \u00b7 2.8s':si===3?'Running \u00b7 2 tools \u00b7 1 pending':'Running \u00b7 1 tool'
+    let wc = ''
+    if(si>=2){
+      wc += tool('s6w1',{name:'read_file',agent:'writer',status:'complete',duration:'0.2s',args:{path:"research_output.md"},output:{length:2800}})
+      if(si===3){
+        wc += tool('s6w2',{name:'resend__send',agent:'writer',status:'awaiting_confirmation',badge:{t:'Needs approval',c:'needs-approval'},expanded:true,confirmation:true,
+          args:{to:"demo@example.com",subject:"Weekly Report",body:"Hi Adam,\n\nWeekly AI report attached.\n\nBest regards",format:"text"}})
+      } else if(si>=4){
+        wc += tool('s6w2',{name:'resend__send',agent:'writer',status:'complete',duration:'0.5s',args:{to:"demo@example.com",subject:"Weekly Report",body:"Hi Adam,...",format:"text"},output:{ok:true,id:"eml_f7b2c"}})
+        wc += tool('s6w3',{name:'complete_run',agent:'writer',status:'complete',duration:'0.1s'})
+      } else {
+        wc += tool('s6w2',{name:'resend__send',agent:'writer',status:'running'})
+      }
+    }
+
+    return `<div class="action-bar">${steps.map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s6','${s}')">${s}</button>`).join('')}</div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot ${si>=5?'complete':'streaming'}"></span>11:00 AM</div>
+      <div class="message-text">I'll research the latest AI trends and send you a weekly report.</div>
+      ${deleg('s6r',{name:'researcher',status:rs,meta:rm,expanded:si===1,children:rc})}
+      ${deleg('s6w',{name:'writer',status:ws,meta:wm,expanded:si>=2&&si<4,children:wc})}
+      ${si>=5?'<div class="message-text" style="margin-top:12px">All done! Weekly report researched and sent to demo@example.com.</div>':''}
+    </div>`}},
+  { id:'s7', label:'7. Grouped Tools', title:'Many sequential tools — grouped by type', render: (st='grouped') => {
+    if (st === 'flat') {
+      return `<div class="action-bar">
+        <button class="action-btn" onclick="render('s7','grouped')">grouped</button>
+        <button class="action-btn active" onclick="render('s7','flat')">flat</button>
+      </div>
+      <div class="message-card">
+        <div class="message-meta"><span class="dot complete"></span>06:49 AM</div>
+        ${tool('s7a',{name:'files__fs_read',status:'complete',duration:'0.1s',args:{path:"nicolas-cage/"},output:{files:["face-off.md","leaving-las-vegas.md","raising-arizona.md"]}})}
+        ${tool('s7b',{name:'files__fs_manage',status:'complete',duration:'0.1s',args:{action:"mkdir",path:"nicolas-cage/"},output:{ok:true}})}
+        ${tool('s7c',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/face-off.md",content:"# Face/Off (1997)\\n..."},output:{bytes:342}})}
+        ${tool('s7d',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/leaving-las-vegas.md",content:"# Leaving Las Vegas (1995)\\n..."},output:{bytes:418}})}
+        ${tool('s7e',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/raising-arizona.md",content:"# Raising Arizona (1987)\\n..."},output:{bytes:385}})}
+        <div class="message-text" style="margin-top:12px">Done \u2014 I created 3 files in <code>nicolas-cage/</code></div>
+      </div>`
+    }
+    return `<div class="action-bar">
+      <button class="action-btn active" onclick="render('s7','grouped')">grouped</button>
+      <button class="action-btn" onclick="render('s7','flat')">flat</button>
+    </div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot complete"></span>06:49 AM</div>
+      ${tool('s7a',{name:'files__fs_read',status:'complete',duration:'0.1s',args:{path:"nicolas-cage/"},output:{files:["face-off.md","leaving-las-vegas.md","raising-arizona.md"]}})}
+      ${tool('s7b',{name:'files__fs_manage',status:'complete',duration:'0.1s',args:{action:"mkdir",path:"nicolas-cage/"},output:{ok:true}})}
+      ${toolGroup('s7g',{label:'files__fs_write',count:'3 calls',expanded:false,
+        children:
+          tool('s7c',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/face-off.md",content:"# Face/Off (1997)\\n..."},output:{bytes:342}})
+          +tool('s7d',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/leaving-las-vegas.md",content:"# Leaving Las Vegas (1995)\\n..."},output:{bytes:418}})
+          +tool('s7e',{name:'files__fs_write',status:'complete',duration:'0.2s',args:{path:"nicolas-cage/raising-arizona.md",content:"# Raising Arizona (1987)\\n..."},output:{bytes:385}})
+      })}
+      <div class="message-text" style="margin-top:12px">Done \u2014 I created 3 files in <code>nicolas-cage/</code></div>
+    </div>`}},
+  { id:'s8', label:'8. Reimagined', title:'Compact view — tool chains, accent bars, breathing approval', render: (st='approval') => {
+    const steps = ['working','approval','done']
+    const si = steps.indexOf(st)
+
+    if (st === 'working') {
+      return `<div class="action-bar">${steps.map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s8','${s}')">${s}</button>`).join('')}</div>
+      <div class="message-card">
+        <div class="message-meta"><span class="dot streaming"></span>11:00 AM</div>
+        <div class="message-text">I'll research AI trends and send you a weekly report.</div>
+        ${delegAccent('s8a',{name:'researcher',status:'running',meta:'Running \u00b7 2 tools',expanded:true,
+          children: tool('s8a1',{name:'web_search',agent:'researcher',status:'complete',duration:'0.6s',args:{query:"AI trends 2026"},output:{results:5}})
+            +tool('s8a2',{name:'fetch_url',agent:'researcher',status:'running'})
+        })}
+        ${delegAccent('s8b',{name:'writer',status:'pending',meta:'Waiting for researcher'})}
+      </div>`
+    }
+
+    if (st === 'approval') {
+      return `<div class="action-bar">${steps.map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s8','${s}')">${s}</button>`).join('')}</div>
+      <div class="message-card">
+        <div class="message-meta"><span class="dot streaming"></span>11:00 AM</div>
+        <div class="message-text">I'll research AI trends and send you a weekly report.</div>
+        ${delegAccent('s8a',{name:'researcher',status:'completed',meta:'1.4s',
+          children: toolChain(['web_search','fetch_url','summarize','complete_run'],'1.4s')
+        })}
+        ${delegAccent('s8b',{name:'writer',status:'awaiting',meta:'1 pending',expanded:true,
+          children: toolChain(['read_file'],'0.2s')
+            +`<div class="approval-focus">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <div class="icon-box st-awaiting">${svg.question}</div>
+                <span class="tool-name">writer<span class="agent-sep">\u203A</span>resend__send</span>
+                <span class="badge needs-approval">Needs approval</span>
+              </div>
+              <div><div class="section-label">Input</div><pre class="tool-pre">${hl({to:"demo@example.com",subject:"Weekly AI Report",body:"Hi Adam,\\n\\nHere is your weekly report.\\n\\nBest regards",format:"text"})}</pre></div>
+              <div style="margin-top:10px" class="confirm-row">
+                <button class="confirm-btn trust">Accept &amp; trust<span class="kbd">\u2318\u21E7\u23CE</span></button>
+                <button class="confirm-btn once">Accept once<span class="kbd">\u2318\u23CE</span></button>
+                <button class="confirm-btn reject">Reject<span class="kbd">Esc</span></button>
+              </div>
+            </div>`
+        })}
+      </div>`
+    }
+
+    // done
+    return `<div class="action-bar">${steps.map(s=>`<button class="action-btn${s===st?' active':''}" onclick="render('s8','${s}')">${s}</button>`).join('')}</div>
+    <div class="message-card">
+      <div class="message-meta"><span class="dot complete"></span>11:00 AM</div>
+      <div class="message-text">I'll research AI trends and send you a weekly report.</div>
+      ${delegAccent('s8a',{name:'researcher',status:'completed',meta:'1.4s',
+        children: toolChain(['web_search','fetch_url','summarize','complete_run'],'1.4s')
+      })}
+      ${delegAccent('s8b',{name:'writer',status:'completed',meta:'2.8s',
+        children: toolChain(['read_file','resend__send','complete_run'],'2.8s')
+      })}
+      <div class="message-text" style="margin-top:12px">All done! Weekly report sent to demo@example.com.</div>
+    </div>`}},
+]
+
+// ── Init ─────────────────────────────────────
+const nav=document.getElementById('nav'), box=document.getElementById('scenes')
+let _active='s1'
+
+scenes.forEach(s=>{
+  const b=document.createElement('button'); b.textContent=s.label; b.id=`n-${s.id}`
+  b.onclick=()=>show(s.id); nav.appendChild(b)
+  const d=document.createElement('div'); d.className='scenario'; d.id=`v-${s.id}`; box.appendChild(d)
+})
+
+function show(id){ _active=id
+  nav.querySelectorAll('button').forEach(b=>{ b.classList.remove('active') })
+  document.getElementById(`n-${id}`).classList.add('active')
+  box.querySelectorAll('.scenario').forEach(d=>{ d.classList.remove('visible') })
+  document.getElementById(`v-${id}`).classList.add('visible')
+  render(id)
+}
+function render(id,state){
+  const s=scenes.find(x=>x.id===id)
+  const el=document.getElementById(`v-${id}`)
+  el.innerHTML=`<div class="scenario-title">${s.title}</div>${s.render(state)}`
+  // stagger entrance: only visible blocks (skip those inside closed panels)
+  let delay = 0
+  el.querySelectorAll('.tool-block, .delegation-block, .tool-group, .tool-chain, .deleg-accent').forEach(b => {
+    if (b.closest('.tool-panel:not(.open), .deleg-panel:not(.open), .group-panel:not(.open)')) return
+    b.style.animationDelay = `${delay * 35}ms`
+    delay++
+  })
+}
+show('s1')
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+services:
+  kernel:
+    image: ${KERNEL_IMAGE:-wonderlands/kernel-local:18e75774f6d5b5e646213264409c62b604d71391}
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - >-
+        rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 &&
+        if ! grep -q 'start chromedriver || true' /wrapper.sh; then
+          sed -i 's#supervisorctl -c /etc/supervisor/supervisord.conf start chromedriver#supervisorctl -c /etc/supervisor/supervisord.conf start chromedriver || true#' /wrapper.sh;
+        fi &&
+        exec /wrapper.sh
+    privileged: true
+    stdin_open: true
+    tty: true
+    environment:
+      ENABLE_WEBRTC: "true"
+      DISPLAY_NUM: "1"
+      HEIGHT: "1080"
+      WIDTH: "1920"
+      RUN_AS_ROOT: "false"
+      TZ: ${TZ:-UTC}
+      NEKO_WEBRTC_EPR: "56000-56100"
+      NEKO_WEBRTC_NAT1TO1: "127.0.0.1"
+    ports:
+      - "9222:9222"
+      - "10001:10001"
+      - "8080:8080"
+      - "56000-56100:56000-56100/udp"
+    shm_size: "2gb"
+    volumes:
+      - ./.cache/kernel-recordings:/recordings
+    restart: unless-stopped

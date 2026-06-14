@@ -1,0 +1,10 @@
+{
+  "name": "@wonderlands/sandbox-runtime-lo",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Scaffold for the future lo-based sandbox runtime bootstrap.",
+  "scripts": {
+    "build": "node ./scripts/build.mjs"
+  }
+}

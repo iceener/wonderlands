@@ -1,0 +1,251 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1774793921305,
+      "tag": "0000_overjoyed_jack_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774794548036,
+      "tag": "0001_oval_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774795214196,
+      "tag": "0002_sharp_stature",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774796592887,
+      "tag": "0003_left_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774808864196,
+      "tag": "0004_plain_war_machine",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774809699796,
+      "tag": "0005_superb_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774810800000,
+      "tag": "0006_tan_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1774814426954,
+      "tag": "0007_abnormal_paladin",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1774822018781,
+      "tag": "0008_polite_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1774838409019,
+      "tag": "0009_great_dark_phoenix",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1774874355059,
+      "tag": "0010_naive_invisible_woman",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1774878000000,
+      "tag": "0011_solid_event_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1774881600000,
+      "tag": "0012_simple_email_password",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1774885200000,
+      "tag": "0013_context_summary_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1774888800000,
+      "tag": "0014_conversation_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1774892400000,
+      "tag": "0015_thread_budget_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1774896000000,
+      "tag": "0016_dynamic_work_graph",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1774899600000,
+      "tag": "0017_mcp_oauth_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1774903200000,
+      "tag": "0018_static_mcp_tool_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1774906800000,
+      "tag": "0019_thread_title_naming",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1775000400000,
+      "tag": "0020_target_and_tool_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1775004000000,
+      "tag": "0021_thread_branching",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1775136000000,
+      "tag": "0022_stale_run_recovery_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1775222400000,
+      "tag": "0023_garden_sites",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1775226000000,
+      "tag": "0024_garden_public_slug",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1775229600000,
+      "tag": "0025_default_garden_root",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1775233200000,
+      "tag": "0026_garden_owner_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1775236800000,
+      "tag": "0027_garden_drop_source_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1775240400000,
+      "tag": "0028_agent_live_slug_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1775244000000,
+      "tag": "0029_sandbox_execution",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1775419200000,
+      "tag": "0030_thread_activity_seen",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1775520000000,
+      "tag": "0031_kernel_policy_json",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1775606400000,
+      "tag": "0032_kernel_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1775692800000,
+      "tag": "0033_event_payload_sidecars",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1781222400000,
+      "tag": "0034_agent_scheduled_tasks",
+      "breakpoints": true
+    }
+  ]
+}
