@@ -1,0 +1,75 @@
+name: Deploy alice Wonderlands app
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-alice-wonderlands-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Wonderlands app to VPS
+    runs-on: self-hosted
+    env:
+      NODE_VERSION: '24'
+      BASE_DIR: /home/alice/wonderlands
+      SHARED_DIR: /home/alice/wonderlands/shared
+      PROCESS_NAME: wonderlands-app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Build client
+        run: npm run build --workspace @wonderlands/client
+
+      - name: Prepare runtime links
+        run: |
+          set -euo pipefail
+          mkdir -p "$SHARED_DIR/var/files" "$SHARED_DIR/tmp"
+
+          if [ ! -f "$SHARED_DIR/server.env" ]; then
+            echo "Missing $SHARED_DIR/server.env. Create it on the VPS before deploying." >&2
+            exit 1
+          fi
+
+          ln -sfn "$GITHUB_WORKSPACE" "$BASE_DIR/current"
+          ln -sfn "$SHARED_DIR/server.env" apps/server/.env
+
+          rm -rf apps/server/var apps/server/tmp
+          ln -sfn "$SHARED_DIR/var" apps/server/var
+          ln -sfn "$SHARED_DIR/tmp" apps/server/tmp
+
+          if [ -f "$SHARED_DIR/.mcp-servers.json" ]; then
+            ln -sfn "$SHARED_DIR/.mcp-servers.json" apps/server/.mcp-servers.json
+          fi
+
+      - name: Migrate database
+        run: npm run db:migrate --workspace @wonderlands/server
+
+      - name: Restart PM2 process
+        run: |
+          set -euo pipefail
+          command -v pm2 >/dev/null
+
+          cd apps/server
+          if pm2 describe "$PROCESS_NAME" >/dev/null 2>&1; then
+            pm2 restart "$PROCESS_NAME" --update-env
+          else
+            pm2 start npm --name "$PROCESS_NAME" -- run start
+          fi
+
+          pm2 save
+          pm2 list
