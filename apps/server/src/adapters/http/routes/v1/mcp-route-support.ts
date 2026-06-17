@@ -361,8 +361,13 @@ export const resolveRuntimeNameForServerTool = <
     getMcpRuntimeNameAliasesFromRuntimeName(entry.runtimeName).includes(runtimeName),
   )?.runtimeName ?? null
 
-export const buildMcpOauthCallbackUrl = (c: Context<AppEnv>): string =>
-  new URL(`${c.get('config').api.basePath}/mcp/oauth/callback`, c.req.url).toString()
+export const buildMcpOauthCallbackUrl = (c: Context<AppEnv>, serverId?: string): string => {
+  const callbackPath = serverId
+    ? `${c.get('config').api.basePath}/mcp/oauth/${encodeURIComponent(serverId)}/callback`
+    : `${c.get('config').api.basePath}/mcp/oauth/callback`
+
+  return new URL(callbackPath, c.req.url).toString()
+}
 
 export const resolveMcpServerId = (
   c: Context<AppEnv>,
