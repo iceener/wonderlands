@@ -289,7 +289,7 @@ const selectFilePickerResult = (result: BackendFilePickerResult) => {
       attrs: {
         fileId: result.fileId,
         label: result.label,
-        relativePath: result.source === 'workspace' ? result.relativePath : null,
+        relativePath: result.source === 'attachment' ? null : result.relativePath,
         source: result.source,
       },
     },

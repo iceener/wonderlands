@@ -105,13 +105,13 @@ let listEl: HTMLDivElement | null = $state(null)
 let popoverEl: HTMLDivElement | null = $state(null)
 
 const groupedResults = $derived.by(() => {
-  const workspace = results.filter((result) => result.source === 'workspace')
+  // Vault (`workspace`) and filesystem-MCP (`mcp`) files share one merged group,
+  // preserving the server's ranking order across both sources.
+  const files = results.filter((result) => result.source === 'workspace' || result.source === 'mcp')
   const attachments = results.filter((result) => result.source === 'attachment')
 
   return [
-    ...(workspace.length > 0
-      ? [{ items: workspace, label: isEmptyQuery ? 'Recent' : 'Workspace' }]
-      : []),
+    ...(files.length > 0 ? [{ items: files, label: isEmptyQuery ? 'Recent' : 'Files' }] : []),
     ...(attachments.length > 0 ? [{ items: attachments, label: 'Attachments' }] : []),
   ]
 })

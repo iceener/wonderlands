@@ -17,6 +17,7 @@ const MAX_LIMIT = 50
 const HARD_EXCLUDED_DIRECTORY_NAMES = new Set([
   '.git',
   '.next',
+  '.obsidian',
   '.svelte-kit',
   '__pycache__',
   'dist',
@@ -58,7 +59,18 @@ interface AttachmentIndexedEntry {
   source: 'attachment'
 }
 
-type IndexedEntry = WorkspaceIndexedEntry | AttachmentIndexedEntry
+interface McpIndexedEntry {
+  depth: number
+  extension: string
+  fileName: string
+  mtimeMs: number
+  nameLower: string
+  pathLower: string
+  relativePath: string
+  source: 'mcp'
+}
+
+type IndexedEntry = WorkspaceIndexedEntry | AttachmentIndexedEntry | McpIndexedEntry
 
 export interface FilePickerSearchResultItem {
   accessScope: FileRecord['accessScope'] | null
@@ -71,7 +83,12 @@ export interface FilePickerSearchResultItem {
   mimeType: string | null
   relativePath: string
   sizeBytes: number | null
-  source: 'attachment' | 'workspace'
+  source: 'attachment' | 'workspace' | 'mcp'
+}
+
+export interface McpFileRoot {
+  mountId: string
+  rootPath: string
 }
 
 export interface SearchFilePickerInput {
@@ -355,6 +372,40 @@ class WorkspaceIndexManager {
 }
 
 const workspaceIndexManager = new WorkspaceIndexManager()
+
+// Index each filesystem-MCP mount root with the same walk/ignore/scoring used
+// for the workspace vault, then mount-qualify the paths (e.g. `docs/notes/a.md`)
+// so a picked entry inserts a reference the agent can read with its fs_* tools.
+const buildMcpEntries = async (roots: readonly McpFileRoot[]): Promise<McpIndexedEntry[]> => {
+  const entries: McpIndexedEntry[] = []
+
+  for (const root of roots) {
+    let indexed: WorkspaceIndexedEntry[]
+
+    try {
+      indexed = await workspaceIndexManager.get(root.rootPath)
+    } catch {
+      continue
+    }
+
+    for (const entry of indexed) {
+      const qualifiedPath = `${root.mountId}/${entry.relativePath}`
+
+      entries.push({
+        depth: entry.depth + 1,
+        extension: entry.extension,
+        fileName: entry.fileName,
+        mtimeMs: entry.mtimeMs,
+        nameLower: entry.nameLower,
+        pathLower: qualifiedPath.toLowerCase(),
+        relativePath: qualifiedPath,
+        source: 'mcp',
+      })
+    }
+  }
+
+  return entries
+}
 
 const extensionBoost = (extension: string): number => {
   switch (extension) {
@@ -781,12 +832,30 @@ const toSearchResultItem = (candidate: ScoredEntry): FilePickerSearchResultItem 
   }
 }
 
+const resolveMcpFileRoots = (roots: readonly McpFileRoot[] | undefined): McpFileRoot[] => {
+  if (!roots || roots.length === 0) {
+    return []
+  }
+
+  const seen = new Set<string>()
+
+  return roots.filter((root) => {
+    if (!root.rootPath || seen.has(root.rootPath)) {
+      return false
+    }
+
+    seen.add(root.rootPath)
+    return true
+  })
+}
+
 export const searchFilePicker = async (
   db: AppDatabase,
   input: SearchFilePickerInput,
   context: {
     createId: <TPrefix extends string>(prefix: TPrefix) => `${TPrefix}_${string}`
     fileStorageRoot: string
+    mcpFileRoots?: readonly McpFileRoot[]
     tenantScope: TenantScope
   },
 ): Promise<Result<FilePickerSearchResultItem[], DomainError>> => {
@@ -837,10 +906,11 @@ export const searchFilePicker = async (
     context.fileStorageRoot,
   )
   const attachmentEntries = dedupeAttachments(availableAttachmentFiles)
+  const mcpEntries = await buildMcpEntries(resolveMcpFileRoots(context.mcpFileRoots))
   const normalizedQuery = (input.query ?? '').trim().toLowerCase()
   const heap = new TopKHeap(clampLimit(input.limit))
 
-  for (const entry of [...workspaceEntries, ...attachmentEntries]) {
+  for (const entry of [...workspaceEntries, ...attachmentEntries, ...mcpEntries]) {
     const scored = scoreEntry(entry, normalizedQuery)
 
     if (!scored) {

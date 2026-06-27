@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'vitest'
 
+import { searchFilePicker } from '../src/application/files/file-picker-search'
 import { fileLinks, files, workSessions } from '../src/db/schema'
+import { asAccountId, asTenantId } from '../src/shared/ids'
+import type { TenantScope } from '../src/shared/scope'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
 
@@ -126,6 +130,47 @@ test('file picker search ranks workspace matches and skips excluded folders', as
   assert.ok(
     body.data.every((item: { relativePath: string }) => item.relativePath !== 'dist/ignored.ts'),
   )
+})
+
+test('file picker search merges filesystem MCP folders as mount-qualified entries', async () => {
+  const { runtime } = createTestHarness({
+    AUTH_MODE: 'api_key',
+    NODE_ENV: 'test',
+  })
+  const { accountId, tenantId } = seedApiKeyAuth(runtime)
+
+  const mcpRoot = mkdtempSync(join(tmpdir(), 'file-picker-mcp-'))
+  mkdirSync(join(mcpRoot, 'Projects'), { recursive: true })
+  writeFileSync(join(mcpRoot, 'Projects', 'Alice.md'), '# Alice')
+
+  const tenantScope: TenantScope = {
+    accountId: asAccountId(accountId),
+    role: 'admin',
+    tenantId: asTenantId(tenantId),
+  }
+
+  const result = await searchFilePicker(
+    runtime.db,
+    { query: 'alice', limit: 10 },
+    {
+      createId: runtime.services.ids.create,
+      fileStorageRoot: runtime.config.files.storage.root,
+      mcpFileRoots: [{ mountId: 'notes', rootPath: mcpRoot }],
+      tenantScope,
+    },
+  )
+
+  assert.equal(result.ok, true)
+  if (!result.ok) {
+    return
+  }
+
+  const mcpHit = result.value.find((item) => item.source === 'mcp')
+  assert.ok(mcpHit, 'expected an mcp-sourced result')
+  assert.equal(mcpHit?.relativePath, 'notes/Projects/Alice.md')
+  assert.equal(mcpHit?.mentionText, 'notes/Projects/Alice.md')
+  assert.equal(mcpHit?.label, 'Alice.md')
+  assert.equal(mcpHit?.fileId, null)
 })
 
 test('file picker search merges durable attachments and session-visible files', async () => {
