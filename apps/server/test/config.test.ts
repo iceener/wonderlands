@@ -10,7 +10,9 @@ test('loadConfig provides defaults without requiring .env', () => {
   assert.equal(config.ai.defaults.provider, 'openai')
   assert.equal(config.ai.defaults.model, 'gpt-5.4')
   assert.equal(config.ai.modelRegistry.aliases.google_default.model, 'gemini-3.1-pro-preview')
-  assert.equal(config.ai.providers.google.imageDefaultModel, 'gemini-3.1-flash-image-preview')
+  assert.equal(config.ai.modelRegistry.aliases['gpt-5.6'].model, 'gpt-5.6-sol')
+  assert.equal(config.ai.modelRegistry.aliases['gemini-3.5-flash'].model, 'gemini-3.5-flash')
+  assert.equal(config.ai.providers.google.imageDefaultModel, 'gemini-3.1-flash-image')
   assert.equal(config.ai.imageModelRegistry.defaultAliases.generate, null)
   assert.equal(config.ai.imageModelRegistry.defaultAliases.edit, null)
   assert.equal(config.ai.defaults.timeoutMs, 60_000)
@@ -37,17 +39,25 @@ test('loadConfig enables Gemini image generation defaults when Google is configu
     NODE_ENV: 'test',
   })
 
-  assert.equal(config.ai.providers.google.imageDefaultModel, 'gemini-3.1-flash-image-preview')
+  assert.equal(config.ai.providers.google.imageDefaultModel, 'gemini-3.1-flash-image')
   assert.equal(config.ai.imageModelRegistry.defaultAliases.edit, 'google_default_edit')
   assert.equal(config.ai.imageModelRegistry.defaultAliases.generate, 'google_default_generate')
   assert.equal(
     config.ai.imageModelRegistry.aliases.google_default_edit.model,
-    'gemini-3.1-flash-image-preview',
+    'gemini-3.1-flash-image',
   )
   assert.equal(
     config.ai.imageModelRegistry.aliases.google_default_generate.model,
-    'gemini-3.1-flash-image-preview',
+    'gemini-3.1-flash-image',
   )
+  assert.deepEqual(config.ai.imageModelRegistry.aliases.nano_banana_2_edit, {
+    model: 'gemini-3.1-flash-image',
+    provider: 'google',
+  })
+  assert.deepEqual(config.ai.imageModelRegistry.aliases.nano_banana_2_generate, {
+    model: 'gemini-3.1-flash-image',
+    provider: 'google',
+  })
 })
 
 test('loadConfig falls back to OpenAI image defaults when Google is not configured', () => {

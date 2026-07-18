@@ -66,6 +66,29 @@ test('OpenAI request replays assistant history as output_text messages', () => {
   })
 })
 
+test('OpenAI request forwards max reasoning effort for gpt-5.6-sol', () => {
+  const request: ResolvedAiInteractionRequest = {
+    messages: [
+      {
+        content: [{ text: 'solve this', type: 'text' }],
+        role: 'user',
+      },
+    ],
+    model: 'gpt-5.6-sol',
+    provider: 'openai',
+    reasoning: {
+      effort: 'max',
+    },
+  }
+
+  const body = createRequestBody(request, openAiConfig, false)
+
+  assert.deepEqual(body.reasoning, {
+    effort: 'max',
+    summary: 'auto',
+  })
+})
+
 test('Google Interactions request omits legacy metadata labels', () => {
   const request: ResolvedAiInteractionRequest = {
     maxOutputTokens: 32,

@@ -719,7 +719,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const openRouterDefaultModel = raw.OPENROUTER_DEFAULT_MODEL?.trim() || 'openai/gpt-5.4'
   const openAiImageDefaultModel = raw.OPENAI_IMAGE_DEFAULT_MODEL?.trim() || 'gpt-image-1.5'
   const googleImageDefaultModel =
-    raw.GOOGLE_IMAGE_DEFAULT_MODEL?.trim() || 'gemini-3.1-flash-image-preview'
+    raw.GOOGLE_IMAGE_DEFAULT_MODEL?.trim() || 'gemini-3.1-flash-image'
   const openRouterImageDefaultModel =
     raw.OPENROUTER_IMAGE_DEFAULT_MODEL?.trim() || 'google/gemini-3.1-flash-image-preview'
   const openAiConfigured = Boolean(parseOptionalString(raw.OPENAI_API_KEY))
@@ -882,6 +882,14 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
         model: 'gemini-3.1-flash-lite-preview',
         provider: 'google',
       },
+      'gemini-3.5-flash': {
+        model: 'gemini-3.5-flash',
+        provider: 'google',
+      },
+      'gpt-5.6': {
+        model: 'gpt-5.6-sol',
+        provider: 'openai',
+      },
       google_default: {
         model: googleDefaultModel,
         provider: 'google',
@@ -905,6 +913,14 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
       },
       google_default_generate: {
         model: googleImageDefaultModel,
+        provider: 'google',
+      },
+      nano_banana_2_edit: {
+        model: 'gemini-3.1-flash-image',
+        provider: 'google',
+      },
+      nano_banana_2_generate: {
+        model: 'gemini-3.1-flash-image',
         provider: 'google',
       },
       openai_default_edit: {

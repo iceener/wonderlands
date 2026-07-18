@@ -102,6 +102,7 @@ test('models endpoint exposes configured aliases and provider availability', asy
     { effort: 'medium', label: 'Medium' },
     { effort: 'high', label: 'High' },
     { effort: 'xhigh', label: 'Very high' },
+    { effort: 'max', label: 'Maximum' },
   ])
   const aliasByName = new Map(
     body.data.aliases.map((alias: (typeof body.data.aliases)[number]) => [alias.alias, alias]),
@@ -139,6 +140,26 @@ test('models endpoint exposes configured aliases and provider availability', asy
   })
   assert.equal(aliasByName.has('gemini-3.1-pro'), true)
   assert.equal(aliasByName.has('gemini-3.1-flash-lite'), true)
+  assert.deepEqual(aliasByName.get('gemini-3.5-flash'), {
+    alias: 'gemini-3.5-flash',
+    configured: true,
+    contextWindow: 1_048_576,
+    isDefault: false,
+    model: 'gemini-3.5-flash',
+    provider: 'google',
+    reasoningModes: ['none', 'minimal', 'low', 'medium', 'high'],
+    supportsReasoning: true,
+  })
+  assert.deepEqual(aliasByName.get('gpt-5.6'), {
+    alias: 'gpt-5.6',
+    configured: false,
+    contextWindow: 1_047_576,
+    isDefault: false,
+    model: 'gpt-5.6-sol',
+    provider: 'openai',
+    reasoningModes: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+    supportsReasoning: true,
+  })
 })
 
 test('runtime endpoint exposes current kernel availability summary', async () => {

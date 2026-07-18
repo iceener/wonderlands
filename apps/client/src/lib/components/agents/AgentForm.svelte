@@ -1157,7 +1157,8 @@ const openaiDescriptions: Record<AgentReasoningSelection, string> = {
   low: 'Quick reasoning, lower latency',
   medium: 'Balanced reasoning (default for most models)',
   high: 'Deep reasoning, slower first token',
-  xhigh: 'Maximum depth. Only codex-max models',
+  xhigh: 'Very high reasoning depth',
+  max: 'Maximum reasoning depth. Only supported by select models',
 }
 
 const googleDescriptions: Record<AgentReasoningSelection, string> = {
@@ -1168,6 +1169,7 @@ const googleDescriptions: Record<AgentReasoningSelection, string> = {
   medium: 'Use the provider default thinking behavior',
   high: 'Use the provider default thinking behavior',
   xhigh: 'Use the provider default thinking behavior',
+  max: 'Use the provider default thinking behavior',
 }
 
 const getModeLabel = (mode: AgentReasoningSelection): string => {

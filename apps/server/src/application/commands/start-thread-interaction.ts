@@ -57,7 +57,7 @@ const startThreadInteractionInputSchema = z
     provider: z.enum(['openai', 'google', 'openrouter']).optional(),
     reasoning: z
       .object({
-        effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']),
+        effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']),
         summary: z.enum(['auto', 'concise', 'detailed']).optional(),
       })
       .optional(),

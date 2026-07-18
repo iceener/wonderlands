@@ -384,6 +384,13 @@ const toOpenRouterReasoning = (request: Pick<ResolvedAiInteractionRequest, 'reas
     return undefined
   }
 
+  if (request.reasoning.effort === 'max') {
+    throw new DomainErrorException({
+      message: 'OpenRouter reasoning does not support max effort through this adapter',
+      type: 'validation',
+    })
+  }
+
   return {
     effort: request.reasoning.effort,
     ...(request.reasoning.summary ? { summary: request.reasoning.summary } : {}),

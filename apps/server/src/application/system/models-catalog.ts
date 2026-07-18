@@ -9,9 +9,26 @@ const REASONING_MODES: Array<{ effort: AiReasoningEffort; label: string }> = [
   { effort: 'medium', label: 'Medium' },
   { effort: 'high', label: 'High' },
   { effort: 'xhigh', label: 'Very high' },
+  { effort: 'max', label: 'Maximum' },
 ]
 
 const GOOGLE_REASONING_MODES: AiReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high']
+const OPENAI_REASONING_MODES: AiReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
+const GPT_5_6_SOL_REASONING_MODES: AiReasoningEffort[] = [
+  'none',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
 
 /** Known context window sizes (max input tokens) per model prefix. */
 const KNOWN_CONTEXT_WINDOWS: Array<[pattern: RegExp, tokens: number]> = [
@@ -38,6 +55,7 @@ export const resolveContextWindowForModel = (model: string): number => {
 }
 
 const openAiReasoningPattern = /^(openai\/)?(o\d|gpt-5)/iu
+const gpt56SolPattern = /^(openai\/)?gpt-5\.6-sol$/iu
 const googleReasoningPattern = /^gemini/iu
 
 const getReasoningModesForTarget = (target: AiModelTarget): AiReasoningEffort[] => {
@@ -47,9 +65,16 @@ const getReasoningModesForTarget = (target: AiModelTarget): AiReasoningEffort[] 
 
   if (
     (target.provider === 'openai' || target.provider === 'openrouter') &&
+    gpt56SolPattern.test(target.model)
+  ) {
+    return GPT_5_6_SOL_REASONING_MODES
+  }
+
+  if (
+    (target.provider === 'openai' || target.provider === 'openrouter') &&
     openAiReasoningPattern.test(target.model)
   ) {
-    return REASONING_MODES.map((mode) => mode.effort)
+    return OPENAI_REASONING_MODES
   }
 
   return []

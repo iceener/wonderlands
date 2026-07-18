@@ -7,7 +7,14 @@ export const BACKEND_DEFAULT_REASONING = 'default' as const
 export const INLINE_MESSAGE_TEXT_LIMIT = 10_000 as const
 
 export type ChatModel = typeof BACKEND_DEFAULT_MODEL | 'gpt-4.1' | 'gpt-5.4' | (string & {})
-export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type ReasoningEffort =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
 export type ReasoningSummary = 'auto' | 'concise' | 'detailed'
 export type ChatReasoningMode = typeof BACKEND_DEFAULT_REASONING | ReasoningEffort | (string & {})
 
