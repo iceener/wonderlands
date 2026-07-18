@@ -1,6 +1,8 @@
 {
   "name": "wonderlands",
   "private": true,
+  "author": "overment (https://overment.com)",
+  "license": "MIT",
   "workspaces": [
     "apps/*",
     "packages/*"

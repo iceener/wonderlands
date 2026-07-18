@@ -5,7 +5,7 @@ Wonderlands is a self-hosted, multi-tenant platform for conversational AI agents
 Core capabilities:
 
 - **Agents and conversations** — an assistant plus custom agents, each with its own instructions and model, talking in persisted sessions/threads backed by an event-sourced run/job model.
-- **Tools via MCP** — agents call external tools through Model Context Protocol servers, scoped per agent by tool profiles (e.g. the bundled Firecrawl web-search and filesystem servers).
+- **Tools via MCP code mode** — external tools come from Model Context Protocol servers, scoped per agent by tool profiles (e.g. the bundled Firecrawl web-search and filesystem servers). Rather than emitting one tool call at a time, the agent gets a catalog of the available MCP tools and invokes them by writing JavaScript that runs in the sandbox, so it can chain calls, transform results, and use npm packages in a single step.
 - **Browser sandbox** — optional Kernel-backed headless browser for web automation tools.
 - **Scheduled tasks** — run an agent on a cron schedule; each fire starts a normal conversation automatically.
 - **Garden** — publish notes and essays from a workspace vault as a static site.
@@ -224,3 +224,11 @@ npm run test --workspace @wonderlands/client
 npm run kernel:up
 npm run kernel:down
 ```
+
+## Author
+
+Built by [overment](https://overment.com).
+
+## License
+
+Released under the [MIT License](./LICENSE). Copyright (c) 2026 overment.
