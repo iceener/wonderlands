@@ -4,14 +4,12 @@ import { onMount } from 'svelte'
 let hasPlayedIntro = false
 
 const PATHS = [
-  'M12.697 22V16.882H6.417a5.15 5.15 0 0 1-5.151-5.15V10.502c0-2.671 1.777-4.936 4.21-5.674L3.862.932 6.113 0l2.904 7.01H6.416a2.715 2.715 0 0 0-2.715 2.715v2.005a2.715 2.715 0 0 0 2.715 2.715h8.717v2.743c1.767-1.297 4.174-3.063 4.655-3.417a3.94 3.94 0 0 0 1.43-2.818V9.724a2.715 2.715 0 0 0-2.715-2.714h-7.769L9.666 4.573h8.836a5.15 5.15 0 0 1 5.151 5.151v1.228a5.24 5.24 0 0 1-2.425 4.783s-6.593 4.839-6.593 4.839L12.697 22Z',
-  'M18.927.0004 16.461 5.953l2.251.933 2.466-5.953L18.927.0004Z',
-  'M2.934 9.42H0v2.707h2.934V9.42Z',
-  'M25.028 9.42h-2.934v2.707h2.934V9.42Z',
+  // Rounded navigation arrow with a deep lower notch, based on the supplied reference.
+  'M12.515 1.35C13.66 1.35 14.6 1.96 15.27 3.08L23.58 17.02C24.52 18.6 24.2 20.43 22.82 21.43C21.65 22.28 20.31 22.21 19.14 21.37L12.515 16.62L5.89 21.37C4.72 22.21 3.38 22.28 2.21 21.43C0.83 20.43 0.51 18.6 1.45 17.02L9.76 3.08C10.43 1.96 11.37 1.35 12.515 1.35Z',
 ]
 
 const VW = 25.03
-const VH = 22
+const VH = 23
 const DISPLAY = 100
 const GRID = 0.32
 const JITTER = 0.06
@@ -22,9 +20,14 @@ const SPRING = 0.012
 const DRAG = 0.88
 const CURSOR_R = 3.4
 const CURSOR_F = 11.5
+const CURSOR_FLOW = 9
 const MOUSE_SPEED_REF = 0.42
+const MAX_MOUSE_SPEED = 1.2
+const MOUSE_VEL_SMOOTH_MS = 34
 const VEL_IMPULSE = 6.2
 const MOUSE_VEL_DRAG = 0.82
+const PHYSICS_STEP_MS = 1000 / 120
+const MAX_PHYSICS_STEPS = 6
 const EXCITE_HIT = 0.14
 const EXCITE_DECAY_FILL = 0.968
 const EXCITE_DECAY_CONTOUR = 0.935
@@ -180,8 +183,17 @@ onMount(() => {
     const now = performance.now()
     if (prevMouseT > 0) {
       const mdt = Math.max(2, now - prevMouseT)
-      mouseVelX = (nmx - prevMx) / mdt
-      mouseVelY = (nmy - prevMy) / mdt
+      let rawVelX = (nmx - prevMx) / mdt
+      let rawVelY = (nmy - prevMy) / mdt
+      const rawSpeed = Math.hypot(rawVelX, rawVelY)
+      if (rawSpeed > MAX_MOUSE_SPEED) {
+        const limit = MAX_MOUSE_SPEED / rawSpeed
+        rawVelX *= limit
+        rawVelY *= limit
+      }
+      const blend = 1 - Math.exp(-mdt / MOUSE_VEL_SMOOTH_MS)
+      mouseVelX += (rawVelX - mouseVelX) * blend
+      mouseVelY += (rawVelY - mouseVelY) * blend
     }
     prevMx = nmx
     prevMy = nmy
@@ -190,22 +202,17 @@ onMount(() => {
     my = nmy
   }
 
-  const frame = (t: number) => {
-    if (!prev) prev = t
-    const dt = Math.min((t - prev) / 16.667, 4)
-    prev = t
-
+  const cr2 = CURSOR_R * CURSOR_R
+  const simulate = (dt: number, time: number) => {
     const damp = DRAG ** dt
-    const cr2 = CURSOR_R * CURSOR_R
-    const time = t * 0.002
-
     mouseVelX *= MOUSE_VEL_DRAG ** dt
     mouseVelY *= MOUSE_VEL_DRAG ** dt
 
     const mouseSpeed = Math.hypot(mouseVelX, mouseVelY)
-    const swipe = Math.min(1, mouseSpeed / MOUSE_SPEED_REF) ** 2
-
-    if (++fc % 120 === 0) refreshColor()
+    const speedRatio = Math.min(1, mouseSpeed / MOUSE_SPEED_REF)
+    const swipe = speedRatio * speedRatio
+    const cursorUX = mouseSpeed > 0.0001 ? mouseVelX / mouseSpeed : 0
+    const cursorUY = mouseSpeed > 0.0001 ? mouseVelY / mouseSpeed : 0
 
     for (let i = 0; i < N; i++) {
       const j = i * 2
@@ -226,13 +233,23 @@ onMount(() => {
         const d2 = dx * dx + dy * dy
         if (d2 < cr2 && d2 > 0.001) {
           const d = Math.sqrt(d2)
+          const radialX = dx / d
+          const radialY = dy / d
+          const tangentX = -radialY
+          const tangentY = radialX
           const falloff = (1 - d / CURSOR_R) ** 2
 
-          const repSwirl = CURSOR_F * falloff
-          fx += (dx / d) * repSwirl
-          fy += (dy / d) * repSwirl
-          fx += (-dy / d) * repSwirl * 2.35
-          fy += (dx / d) * repSwirl * 2.35
+          // A slow pointer gently parts the shape; a swipe pushes more firmly.
+          const pressure = CURSOR_F * falloff * (0.38 + speedRatio * 0.62)
+          fx += radialX * pressure
+          fy += radialY * pressure
+
+          // Project cursor motion onto the local tangent so flow splits naturally
+          // around both sides instead of always spinning in one direction.
+          const tangentMotion = cursorUX * tangentX + cursorUY * tangentY
+          const flow = CURSOR_FLOW * falloff * speedRatio * tangentMotion
+          fx += tangentX * flow
+          fy += tangentY * flow
 
           fx += mouseVelX * VEL_IMPULSE * falloff * swipe
           fy += mouseVelY * VEL_IMPULSE * falloff * swipe
@@ -250,6 +267,23 @@ onMount(() => {
       const dec = isC ? EXCITE_DECAY_CONTOUR : EXCITE_DECAY_FILL
       excite[i] *= dec ** dt
     }
+  }
+
+  let accumulator = 0
+  const frame = (t: number) => {
+    if (!prev) prev = t
+    accumulator += Math.min(t - prev, PHYSICS_STEP_MS * MAX_PHYSICS_STEPS)
+    prev = t
+
+    const time = t * 0.002
+    let steps = 0
+    while (accumulator >= PHYSICS_STEP_MS && steps < MAX_PHYSICS_STEPS) {
+      simulate(PHYSICS_STEP_MS / 16.667, time)
+      accumulator -= PHYSICS_STEP_MS
+      steps++
+    }
+
+    if (++fc % 120 === 0) refreshColor()
 
     const W = cw * dpr
     const H = ch * dpr
