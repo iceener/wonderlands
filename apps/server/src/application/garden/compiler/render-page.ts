@@ -1,5 +1,5 @@
 import { buildRelativeRouteHref, GARDEN_INTERNAL_HREF_PREFIX } from './rewrite-links'
-import type { GardenPageSeo, GardenSidebarItem } from './types'
+import type { GardenNavigationItem, GardenPageSeo, GardenSidebarItem } from './types'
 
 // --- Types ---
 
@@ -7,7 +7,9 @@ export interface GardenListingItem {
   date?: string
   description?: string
   routePath: string
+  tags?: readonly string[]
   title: string
+  updated?: string
 }
 
 export interface GardenListingContext {
@@ -80,9 +82,13 @@ const renderSrcAttributes = (rawUrl: string): string => {
 
 const slugify = (text: string): string => {
   const slug = text
+    .trim()
     .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '')
   return slug || 'section'
 }
@@ -119,23 +125,152 @@ const smartypants = (html: string): string => {
 
 // --- Inline Markdown ---
 
+const normalizeMarkdownUrl = (value: string): string => {
+  const trimmed = value.trim()
+  return trimmed.startsWith('<') && trimmed.endsWith('>') ? trimmed.slice(1, -1).trim() : trimmed
+}
+
 const renderInlineMarkdown = (value: string): string => {
   let output = escapeHtml(value)
 
   output = output.replace(
     /!\[([^\]]*)\]\(([^)]+)\)/g,
     (_match, alt: string, src: string) =>
-      `<img alt="${escapeHtml(alt)}"${renderSrcAttributes(src)} loading="lazy" decoding="async">`,
+      `<img alt="${escapeHtml(alt)}"${renderSrcAttributes(normalizeMarkdownUrl(src))} loading="lazy" decoding="async">`,
   )
   output = output.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_match, label: string, href: string) => `<a${renderHrefAttributes(href)}>${label}</a>`,
+    (_match, label: string, href: string) =>
+      `<a${renderHrefAttributes(normalizeMarkdownUrl(href))}>${label}</a>`,
+  )
+  output = output.replace(
+    /&lt;(https?:\/\/[^&]+)&gt;/g,
+    (_match, href: string) => `<a${renderHrefAttributes(href)}>${escapeHtml(href)}</a>`,
   )
   output = output.replace(/`([^`]+)`/g, '<code>$1</code>')
   output = output.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   output = output.replace(/\*([^*]+)\*/g, '<em>$1</em>')
 
   return output
+}
+
+// --- Shortcodes / raw HTML compatibility ---
+
+const NEWSLETTER_FORM_SHORTCODE_RE = /^\s*<NewsletterForm\s*\/?>\s*$/
+const FENCE_RE = /^\s*(```|~~~)/
+
+const renderNewsletterForm = (): string =>
+  '<div class="newsletter-form" data-newsletter-form data-status="idle" data-pagefind-ignore="all"><form class="newsletter-form__form" novalidate><div class="newsletter-form__row"><input class="newsletter-form__input" data-newsletter-email type="email" inputmode="email" autocomplete="email" placeholder="your@email.com" aria-label="Email address" aria-invalid="false" required><button class="newsletter-form__button" data-newsletter-submit type="submit" disabled>I\'m in</button></div><p class="newsletter-form__hint newsletter-form__hint--error" data-newsletter-validation hidden>That email doesn\u2019t look right.</p><div class="newsletter-form__notice" data-newsletter-notice role="status" aria-live="polite" hidden></div></form></div>'
+
+const renderShortcodes = (markdown: string): string => {
+  let inFence = false
+
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (FENCE_RE.test(line)) {
+        inFence = !inFence
+        return line
+      }
+
+      return !inFence && NEWSLETTER_FORM_SHORTCODE_RE.test(line) ? renderNewsletterForm() : line
+    })
+    .join('\n')
+}
+
+const isAllowedRawHtmlBlock = (line: string): boolean => {
+  const trimmed = line.trim()
+  return /^<img\s[^>]*>$/.test(trimmed) || /^<div class="newsletter-form"\s/.test(trimmed)
+}
+
+interface ListMarker {
+  content: string
+  indent: number
+  ordered: boolean
+}
+
+const parseListMarker = (line: string): ListMarker | null => {
+  const match = line.match(/^(\s*)(?:([-*+])|(\d+)\.)\s+(.+)$/)
+
+  if (!match) {
+    return null
+  }
+
+  return {
+    content: match[4],
+    indent: match[1].length,
+    ordered: match[3] !== undefined,
+  }
+}
+
+const leadingSpaces = (line: string): number => line.match(/^\s*/)?.[0].length ?? 0
+
+const renderListBlock = (
+  lines: readonly string[],
+  startIndex: number,
+  baseIndent = parseListMarker(lines[startIndex] ?? '')?.indent ?? 0,
+): { html: string; index: number } => {
+  const firstMarker = parseListMarker(lines[startIndex] ?? '')
+
+  if (!firstMarker) {
+    return {
+      html: '',
+      index: startIndex,
+    }
+  }
+
+  const ordered = firstMarker.ordered
+  const tag = ordered ? 'ol' : 'ul'
+  const items: string[] = []
+  let index = startIndex
+
+  while (index < lines.length) {
+    const marker = parseListMarker(lines[index] ?? '')
+
+    if (!marker || marker.indent !== baseIndent || marker.ordered !== ordered) {
+      break
+    }
+
+    let itemHtml = renderInlineMarkdown(marker.content.trim())
+    index += 1
+
+    while (index < lines.length) {
+      const line = lines[index] ?? ''
+
+      if (line.trim().length === 0) {
+        index += 1
+        break
+      }
+
+      const nestedMarker = parseListMarker(line)
+
+      if (nestedMarker) {
+        if (nestedMarker.indent > baseIndent) {
+          const nested = renderListBlock(lines, index, nestedMarker.indent)
+          itemHtml += nested.html
+          index = nested.index
+          continue
+        }
+
+        break
+      }
+
+      if (leadingSpaces(line) > baseIndent) {
+        itemHtml += `<br>${renderInlineMarkdown(line.trim())}`
+        index += 1
+        continue
+      }
+
+      break
+    }
+
+    items.push(`<li>${itemHtml}</li>`)
+  }
+
+  return {
+    html: `<${tag}>${items.join('')}</${tag}>`,
+    index,
+  }
 }
 
 // --- Markdown to HTML ---
@@ -158,6 +293,12 @@ const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
     const line = lines[index] ?? ''
 
     if (line.trim().length === 0) {
+      index += 1
+      continue
+    }
+
+    if (isAllowedRawHtmlBlock(line)) {
+      html.push(line.trim())
       index += 1
       continue
     }
@@ -226,27 +367,11 @@ const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
       continue
     }
 
-    // Unordered lists
-    if (line.startsWith('- ')) {
-      const items: string[] = []
-      while (index < lines.length && (lines[index] ?? '').startsWith('- ')) {
-        items.push(`<li>${renderInlineMarkdown((lines[index] ?? '').slice(2).trim())}</li>`)
-        index += 1
-      }
-      html.push(`<ul>${items.join('')}</ul>`)
-      continue
-    }
-
-    // Ordered lists
-    if (/^\d+\.\s/.test(line)) {
-      const items: string[] = []
-      while (index < lines.length && /^\d+\.\s/.test(lines[index] ?? '')) {
-        items.push(
-          `<li>${renderInlineMarkdown((lines[index] ?? '').replace(/^\d+\.\s/, '').trim())}</li>`,
-        )
-        index += 1
-      }
-      html.push(`<ol>${items.join('')}</ol>`)
+    // Lists, including simple nested Obsidian/Markdown lists
+    if (parseListMarker(line)) {
+      const list = renderListBlock(lines, index)
+      html.push(list.html)
+      index = list.index
       continue
     }
 
@@ -290,10 +415,9 @@ const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
       index < lines.length &&
       (lines[index] ?? '').trim().length > 0 &&
       !(lines[index] ?? '').startsWith('```') &&
-      !(lines[index] ?? '').startsWith('- ') &&
+      !parseListMarker(lines[index] ?? '') &&
       !(lines[index] ?? '').startsWith('> ') &&
       !(lines[index] ?? '').trimStart().startsWith('|') &&
-      !/^\d+\.\s/.test(lines[index] ?? '') &&
       !/^(#{1,6})\s+/.test(lines[index] ?? '') &&
       !/^(---|___|\*\*\*)$/.test((lines[index] ?? '').trim())
     ) {
@@ -422,34 +546,89 @@ const renderSearchMetadata = (input: {
   return parts.join('\n')
 }
 
-const renderSeoMeta = (
-  title: string,
-  description: string | undefined,
-  seo: GardenPageSeo | undefined,
-): string => {
+const renderSeoMeta = (input: {
+  description?: string
+  noindex?: boolean
+  routePath: string
+  seo?: GardenPageSeo
+  siteDescription?: string
+  siteImage?: string
+  siteTitle?: string
+  siteTwitter?: string
+  title: string
+}): string => {
   const meta: string[] = []
-  const seoTitle = seo?.title ?? title
-  const seoDescription = seo?.description ?? description
+  const seoTitle = input.seo?.title ?? input.title
+  const seoDescription = input.seo?.description ?? input.description ?? input.siteDescription
+  const image = input.seo?.image ?? input.siteImage
+  const documentTitle =
+    input.siteTitle && input.routePath !== '/' ? `${seoTitle} | ${input.siteTitle}` : seoTitle
 
-  meta.push(`<title>${escapeHtml(seoTitle)}</title>`)
+  meta.push(`<title>${escapeHtml(input.routePath === '/' && input.siteTitle ? input.siteTitle : documentTitle)}</title>`)
 
   if (seoDescription) {
     meta.push(`<meta name="description" content="${escapeHtml(seoDescription)}">`)
   }
 
-  if (seo?.canonical) {
-    meta.push(`<link rel="canonical" href="${escapeHtml(seo.canonical)}">`)
+  if (input.seo?.canonical) {
+    meta.push(`<link rel="canonical" href="${escapeHtml(input.seo.canonical)}">`)
   }
 
-  if (seo?.noindex) {
+  if (input.seo?.noindex ?? input.noindex) {
     meta.push('<meta name="robots" content="noindex, nofollow">')
   }
 
-  if (seo?.keywords && seo.keywords.length > 0) {
-    meta.push(`<meta name="keywords" content="${escapeHtml(seo.keywords.join(', '))}">`)
+  if (input.seo?.keywords && input.seo.keywords.length > 0) {
+    meta.push(`<meta name="keywords" content="${escapeHtml(input.seo.keywords.join(', '))}">`)
+  }
+
+  if (input.siteTitle) {
+    meta.push(`<meta property="og:site_name" content="${escapeHtml(input.siteTitle)}">`)
+  }
+  meta.push(`<meta property="og:title" content="${escapeHtml(seoTitle)}">`)
+  if (seoDescription) {
+    meta.push(`<meta property="og:description" content="${escapeHtml(seoDescription)}">`)
+  }
+  meta.push('<meta property="og:type" content="article">')
+  if (input.seo?.canonical) {
+    meta.push(`<meta property="og:url" content="${escapeHtml(input.seo.canonical)}">`)
+  }
+  if (image) {
+    meta.push(`<meta property="og:image" content="${escapeHtml(image)}">`)
+  }
+  meta.push(`<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`)
+  if (input.siteTwitter) {
+    meta.push(`<meta name="twitter:site" content="${escapeHtml(input.siteTwitter)}">`)
+  }
+  meta.push(`<meta name="twitter:title" content="${escapeHtml(seoTitle)}">`)
+  if (seoDescription) {
+    meta.push(`<meta name="twitter:description" content="${escapeHtml(seoDescription)}">`)
+  }
+  if (image) {
+    meta.push(`<meta name="twitter:image" content="${escapeHtml(image)}">`)
   }
 
   return meta.join('\n')
+}
+
+const DISPLAY_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+  year: 'numeric',
+})
+
+const formatDisplayDate = (value?: string): string | undefined => {
+  if (!value) return undefined
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return undefined
+  return DISPLAY_DATE_FORMATTER.format(time)
+}
+
+const renderUpdatedStamp = (lastUpdated?: string): string => {
+  const formatted = formatDisplayDate(lastUpdated)
+  if (!formatted || !lastUpdated) return ''
+  return `<p class="page-updated" data-pagefind-ignore="all">Last updated <time datetime="${escapeHtml(lastUpdated)}">${escapeHtml(formatted)}</time></p>`
 }
 
 const renderGrowthMarkers = (date?: string, updated?: string): string => {
@@ -461,11 +640,6 @@ const renderGrowthMarkers = (date?: string, updated?: string): string => {
   if (parts.length === 0) return ''
   return `<p class="growth" data-pagefind-ignore="all">${parts.join(' \u00b7 ')}</p>`
 }
-
-const renderPageDescription = (description?: string): string =>
-  description
-    ? `<p class="page-description" data-pagefind-meta="description" data-pagefind-weight="2">${escapeHtml(description)}</p>`
-    : ''
 
 const renderPageTags = (tags: readonly string[]): string => {
   if (tags.length === 0) {
@@ -513,54 +687,60 @@ const renderListing = (
   const items = listing.items
     .map((item) => {
       const href = buildRelativeRouteHref(currentRoutePath, item.routePath)
-      const description = item.description
-        ? `<p class="listing-desc">${escapeHtml(item.description)}</p>`
+      const descHtml = item.description
+        ? `<span class="listing-desc">${escapeHtml(item.description)}</span>`
         : ''
-      const date = item.date
-        ? `<time datetime="${escapeHtml(item.date)}">${escapeHtml(item.date)}</time>`
-        : ''
-      return `<article class="listing-item"><a${renderHrefAttributes(href)}>${escapeHtml(item.title)}</a>${description}${date}</article>`
+      const metaParts: string[] = []
+
+      const listingDate = item.updated ?? item.date
+      const listingDateFormatted = formatDisplayDate(listingDate) ?? listingDate
+
+      if (listingDate && listingDateFormatted) {
+        metaParts.push(
+          `<time class="listing-date" datetime="${escapeHtml(listingDate)}">${escapeHtml(listingDateFormatted)}</time>`,
+        )
+      }
+
+      if (item.tags && item.tags.length > 0) {
+        metaParts.push(
+          `<span class="listing-tags">${item.tags
+            .slice(0, 4)
+            .map((tag) => `<span class="listing-tag">${escapeHtml(tag)}</span>`)
+            .join('')}</span>`,
+        )
+      }
+
+      const metaHtml =
+        metaParts.length > 0 ? `<span class="listing-meta">${metaParts.join('')}</span>` : ''
+
+      return `<a class="listing-item"${renderHrefAttributes(href)}><span class="listing-body"><span class="listing-title">${escapeHtml(item.title)}</span>${descHtml}${metaHtml}</span><span class="listing-arrow" aria-hidden="true">→</span></a>`
     })
     .join('\n')
 
   let pagination = ''
   if (listing.totalPages > 1) {
-    const navParts: string[] = []
+    const pagePath = (page: number): string =>
+      page === 1
+        ? listing.parentRoutePath
+        : listing.parentRoutePath === '/'
+          ? `/page/${page}`
+          : `${listing.parentRoutePath}/page/${page}`
+    const prev =
+      listing.currentPage > 1
+        ? `<a class="pagination-prev"${renderHrefAttributes(buildRelativeRouteHref(currentRoutePath, pagePath(listing.currentPage - 1)))} rel="prev">← Newer</a>`
+        : '<span class="pagination-placeholder"></span>'
+    const next =
+      listing.currentPage < listing.totalPages
+        ? `<a class="pagination-next"${renderHrefAttributes(buildRelativeRouteHref(currentRoutePath, pagePath(listing.currentPage + 1)))} rel="next">Older →</a>`
+        : '<span class="pagination-placeholder"></span>'
 
-    if (listing.currentPage > 1) {
-      const prevPage = listing.currentPage - 1
-      const prevPath =
-        prevPage === 1
-          ? listing.parentRoutePath
-          : listing.parentRoutePath === '/'
-            ? `/page/${prevPage}`
-            : `${listing.parentRoutePath}/page/${prevPage}`
-      const prevHref = buildRelativeRouteHref(currentRoutePath, prevPath)
-      navParts.push(`<a${renderHrefAttributes(prevHref)} rel="prev">Previous</a>`)
-    }
-
-    navParts.push(`<span>Page ${listing.currentPage} of ${listing.totalPages}</span>`)
-
-    if (listing.currentPage < listing.totalPages) {
-      const nextPage = listing.currentPage + 1
-      const nextPath =
-        listing.parentRoutePath === '/'
-          ? `/page/${nextPage}`
-          : `${listing.parentRoutePath}/page/${nextPage}`
-      const nextHref = buildRelativeRouteHref(currentRoutePath, nextPath)
-      navParts.push(`<a${renderHrefAttributes(nextHref)} rel="next">Next</a>`)
-    }
-
-    pagination = `<nav class="listing-nav" aria-label="Pagination">${navParts.join('\n')}</nav>`
+    pagination = `<nav class="pagination" aria-label="Pagination">${prev}<span class="pagination-info">${listing.currentPage} / ${listing.totalPages}</span>${next}</nav>`
   }
 
-  return `<section class="listing" data-pagefind-ignore="all">${items}${pagination}</section>`
+  return `<section class="listing" data-pagefind-ignore="all">${items}</section>${pagination}`
 }
 
-const renderFooter = (siteTitle?: string): string => {
-  if (!siteTitle) return ''
-  return `<footer data-pagefind-ignore="all" role="contentinfo">${escapeHtml(siteTitle)}</footer>`
-}
+const renderFooter = (_siteTitle?: string): string => ''
 
 const renderSearchPanel = (hasProtectedSearch: boolean): string => `
 <section class="garden-search" data-garden-search-root data-pagefind-ignore="all">
@@ -578,11 +758,52 @@ const renderSearchPanel = (hasProtectedSearch: boolean): string => `
       aria-label="Search this garden">
     <kbd class="garden-search-kbd" data-garden-search-kbd>/</kbd>
   </div>
-  <div class="garden-search-filters" data-garden-search-filters hidden></div>
-  <p aria-live="polite" class="garden-search-status" data-garden-search-status hidden></p>
-  <div class="garden-search-results" data-garden-search-results role="listbox" aria-label="Search results" hidden></div>
+  <div class="garden-search-popover" data-garden-search-popover>
+    <div class="garden-search-filters" data-garden-search-filters hidden></div>
+    <p aria-live="polite" class="garden-search-status" data-garden-search-status hidden></p>
+    <div class="garden-search-results" data-garden-search-results role="listbox" aria-label="Search results" hidden></div>
+  </div>
 </section>
 `
+
+const renderHiddenSitemap = (
+  sidebarItems: readonly GardenSidebarItem[],
+  currentRoutePath: string,
+): string =>
+  sidebarItems.length > 0
+    ? `<nav class="garden-sidebar" hidden data-pagefind-ignore="all"><ul class="sidebar-list">${renderSidebarItems(sidebarItems, currentRoutePath)}</ul></nav>`
+    : ''
+
+const renderTopNavigation = (input: {
+  currentRoutePath: string
+  hasProtectedSearch: boolean
+  navigationItems: readonly GardenNavigationItem[]
+  sidebarItems: readonly GardenSidebarItem[]
+  siteTitle?: string
+}): string => {
+  const homeHref = buildRelativeRouteHref(input.currentRoutePath, '/')
+  const brand = input.siteTitle
+    ? `<a${renderHrefAttributes(homeHref)} class="site-title">${escapeHtml(input.siteTitle)}</a>`
+    : ''
+  const fallbackItems = input.sidebarItems
+    .filter((item) => item.path && item.path !== '/')
+    .map((item) => ({ label: item.label, path: item.path as string }))
+  const navigationItems = input.navigationItems.length > 0 ? input.navigationItems : fallbackItems
+  const links = navigationItems
+    .map((item) => {
+      const href = buildRelativeRouteHref(input.currentRoutePath, item.path)
+      const normalizedPath = item.path === '/' ? '/' : item.path.replace(/\/+$/g, '')
+      const active =
+        input.currentRoutePath === normalizedPath ||
+        (normalizedPath !== '/' && input.currentRoutePath.startsWith(`${normalizedPath}/`))
+      const activeClass = active ? ' class="active"' : ''
+      const currentAttr = active ? ' aria-current="page"' : ''
+      return `<a${renderHrefAttributes(href)}${activeClass}${currentAttr}>${escapeHtml(item.label)}</a>`
+    })
+    .join('\n      ')
+
+  return `<nav class="garden-topnav" data-pagefind-ignore="all">${brand}<div class="nav-links">${links}</div>${renderSearchPanel(input.hasProtectedSearch)}</nav>`
+}
 
 const renderSearchConfig = (input: {
   hasProtectedSearch: boolean
@@ -597,7 +818,7 @@ const renderSearchConfig = (input: {
 // --- Fonts ---
 
 const FONTS_URL =
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Lexend+Deca:wght@400;500;600;700&family=Lexend:wght@500;600;700&display=swap'
+  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Lexend:wght@300;400;500;600;700&display=swap'
 
 const FAVICON_DATA_URI =
   'data:image/svg+xml,' +
@@ -608,6 +829,7 @@ const FAVICON_DATA_URI =
 // --- CSS ---
 
 const GARDEN_CSS = `*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 
 :root{
 color-scheme:light;
@@ -1453,6 +1675,153 @@ html{scroll-behavior:smooth}
 ::view-transition-old(sidebar),::view-transition-new(sidebar){animation:none}
 `
 
+const OVERMENT_GARDEN_CSS = `
+@view-transition{navigation:auto}
+::view-transition-old(root),::view-transition-new(root){animation-duration:180ms;animation-timing-function:cubic-bezier(.4,0,.2,1)}
+
+:root{
+--content-width:38rem;
+--bg:#fafaf7;
+--surface:#ffffff;
+--surface-0:#ffffff;
+--surface-1:#f4f3ee;
+--surface-2:#ecebe5;
+--border:rgba(15,15,15,.08);
+--border-strong:rgba(15,15,15,.16);
+--fg:#3f3f46;
+--fg-strong:#09090b;
+--fg-muted:#52525b;
+--fg-faint:#a1a1aa;
+--text:var(--fg-strong);
+--text-secondary:var(--fg-muted);
+--text-tertiary:var(--fg-faint);
+--accent:#9333ea;
+--accent-hover:#7e22ce;
+--accent-soft:#d8b4fe;
+--accent-text:var(--accent);
+--link:var(--accent);
+--link-hover:var(--accent-hover);
+--link-underline:color-mix(in srgb,var(--accent) 45%,transparent);
+--selection-bg:#e9d5ff;
+--selection-fg:#3b0764;
+--font-sans:"Lexend",-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+--font-heading:var(--font-sans);
+--font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+
+@media(prefers-color-scheme:dark){
+:root{
+--bg:#0b0b0d;
+--surface:#131316;
+--surface-0:#131316;
+--surface-1:#18181b;
+--surface-2:#222228;
+--border:rgba(255,255,255,.07);
+--border-strong:rgba(255,255,255,.14);
+--fg:#a1a1aa;
+--fg-strong:#fafafa;
+--fg-muted:#71717a;
+--fg-faint:#52525b;
+--text:var(--fg-strong);
+--text-secondary:var(--fg-muted);
+--text-tertiary:var(--fg-faint);
+--accent:#c084fc;
+--accent-hover:#d8b4fe;
+--accent-soft:#a855f7;
+--accent-text:var(--accent);
+--link:var(--accent);
+--link-hover:var(--accent-hover);
+--link-underline:color-mix(in srgb,var(--accent) 60%,transparent);
+--selection-bg:rgba(192,132,252,.35);
+--selection-fg:#faf5ff;
+}
+html{color-scheme:dark}
+}
+
+*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+::selection{background:var(--selection-bg);color:var(--selection-fg)}
+html{background:var(--bg);scroll-behavior:smooth;scrollbar-gutter:stable;overflow-y:scroll}
+body{border-top:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-weight:350;font-size:16px;line-height:1.7;letter-spacing:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+body.no-scroll{overflow:hidden}
+.garden-shell{display:block;min-height:100dvh}
+.skip-link{background:var(--surface);color:var(--accent);border-color:var(--border)}
+
+.garden-topnav{max-width:var(--content-width);margin:0 auto;padding:2.25rem 1.5rem 1.25rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:1rem 1.5rem;border-bottom:1px solid var(--border);position:relative;z-index:20}
+.site-title{font-family:var(--font-sans);font-weight:600;font-size:.95rem;letter-spacing:-.02em;color:var(--fg-strong);text-decoration:none;white-space:nowrap;margin-right:auto}
+.site-title:hover{color:var(--fg-strong);text-decoration:none}
+.nav-links{display:flex;flex-wrap:wrap;gap:1.35rem;align-items:center}
+.nav-links a{position:relative;font-size:.85rem;font-weight:400;letter-spacing:-.005em;color:var(--fg-muted);text-decoration:none;padding-bottom:.15rem;white-space:nowrap}
+.nav-links a:hover,.nav-links a.active{color:var(--fg-strong);text-decoration:none}
+.nav-links a.active::after{content:"";position:absolute;left:0;right:0;bottom:-.4rem;height:1.5px;background:var(--fg-strong)}
+
+.garden-search{flex:1 1 22rem;min-width:min(18rem,100%);display:flex;flex-direction:column;gap:.35rem;position:relative;margin-left:auto}
+.garden-search-field{position:relative;display:flex;align-items:center;width:100%}
+.garden-search-popover{position:absolute;top:calc(100% + .5rem);left:0;right:0;z-index:60;display:flex;flex-direction:column;gap:.55rem;padding:.7rem;border:1px solid var(--border);border-radius:12px;background:color-mix(in srgb,var(--surface) 97%,transparent);box-shadow:0 24px 64px rgba(0,0,0,.28);backdrop-filter:blur(16px)}
+.garden-search-popover:not(:has(> :not([hidden]))){display:none}
+.garden-search-input{width:100%;height:2.25rem;padding:0 2.2rem 0 .7rem;border:1px solid var(--border);border-radius:6px;background:var(--surface-1);color:var(--fg-strong);font:inherit;font-size:.8125rem;line-height:1.4;appearance:none}
+.garden-search-input::placeholder{color:var(--fg-faint)}
+.garden-search-input:focus-visible{outline:none;border-color:var(--border-strong);background:var(--surface)}
+.garden-search-kbd{position:absolute;right:.45rem;display:flex;align-items:center;justify-content:center;min-width:1.25rem;height:1.25rem;padding:0 .3rem;border:1px solid var(--border);border-radius:4px;background:var(--surface);font-family:var(--font-mono);font-size:.625rem;line-height:1;color:var(--fg-faint);pointer-events:none}
+.garden-search-input:focus~.garden-search-kbd{display:none}
+.garden-search-filters{display:flex;flex-wrap:wrap;gap:.3rem;margin:0;padding-bottom:.55rem;border-bottom:1px solid var(--border)}
+.garden-search-filter{display:inline-flex;align-items:center;gap:.35rem;height:1.5rem;padding:0 .5rem;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:.6875rem;color:var(--fg-muted);cursor:pointer}
+.garden-search-filter:hover,.garden-search-filter.is-active{border-color:color-mix(in srgb,var(--accent) 32%,var(--border));color:var(--fg-strong);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.garden-search-filter-count{font-size:.625rem;color:var(--fg-faint)}
+.garden-search-status{margin:0;font-size:.6875rem;color:var(--fg-faint);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.04em}
+.garden-search-results{display:flex;flex-direction:column;gap:.1rem;max-height:min(60vh,28rem);overflow:auto;margin:0;padding:0;border:0;background:none;box-shadow:none}
+.garden-search-results[hidden],.garden-search-status[hidden],.garden-search-filters[hidden]{display:none!important}
+.garden-search-empty,.garden-search-error{margin:0;padding:.85rem .75rem;text-align:center;font-size:.8125rem;line-height:1.5;color:var(--fg-muted)}
+.garden-search-result{display:block;padding:.55rem .65rem;border-radius:7px;text-decoration:none;color:inherit}
+.garden-search-result:hover,.garden-search-result.is-active{background:var(--surface-1);text-decoration:none}
+.garden-search-result-title{display:block;font-size:.85rem;font-weight:500;line-height:1.35;color:var(--fg-strong)}
+.garden-search-result-excerpt{display:block;margin-top:.16rem;font-size:.76rem;line-height:1.45;color:var(--fg-muted)}
+.garden-search-result mark,.garden-search-subresult mark{padding:.05em .15em;border-radius:.2em;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.garden-search-subresults{margin-top:.25rem;display:flex;flex-direction:column}
+.garden-search-subresult{display:block;margin-left:.35rem;padding:.2rem 0 .2rem .7rem;border-left:1px solid var(--border);text-decoration:none}
+.garden-search-subresult:hover{border-left-color:var(--accent);text-decoration:none}
+
+.garden-content{min-width:0;view-transition-name:content}
+main{max-width:var(--content-width);width:100%;margin:0 auto;padding:3.25rem 1.5rem 6rem}
+main>section,main>article,.page-searchable{line-height:1.7;letter-spacing:0;word-break:break-word}
+.page-title{font-family:var(--font-sans);font-size:clamp(1.85rem,1.5rem + 1.4vw,2.35rem);font-weight:600;line-height:1.12;letter-spacing:-.035em;color:var(--fg-strong);margin:0 0 2.5rem;text-wrap:balance}
+.page-updated{margin:-1.95rem 0 1.7rem;font-family:var(--font-mono);font-size:.72rem;color:var(--fg-faint);letter-spacing:.04em;text-transform:uppercase}
+.page-updated time{color:var(--fg-muted)}
+.page-updated+.page-description,.page-updated+.page-tags,.page-updated+.growth{margin-top:0}
+.page-description{margin:-1.5rem 0 1.8rem;font-size:1rem;line-height:1.65;color:var(--fg-muted);text-wrap:pretty}
+.growth{margin:-1rem 0 1.6rem;font-family:var(--font-mono);font-size:.72rem;color:var(--fg-faint);letter-spacing:.03em;text-transform:uppercase}
+.page-tags{display:flex;flex-wrap:wrap;gap:.4rem;list-style:none;padding:0;margin:-.75rem 0 1.65rem}
+.page-tag{display:inline-flex;align-items:center;padding:.12rem .5rem;border:1px solid var(--border);border-radius:999px;background:color-mix(in srgb,var(--surface-1) 70%,transparent);font-family:var(--font-mono);font-size:.65rem;letter-spacing:.05em;text-transform:uppercase;color:var(--fg-muted)}
+
+h1,h2,h3,h4,h5,h6{font-family:var(--font-sans);color:var(--fg-strong);font-weight:600;text-wrap:balance}
+h1{font-size:1.5rem}h2{font-size:1.3rem;line-height:1.3;letter-spacing:-.02em;margin-top:2.5rem;margin-bottom:1.1rem}h3{font-size:1.075rem;font-weight:500;line-height:1.35;letter-spacing:-.015em;margin-top:1.85rem;margin-bottom:.6rem}h4{font-size:.95rem;font-weight:600;letter-spacing:-.01em;margin-top:1.5rem;margin-bottom:.4rem;text-transform:none;color:var(--fg-strong)}
+main>section>article>:first-child{margin-top:0}
+p{color:var(--fg);text-wrap:pretty;margin:0 0 1.4rem}
+strong{font-weight:600;color:var(--fg-strong)}
+em{font-style:italic;color:var(--fg);border-bottom:0}
+a{color:var(--link);text-decoration:underline;text-decoration-color:var(--link-underline);text-decoration-thickness:1.5px;text-decoration-skip-ink:auto;text-underline-offset:3px;transition:color .15s ease,text-decoration-color .15s ease}
+a:hover{color:var(--link-hover);text-decoration-color:var(--link-hover)}
+ul,ol{margin-bottom:1.4rem;padding-left:1.4rem;color:var(--fg)}
+li{margin-bottom:.55rem;padding-left:.25rem;color:var(--fg)}li::marker{color:var(--fg-faint)}li>ul,li>ol{margin-top:.4rem;margin-bottom:0}
+:not(pre)>code{font-family:var(--font-mono);font-size:.825em;font-weight:400;background:var(--surface-1);border:1px solid var(--border);padding:.12em .42em;border-radius:4px;color:var(--fg-strong)}
+.code-block{margin:.5rem 0 1.5rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);overflow:hidden}.code-header{background:var(--surface-1);border-bottom:1px solid var(--border)}.code-block pre{margin:0;padding:1.1rem 1.35rem;overflow-x:auto}.code-block code{font-family:var(--font-mono);font-size:.8125rem;line-height:1.65;color:var(--fg-strong)}
+blockquote{margin:1.6rem 0 2rem;padding:.4rem 0 .4rem 1.5rem;border-left:2px solid var(--border-strong);background:transparent;border-radius:0;color:var(--fg-muted)}blockquote p{font-size:1.05rem;font-style:italic;color:inherit}blockquote p:last-child{margin-bottom:0}
+hr{border:0;height:1px;background:var(--border);margin:3rem auto;max-width:4rem}hr::after{content:""}
+img{display:block;max-width:100%;height:auto;border-radius:6px;margin:1rem 0 1.75rem;border:1px solid var(--border)}p:has(>img:only-child){margin:0}img[style*="max-width: 100px"],img[style*="max-width:100px"]{border:0;border-radius:0}
+.table-wrap,table{width:100%}.table-wrap{margin:.5rem 0 2rem;overflow-x:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface)}table{border-collapse:collapse;margin:0}th,td{padding:.7rem .95rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--border);font-size:.9rem}th{background:var(--surface);font-weight:500;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-strong)}td{color:var(--fg)}
+.page-cover{margin:0 0 1.6rem;border-radius:8px;overflow:hidden}.page-cover::after{display:none}.page-cover img{width:100%;max-height:28rem;object-fit:cover;margin:0;border:1px solid var(--border)}
+.toc{display:none}
+
+.listing{margin-top:1.5rem;border-top:1px solid var(--border)}.listing-item{position:relative;display:flex;align-items:center;gap:1rem;padding:1.15rem 0;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;transition:padding .18s ease}.listing-item:hover .listing-title,.listing-item:focus-visible .listing-title{color:var(--fg-strong)}.listing-body{display:flex;flex-direction:column;gap:.3rem;min-width:0;flex:1}.listing-title{font-size:1.05rem;font-weight:500;letter-spacing:-.015em;color:var(--fg-strong);line-height:1.3}.listing-desc{font-size:.9rem;line-height:1.5;color:var(--fg-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.listing-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .85rem;margin-top:.15rem;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-faint)}.listing-tags{display:inline-flex;flex-wrap:wrap;gap:.4rem}.listing-tag{display:inline-flex;align-items:center;padding:.05rem .5rem;border-radius:999px;border:1px solid var(--border);background:color-mix(in srgb,var(--surface-1) 60%,transparent);color:var(--fg-muted);font-size:.65rem}.listing-arrow{flex-shrink:0;font-family:var(--font-mono);font-size:.9rem;color:var(--fg-faint);opacity:.5;transform:translateX(-.25rem);transition:opacity .18s ease,transform .22s ease,color .18s ease}.listing-item:hover .listing-arrow{opacity:1;transform:translateX(0);color:var(--fg-strong)}.pagination{display:flex;align-items:center;justify-content:space-between;margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:.78rem}.pagination-prev,.pagination-next{color:var(--fg-muted);text-decoration:none}.pagination-prev:hover,.pagination-next:hover{color:var(--fg-strong)}.pagination-info{color:var(--fg-faint);letter-spacing:.05em;text-transform:uppercase;font-size:.7rem}.pagination-placeholder{min-width:5rem}
+
+.newsletter-form{max-width:30rem;margin:1.85rem 0}.newsletter-form__form{display:grid;gap:.55rem}.newsletter-form__row{display:flex;gap:.55rem;align-items:center}.newsletter-form__input{flex:1;min-width:0;height:2.45rem;border-radius:.35rem;padding:0 .75rem;border:1px solid var(--border-strong);background:transparent;color:var(--fg-strong);font:inherit;font-size:.9rem;outline:none}.newsletter-form__input::placeholder{color:var(--fg-muted)}.newsletter-form__input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)}.newsletter-form__input.is-invalid{border-color:var(--accent)}.newsletter-form__button{height:2.45rem;border:1px solid var(--accent);border-radius:.35rem;padding:0 .85rem;background:transparent;color:var(--accent);font:inherit;font-size:.88rem;font-weight:500;white-space:nowrap;cursor:pointer}.newsletter-form__button:hover:not(:disabled){border-color:var(--accent-hover);background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent-hover)}.newsletter-form__button:disabled{opacity:.55;cursor:not-allowed}.newsletter-form__hint,.newsletter-form__notice{margin:0;font-size:.82rem;line-height:1.45}.newsletter-form__hint--error{color:var(--accent)}.newsletter-form__notice{border-left:2px solid color-mix(in srgb,var(--accent) 55%,transparent);padding:.15rem 0 .15rem .65rem;color:var(--fg-muted)}.newsletter-form [hidden]{display:none!important}
+
+.lightbox{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 92%,#000);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;visibility:hidden;transition:opacity .18s ease,visibility .18s ease;padding:4vh 4vw;cursor:zoom-out}.lightbox.open{opacity:1;visibility:visible}.lightbox-close{position:absolute;top:1rem;right:1rem;width:2.25rem;height:2.25rem;display:inline-flex;align-items:center;justify-content:center;font-size:1.5rem;color:var(--fg);background:var(--surface);border:1px solid var(--border);border-radius:999px;cursor:pointer}.lightbox-figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:.85rem;max-width:100%;max-height:100%;cursor:default}.lightbox-image{max-width:min(92vw,1400px);max-height:88vh;width:auto;height:auto;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:var(--surface);margin:0}.lightbox-caption{font-family:var(--font-mono);font-size:.75rem;color:var(--fg-muted);text-align:center;max-width:80ch}
+.col-handle{position:fixed;top:0;height:100vh;width:24px;margin-left:-12px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;padding:0;cursor:ew-resize;z-index:50;touch-action:none}.col-handle-grip{display:block;width:4px;height:4rem;border-radius:999px;background:var(--accent);opacity:0;transition:opacity .18s ease,width .18s ease,height .2s ease,box-shadow .18s ease}.col-handle:hover .col-handle-grip,.col-handle:focus-visible .col-handle-grip,body.col-resizing .col-handle-grip{opacity:1;width:5px;height:5rem;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 14%,transparent)}body.col-resizing,body.col-resizing *{cursor:ew-resize!important;user-select:none}
+
+@media(max-width:760px){.garden-topnav{padding-top:1.5rem;padding-bottom:1rem;gap:.85rem 1.1rem}.nav-links{gap:1.05rem}.nav-links a{font-size:.825rem}.garden-search{flex-basis:100%;order:3;margin-left:0}main{padding:2.75rem 1.25rem 5rem}.page-title{margin-bottom:1.75rem}.col-handle{display:none}.newsletter-form__row{align-items:stretch;flex-direction:column}.newsletter-form__button{width:100%}}
+@media(prefers-reduced-motion:reduce){::view-transition-old(root),::view-transition-new(root){animation-duration:1ms}.col-handle-grip,.listing-arrow,*{transition-duration:0s!important;animation-duration:0s!important}}
+`
+
 const GARDEN_SEARCH_SCRIPT = String.raw`
 (() => {
   const root = document.querySelector('[data-garden-search-root]');
@@ -2023,13 +2392,27 @@ const GARDEN_SEARCH_SCRIPT = String.raw`
     input.focus();
     input.select();
   });
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!(event.target instanceof Node) || !root.contains(event.target)) {
+      clearResults();
+    }
+  });
+
+  document.addEventListener('garden:content-swap', () => {
+    input.value = '';
+    clearResults();
+    if (document.activeElement === input) {
+      input.blur();
+    }
+  });
 })();
 `
 
 const GARDEN_NAV_SCRIPT = String.raw`
 (() => {
   const content = document.querySelector('.garden-content');
-  const sidebarNav = document.querySelector('.sidebar-nav');
+  const navLinks = document.querySelector('.nav-links');
   if (!content) return;
 
   /* --- Prefetch on hover --- */
@@ -2068,8 +2451,8 @@ const GARDEN_NAV_SCRIPT = String.raw`
     content.innerHTML = nc.innerHTML;
     document.title = doc.title || '';
 
-    const ns = doc.querySelector('.sidebar-nav');
-    if (ns && sidebarNav) sidebarNav.innerHTML = ns.innerHTML;
+    const ns = doc.querySelector('.nav-links');
+    if (ns && navLinks) navLinks.innerHTML = ns.innerHTML;
 
     const nb = doc.body;
     if (nb) {
@@ -2111,6 +2494,7 @@ const GARDEN_NAV_SCRIPT = String.raw`
       const doSwap = () => {
         if (!swap(doc)) { location.href = url; return; }
         if (push) history.pushState({}, '', url);
+        document.dispatchEvent(new CustomEvent('garden:content-swap'));
 
         const hash = new URL(url, location.origin).hash;
         if (hash) {
@@ -2166,6 +2550,182 @@ const GARDEN_NAV_SCRIPT = String.raw`
 })();
 `
 
+const GARDEN_ENHANCEMENTS_SCRIPT = String.raw`
+(() => {
+  if (typeof window === 'undefined') return;
+  const root = document.documentElement;
+  const docReady = (fn) => {
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn);
+  };
+
+  const initLightbox = () => {
+    if (document.querySelector('.lightbox')) return;
+    const lb = document.createElement('div');
+    lb.className = 'lightbox';
+    lb.setAttribute('role', 'dialog');
+    lb.setAttribute('aria-modal', 'true');
+    lb.setAttribute('aria-hidden', 'true');
+    lb.innerHTML = '<button class="lightbox-close" type="button" aria-label="Close (Esc)">×</button><figure class="lightbox-figure"><img class="lightbox-image" alt=""><figcaption class="lightbox-caption" hidden></figcaption></figure>';
+    document.body.appendChild(lb);
+    const img = lb.querySelector('.lightbox-image');
+    const caption = lb.querySelector('.lightbox-caption');
+    const close = () => { lb.classList.remove('open'); lb.setAttribute('aria-hidden', 'true'); document.body.classList.remove('no-scroll'); };
+    const open = (src, alt) => {
+      img.src = src;
+      img.alt = alt || '';
+      if (alt) { caption.textContent = alt; caption.hidden = false; } else { caption.hidden = true; }
+      lb.classList.add('open');
+      lb.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('no-scroll');
+    };
+    lb.addEventListener('click', (e) => { if (e.target === lb || e.target.closest('.lightbox-close')) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && lb.classList.contains('open')) close(); });
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('main img');
+      if (!el || el.closest('a[href]') || el.classList.contains('no-lightbox')) return;
+      const inlineMax = (el.getAttribute('style') || '').match(/max-width:\s*(\d+)px/i);
+      if (inlineMax && Number(inlineMax[1]) <= 140) return;
+      e.preventDefault();
+      open(el.currentSrc || el.src, el.alt);
+    });
+  };
+
+  const initResizable = () => {
+    if (document.querySelector('.col-handle')) return;
+    const STORAGE_KEY = 'overment.contentWidth';
+    const MIN_REM = 36;
+    const MAX_REM = 68;
+    const fontPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
+    const apply = (rem) => {
+      const clamped = Math.max(MIN_REM, Math.min(MAX_REM, rem));
+      root.style.setProperty('--content-width', clamped.toFixed(2) + 'rem');
+      return clamped;
+    };
+    const save = (rem) => { try { localStorage.setItem(STORAGE_KEY, rem.toFixed(2)); } catch {} };
+    let stored;
+    try { stored = parseFloat(localStorage.getItem(STORAGE_KEY) || ''); } catch {}
+    if (Number.isFinite(stored)) apply(stored);
+    const makeHandle = (side) => {
+      const h = document.createElement('button');
+      h.type = 'button';
+      h.className = 'col-handle col-handle-' + side;
+      h.setAttribute('aria-label', 'Resize content column (use ← and →)');
+      h.setAttribute('aria-orientation', 'vertical');
+      const grip = document.createElement('span');
+      grip.className = 'col-handle-grip';
+      grip.setAttribute('aria-hidden', 'true');
+      h.appendChild(grip);
+      return h;
+    };
+    const left = makeHandle('left');
+    const right = makeHandle('right');
+    document.body.append(left, right);
+    const main = document.querySelector('main');
+    if (!main) return;
+    const positionHandles = () => {
+      const rect = main.getBoundingClientRect();
+      left.style.left = Math.round(rect.left) + 'px';
+      right.style.left = Math.round(rect.right) + 'px';
+    };
+    positionHandles();
+    window.addEventListener('resize', positionHandles);
+    document.addEventListener('visibilitychange', positionHandles);
+    let dragging = null;
+    const onMove = (e) => {
+      if (!dragging) return;
+      const centerX = window.innerWidth / 2;
+      const widthPx = dragging === 'right' ? (e.clientX - centerX) * 2 : (centerX - e.clientX) * 2;
+      if (widthPx <= 0) return;
+      apply(widthPx / fontPx());
+      positionHandles();
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = null;
+      document.body.classList.remove('col-resizing');
+      const cur = parseFloat(getComputedStyle(root).getPropertyValue('--content-width')) || 38;
+      save(cur);
+    };
+    const startDrag = (side) => (e) => { e.preventDefault(); dragging = side; document.body.classList.add('col-resizing'); };
+    left.addEventListener('pointerdown', startDrag('left'));
+    right.addEventListener('pointerdown', startDrag('right'));
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    const nudge = (delta) => {
+      const cur = parseFloat(getComputedStyle(root).getPropertyValue('--content-width')) || 38;
+      const next = apply(cur + delta);
+      positionHandles();
+      save(next);
+    };
+    [left, right].forEach((h) => h.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); nudge(1); }
+      else if (e.key === 'Home') { e.preventDefault(); apply(MIN_REM); positionHandles(); save(MIN_REM); }
+      else if (e.key === 'End') { e.preventDefault(); apply(MAX_REM); positionHandles(); save(MAX_REM); }
+    }));
+  };
+
+  const initNewsletterForms = () => {
+    const DEFAULT_ENDPOINT = 'https://alice.overment.com/api/newsletter/subscribe';
+    const ENDPOINT = window.OVERMENT_ENV?.NEWSLETTER_ENDPOINT || DEFAULT_ENDPOINT;
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isValidEmail = (value) => EMAIL_RE.test(value.trim().toLowerCase());
+    const setSubmitState = (formRoot) => {
+      const input = formRoot.querySelector('[data-newsletter-email]');
+      const button = formRoot.querySelector('[data-newsletter-submit]');
+      const loading = formRoot.dataset.status === 'loading';
+      if (button) { button.disabled = loading || !input || !isValidEmail(input.value); button.textContent = loading ? 'Sending…' : "I'm in"; }
+    };
+    const setValidation = (formRoot, show) => {
+      const input = formRoot.querySelector('[data-newsletter-email]');
+      const validation = formRoot.querySelector('[data-newsletter-validation]');
+      if (input) { input.classList.toggle('is-invalid', show); input.setAttribute('aria-invalid', show ? 'true' : 'false'); }
+      if (validation) validation.hidden = !show;
+    };
+    const setNotice = (formRoot, status, message) => {
+      const notice = formRoot.querySelector('[data-newsletter-notice]');
+      formRoot.dataset.status = status;
+      if (!notice) return;
+      notice.textContent = message || '';
+      notice.hidden = !message;
+    };
+    document.querySelectorAll('[data-newsletter-form]').forEach((formRoot) => {
+      if (formRoot.dataset.newsletterBound === '1') return;
+      formRoot.dataset.newsletterBound = '1';
+      const form = formRoot.querySelector('form');
+      const input = formRoot.querySelector('[data-newsletter-email]');
+      if (!form || !input) return;
+      let touched = false;
+      setSubmitState(formRoot);
+      input.addEventListener('input', () => { const value = input.value.trim(); if (touched) setValidation(formRoot, value.length > 0 && !isValidEmail(value)); if (formRoot.dataset.status === 'error') setNotice(formRoot, 'idle', ''); setSubmitState(formRoot); });
+      input.addEventListener('blur', () => { touched = true; const value = input.value.trim(); setValidation(formRoot, value.length > 0 && !isValidEmail(value)); setSubmitState(formRoot); });
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        touched = true;
+        const email = input.value.trim().toLowerCase();
+        if (!isValidEmail(email)) { setValidation(formRoot, true); setNotice(formRoot, 'idle', ''); input.focus(); return; }
+        setValidation(formRoot, false); setNotice(formRoot, 'idle', ''); formRoot.dataset.status = 'loading'; input.disabled = true; setSubmitState(formRoot);
+        try {
+          const response = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+          const data = (response.headers.get('content-type') || '').includes('application/json') ? await response.json() : {};
+          const status = data.status || (response.ok ? 'success' : 'error');
+          if (status === 'success') { input.value = ''; touched = false; setNotice(formRoot, 'success', data.message || 'Got it. Talk soon.'); }
+          else if (status === 'exists') setNotice(formRoot, 'exists', data.message || "You're already on the list.");
+          else setNotice(formRoot, 'error', data.message || "Hmm, that didn't work. Try again?");
+        } catch { setNotice(formRoot, 'error', "Hmm, something's off. Mind trying again?"); }
+        finally { input.disabled = false; if (formRoot.dataset.status === 'loading') formRoot.dataset.status = 'idle'; setSubmitState(formRoot); }
+      });
+    });
+  };
+
+  docReady(() => { initLightbox(); initResizable(); initNewsletterForms(); });
+  document.addEventListener('garden:content-swap', () => setTimeout(initNewsletterForms, 0));
+  document.addEventListener('click', () => setTimeout(initNewsletterForms, 0));
+})();
+`
+
 // --- Main Render ---
 
 export const renderGardenPage = (input: {
@@ -2176,31 +2736,39 @@ export const renderGardenPage = (input: {
   description?: string
   excerpt?: string
   hasProtectedSearch: boolean
+  lastUpdated?: string
   listing?: GardenListingContext
   order?: number
   seo?: GardenPageSeo
   searchSectionLabels: Record<string, string>
+  navigationItems?: readonly GardenNavigationItem[]
+  noindex?: boolean
   sidebarItems: readonly GardenSidebarItem[]
+  siteDescription?: string
+  siteImage?: string
   siteTitle?: string
+  siteTwitter?: string
   sourceSlug: string
   tags?: readonly string[]
   title: string
   updated?: string
   visibility: 'protected' | 'public'
 }): string => {
-  const { headings, html: bodyHtml } = renderMarkdownToHtml(input.bodyMarkdown)
-  const sidebarHtml = renderSidebar(
-    input.sidebarItems,
-    input.currentRoutePath,
-    input.hasProtectedSearch,
-    input.siteTitle,
-  )
+  const { headings, html: bodyHtml } = renderMarkdownToHtml(renderShortcodes(input.bodyMarkdown))
+  const topNavigationHtml = renderTopNavigation({
+    currentRoutePath: input.currentRoutePath,
+    hasProtectedSearch: input.hasProtectedSearch,
+    navigationItems: input.navigationItems ?? [],
+    sidebarItems: input.sidebarItems,
+    siteTitle: input.siteTitle,
+  })
+  const hiddenSitemapHtml = renderHiddenSitemap(input.sidebarItems, input.currentRoutePath)
   const coverImageHtml = renderCoverImage(
     input.currentRoutePath,
     input.coverImageArtifactPath,
     input.title,
   )
-  const descriptionHtml = renderPageDescription(input.description)
+  const updatedStampHtml = renderUpdatedStamp(input.lastUpdated)
   const growthHtml = renderGrowthMarkers(input.date, input.updated)
   const tagsHtml = renderPageTags(input.tags ?? [])
   const tocHtml = renderToc(headings)
@@ -2229,25 +2797,45 @@ export const renderGardenPage = (input: {
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<meta name="color-scheme" content="light dark">',
+    '<style>:root{color-scheme:light dark;background:#fafaf7}@media(prefers-color-scheme:dark){:root{background:#0b0b0d}}</style>',
+    '<script>(()=>{try{const stored=parseFloat(localStorage.getItem("overment.contentWidth")||"");if(!Number.isFinite(stored))return;const clamped=Math.max(36,Math.min(68,stored));document.documentElement.style.setProperty("--content-width",`${clamped.toFixed(2)}rem`)}catch{}})();</script>',
     `<link rel="icon" type="image/svg+xml" href="${FAVICON_DATA_URI}">`,
+    '<link rel="apple-touch-icon" sizes="180x180" data-garden-link="internal" href="/public/favicons/apple-touch-icon.png">',
+    '<link rel="icon" type="image/png" sizes="32x32" data-garden-link="internal" href="/public/favicons/favicon-32x32.png">',
+    '<link rel="icon" type="image/png" sizes="16x16" data-garden-link="internal" href="/public/favicons/favicon-16x16.png">',
+    '<link rel="manifest" data-garden-link="internal" href="/public/favicons/site.webmanifest">',
+    '<meta name="theme-color" content="#fafaf7" media="(prefers-color-scheme: light)">',
+    '<meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)">',
     '<link rel="preconnect" href="https://fonts.googleapis.com">',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
     `<link rel="stylesheet" href="${FONTS_URL}">`,
-    renderSeoMeta(input.title, input.description, input.seo),
+    renderSeoMeta({
+      description: input.description,
+      noindex: input.noindex,
+      routePath: input.currentRoutePath,
+      seo: input.seo,
+      siteDescription: input.siteDescription,
+      siteImage: input.siteImage,
+      siteTitle: input.siteTitle,
+      siteTwitter: input.siteTwitter,
+      title: input.title,
+    }),
     searchMetaHtml,
     searchConfigHtml,
-    `<style>${GARDEN_CSS}</style>`,
+    `<style>${GARDEN_CSS}\n${OVERMENT_GARDEN_CSS}</style>`,
     '</head>',
     `<body data-garden-has-protected-search="${input.hasProtectedSearch ? 'true' : 'false'}" data-garden-route-path="${escapeHtml(input.currentRoutePath)}" data-garden-visibility="${input.visibility}">`,
     '<a href="#content" class="skip-link">Skip to content</a>',
     '<div class="garden-shell">',
-    sidebarHtml,
+    topNavigationHtml,
+    hiddenSitemapHtml,
     '<div class="garden-content">',
     '<main id="content">',
     '<section class="page-searchable" data-pagefind-body>',
     coverImageHtml,
     `<h1 class="page-title" data-pagefind-meta="title">${escapeHtml(input.title)}</h1>`,
-    descriptionHtml,
+    updatedStampHtml,
     growthHtml,
     tagsHtml,
     tocHtml,
@@ -2259,6 +2847,7 @@ export const renderGardenPage = (input: {
     '</div>',
     '</div>',
     `<script>${GARDEN_NAV_SCRIPT}</script>`,
+    `<script>${GARDEN_ENHANCEMENTS_SCRIPT}</script>`,
     `<script type="module">${GARDEN_SEARCH_SCRIPT}</script>`,
     '</body>',
     '</html>',

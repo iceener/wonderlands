@@ -6,6 +6,23 @@ export const GARDEN_INTERNAL_HREF_PREFIX = 'garden:'
 
 const normalizeFilePath = (value: string): string => value.replace(/\\/g, '/').replace(/^\/+/, '')
 
+const slugifyGardenSegment = (value: string): string =>
+  value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const slugifyGardenPath = (value: string): string =>
+  value
+    .split('/')
+    .map(slugifyGardenSegment)
+    .filter(Boolean)
+    .join('/')
+
 const headingToAnchor = (value: string): string =>
   value
     .trim()
@@ -40,6 +57,8 @@ const resolveInternalTarget = (
   rawTarget: string,
   currentFilePath: string,
   currentSlug: string,
+  wikiTargetSlugByBasename?: ReadonlyMap<string, string>,
+  options: { relativeToCurrentFile?: boolean } = {},
 ): { anchor?: string; slug: string } | undefined => {
   const target = rawTarget.trim()
 
@@ -61,7 +80,19 @@ const resolveInternalTarget = (
     }
   }
 
+  if (wikiTargetSlugByBasename && !pathPart.includes('/') && !pathPart.includes('.')) {
+    const basenameHit = wikiTargetSlugByBasename.get(slugifyGardenSegment(pathPart).toLowerCase())
+
+    if (basenameHit) {
+      return {
+        ...(anchor ? { anchor } : {}),
+        slug: basenameHit,
+      }
+    }
+  }
+
   let resolved = pathPart.replace(/\\/g, '/').trim()
+  const isRootRelative = resolved.startsWith('/') || resolved.startsWith('vault/')
 
   if (resolved.startsWith('vault/')) {
     resolved = resolved.slice('vault/'.length)
@@ -71,7 +102,10 @@ const resolveInternalTarget = (
     resolved = resolved.slice(1)
   }
 
-  if (resolved.startsWith('./') || resolved.startsWith('../')) {
+  if (
+    !isRootRelative &&
+    (options.relativeToCurrentFile || resolved.startsWith('./') || resolved.startsWith('../'))
+  ) {
     resolved = posix.normalize(posix.join(currentDir, resolved))
   }
 
@@ -94,7 +128,7 @@ const resolveInternalTarget = (
 
   return {
     ...(anchor ? { anchor } : {}),
-    slug: resolved.replace(/\/index$/i, '') || 'index',
+    slug: slugifyGardenPath(resolved.replace(/\/index$/i, '')) || 'index',
   }
 }
 
@@ -247,6 +281,7 @@ export const rewriteGardenLinks = (input: {
   currentRoutePath: string
   currentSlug: string
   markdown: string
+  wikiTargetSlugByBasename?: ReadonlyMap<string, string>
   onInternalLink: (link: { anchor?: string; label: string; slug: string }) =>
     | {
         kind: 'link'
@@ -274,7 +309,12 @@ export const rewriteGardenLinks = (input: {
         return match
       }
 
-      const resolved = resolveInternalTarget(target, input.currentFilePath, input.currentSlug)
+      const resolved = resolveInternalTarget(
+        target,
+        input.currentFilePath,
+        input.currentSlug,
+        input.wikiTargetSlugByBasename,
+      )
 
       if (!resolved) {
         return match
@@ -319,7 +359,15 @@ export const rewriteGardenLinks = (input: {
         return match
       }
 
-      const resolved = resolveInternalTarget(target, input.currentFilePath, input.currentSlug)
+      const resolved = resolveInternalTarget(
+        target,
+        input.currentFilePath,
+        input.currentSlug,
+        input.wikiTargetSlugByBasename,
+        {
+          relativeToCurrentFile: true,
+        },
+      )
 
       if (!resolved) {
         return match

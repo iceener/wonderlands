@@ -17,10 +17,13 @@ export interface GardenSidebarItem {
 
 export interface GardenSourceConfig {
   description?: string
+  home?: string
+  image?: string
   listing: {
     defaultPageSize: number
   }
   navigation: GardenNavigationItem[]
+  noindex?: boolean
   public: {
     exclude: string[]
     roots: string[]
@@ -36,6 +39,7 @@ export interface GardenSourceConfig {
   >
   theme?: string
   title?: string
+  twitter?: string
 }
 
 export interface GardenPageSeo {
@@ -56,12 +60,13 @@ export interface GardenSourceScopeResolution {
 }
 
 export interface GardenParsedPage {
+  aliases: string[]
   coverImage?: string
   date?: string
   description?: string
   draft: boolean
   excerpt?: string
-  listing: boolean
+  listing?: boolean
   listingPageSize?: number
   order?: number
   publish: boolean
@@ -70,9 +75,13 @@ export interface GardenParsedPage {
   seo?: GardenPageSeo
   slug: string
   sourcePath: string
+  sourceUpdatedAt?: string
+  sourceUpdatedAtMs?: number
+  synthetic?: boolean
   tags: string[]
   template?: string
   title: string
+  unlisted: boolean
   updated?: string
   visibility: GardenPageVisibility
 }

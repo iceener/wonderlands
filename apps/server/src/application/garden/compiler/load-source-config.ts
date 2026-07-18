@@ -26,12 +26,15 @@ const sectionSchema = z.strictObject({
 
 const sourceConfigSchema = z.strictObject({
   description: z.string().trim().min(1).optional(),
+  home: z.string().trim().min(1).optional(),
+  image: z.string().trim().min(1).optional(),
   listing: z
     .strictObject({
       default_page_size: z.number().int().positive().max(500).optional(),
     })
     .optional(),
   navigation: z.array(navigationItemSchema).optional(),
+  noindex: z.boolean().optional(),
   public: z.strictObject({
     exclude: z.array(z.string().trim().min(1)).optional(),
     roots: z.array(z.string().trim().min(1)).min(1),
@@ -40,6 +43,7 @@ const sourceConfigSchema = z.strictObject({
   sections: z.record(z.string(), sectionSchema).optional(),
   theme: z.string().trim().min(1).optional(),
   title: z.string().trim().min(1).optional(),
+  twitter: z.string().trim().min(1).optional(),
 })
 
 const pathShadows = (existingPath: string, candidatePath: string): boolean => {
@@ -162,10 +166,13 @@ export const loadGardenSourceConfig = async (
   return ok({
     config: {
       description: parsed.value.description,
+      home: parsed.value.home,
+      image: parsed.value.image,
       listing: {
         defaultPageSize: parsed.value.listing?.default_page_size ?? DEFAULT_PAGE_SIZE,
       },
       navigation: parsed.value.navigation ?? [],
+      noindex: parsed.value.noindex,
       public: {
         exclude: normalizedExclude.value,
         roots: normalizedRoots.value,
@@ -174,6 +181,7 @@ export const loadGardenSourceConfig = async (
       sections: parsed.value.sections ?? {},
       theme: parsed.value.theme,
       title: parsed.value.title,
+      twitter: parsed.value.twitter,
     },
     source: fileContents,
   })

@@ -9,7 +9,7 @@ export type GardenBuildStatus = 'cancelled' | 'completed' | 'failed' | 'queued' 
 export type GardenPageVisibility = 'protected' | 'public'
 
 export interface BackendGardenBuildWarning {
-  code: 'hidden_link' | 'unresolved_link'
+  code: 'asset_link_rewritten' | 'hidden_link' | 'unresolved_link'
   message: string
   sourcePath: string
   target?: string

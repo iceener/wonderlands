@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
 import { finished } from 'node:stream/promises'
 import type { DomainError } from '../../../shared/errors'
 import { err, ok, type Result } from '../../../shared/result'
 import { writeGardenSearchArtifacts } from '../search/pagefind-index'
 import { loadGardenSourceConfig } from './load-source-config'
-import { parseGardenPage } from './parse-page'
+import { parseGardenPage, slugifyGardenPath, slugifyGardenSegment } from './parse-page'
 import { type GardenListingItem, renderGardenPage } from './render-page'
 import { isGardenReservedRoot, resolveGardenSourceScope } from './resolve-source-path'
 import { buildRelativeRouteHref, rewriteGardenLinks } from './rewrite-links'
@@ -50,17 +50,73 @@ interface GardenPreparedBuildContext extends GardenResolvedSourceData {
   classifiedBySlug: Map<string, GardenClassifiedPage>
   classifiedPages: GardenClassifiedPage[]
   hasProtectedSearch: boolean
+  homeAliasRoutePath?: string
+  homeSlug?: string
   listingChildrenByParent: Map<string, GardenClassifiedPage[]>
   pageSourcesBySlug: Map<string, GardenCollectedPageSource>
   protectedSidebarItems: GardenSidebarItem[]
   publicSidebarItems: GardenSidebarItem[]
   searchSectionLabels: Record<string, string>
+  wikiTargetSlugByBasename: Map<string, string>
 }
 
 const normalizeSeparators = (value: string): string => value.replace(/\\/g, '/')
 
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
 const routePathToArtifactPath = (routePath: string): string =>
   routePath === '/' ? 'index.html' : `${routePath.slice(1)}.html`
+
+const slugToRoutePath = (slug: string): string => (slug === 'index' ? '/' : `/${slug}`)
+
+const resolveConfiguredHomeSlug = (home: string | undefined): string | undefined => {
+  if (!home) {
+    return undefined
+  }
+
+  const normalized = home
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\.md$/i, '')
+    .replace(/\/index$/i, '')
+
+  return slugifyGardenPath(normalized) || 'index'
+}
+
+const renderRedirectPage = (input: {
+  fromRoutePath: string
+  siteTitle?: string
+  targetRoutePath: string
+  title: string
+}): string => {
+  const documentTitle = input.siteTitle ? `${input.title} | ${input.siteTitle}` : input.title
+  const href = input.targetRoutePath || '/'
+
+  return [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<meta name="robots" content="noindex, nofollow">',
+    `<title>${escapeHtml(documentTitle)}</title>`,
+    `<link rel="canonical" href="${escapeHtml(href)}">`,
+    `<meta http-equiv="refresh" content="0; url=${escapeHtml(href)}">`,
+    '</head>',
+    `<body data-garden-route-path="${escapeHtml(input.fromRoutePath)}">`,
+    `<p>Redirecting to <a href="${escapeHtml(href)}">${escapeHtml(input.title)}</a>.</p>`,
+    `<script>location.replace(${JSON.stringify(href)})</script>`,
+    '</body>',
+    '</html>',
+  ].join('\n')
+}
 
 const pageRuleMatchesSourcePath = (rule: string, sourcePath: string): boolean => {
   if (rule === '.') {
@@ -298,10 +354,13 @@ const collectGardenPageSources = async (
       })
     }
 
+    const sourceStats = await stat(markdownRef)
     const pageSource = {
       page: {
         ...parsedPage.value,
         rawMarkdown: '',
+        sourceUpdatedAt: sourceStats.mtime.toISOString(),
+        sourceUpdatedAtMs: sourceStats.mtimeMs,
       },
       sourceContentSha256: hashContentSha256(raw),
       sourceRef: markdownRef,
@@ -371,6 +430,66 @@ const collectGardenAssets = async (
   }
 }
 
+const synthesizeMissingListingPages = (
+  pages: readonly GardenClassifiedPage[],
+): GardenClassifiedPage[] => {
+  const pagesBySlug = new Map(pages.map((page) => [page.slug, page]))
+  const syntheticBySlug = new Map<string, GardenClassifiedPage>()
+
+  for (const page of pages) {
+    if (page.exposure === 'hidden' || page.slug === 'index') {
+      continue
+    }
+
+    const segments = page.slug.split('/').filter(Boolean)
+
+    for (let index = 1; index < segments.length; index += 1) {
+      const parentSlug = segments.slice(0, index).join('/')
+
+      if (pagesBySlug.has(parentSlug)) {
+        continue
+      }
+
+      const existingSynthetic = syntheticBySlug.get(parentSlug)
+
+      if (existingSynthetic) {
+        if (existingSynthetic.exposure === 'protected' && page.exposure === 'public') {
+          syntheticBySlug.set(parentSlug, {
+            ...existingSynthetic,
+            exposure: 'public',
+            visibility: 'public',
+          })
+        }
+
+        continue
+      }
+
+      syntheticBySlug.set(parentSlug, {
+        aliases: [],
+        draft: false,
+        exposure: page.exposure,
+        listing: true,
+        publish: true,
+        rawMarkdown: '',
+        routePath: slugToRoutePath(parentSlug),
+        slug: parentSlug,
+        sourcePath: `${parentSlug}/index.md`,
+        synthetic: true,
+        tags: [],
+        title: titleizeSegment(parentSlug.split('/').pop() ?? parentSlug),
+        unlisted: false,
+        visibility: page.exposure === 'protected' ? 'protected' : 'public',
+      })
+    }
+  }
+
+  if (syntheticBySlug.size === 0) {
+    return [...pages]
+  }
+
+  return [...pages, ...syntheticBySlug.values()]
+}
+
 const loadGardenSourceData = async (input: {
   sourceScopePath?: string | null
   vaultRootRef: string
@@ -419,9 +538,26 @@ const prepareGardenBuildContext = async (input: {
     return sourceData
   }
 
-  const classifiedPages = sourceData.value.pageSources.map((pageSource) =>
-    classifyPageExposure(pageSource.page, sourceData.value.config),
+  const collectedClassifiedPages = synthesizeMissingListingPages(
+    sourceData.value.pageSources.map((pageSource) =>
+      classifyPageExposure(pageSource.page, sourceData.value.config),
+    ),
   )
+  const configuredHomeSlug = resolveConfiguredHomeSlug(sourceData.value.config.home)
+  const hasVisibleIndexPage = collectedClassifiedPages.some(
+    (page) => page.slug === 'index' && page.exposure !== 'hidden',
+  )
+  const homeOwnsRoot =
+    configuredHomeSlug !== undefined && configuredHomeSlug !== 'index' && !hasVisibleIndexPage
+  const classifiedPages = collectedClassifiedPages.map((page) =>
+    homeOwnsRoot && page.slug === configuredHomeSlug && page.exposure !== 'hidden'
+      ? {
+          ...page,
+          routePath: '/',
+        }
+      : page,
+  )
+  const homeAliasRoutePath = homeOwnsRoot ? slugToRoutePath(configuredHomeSlug) : undefined
 
   return ok({
     ...sourceData.value,
@@ -431,6 +567,8 @@ const prepareGardenBuildContext = async (input: {
     classifiedBySlug: new Map(classifiedPages.map((page) => [page.slug, page])),
     classifiedPages,
     hasProtectedSearch: classifiedPages.some((page) => page.exposure === 'protected'),
+    ...(homeAliasRoutePath ? { homeAliasRoutePath } : {}),
+    ...(homeOwnsRoot && configuredHomeSlug ? { homeSlug: configuredHomeSlug } : {}),
     listingChildrenByParent: toListingChildrenMap(classifiedPages),
     pageSourcesBySlug: new Map(
       sourceData.value.pageSources.map((pageSource) => [pageSource.page.slug, pageSource]),
@@ -449,6 +587,7 @@ const prepareGardenBuildContext = async (input: {
       config: sourceData.value.config,
       pages: classifiedPages,
     }),
+    wikiTargetSlugByBasename: buildWikiTargetSlugByBasename(classifiedPages),
   })
 }
 
@@ -532,6 +671,7 @@ const renderPageBody = (input: {
   page: GardenClassifiedPage
   pagesBySlug: Map<string, GardenClassifiedPage>
   warnings: ReturnType<typeof createWarningCollector>
+  wikiTargetSlugByBasename: ReadonlyMap<string, string>
 }): string => {
   const rewritten = rewriteGardenLinks({
     availablePublicAssetPaths: input.availablePublicAssetPaths,
@@ -539,6 +679,7 @@ const renderPageBody = (input: {
     currentRoutePath: input.page.routePath,
     currentSlug: input.page.slug,
     markdown: input.page.rawMarkdown,
+    wikiTargetSlugByBasename: input.wikiTargetSlugByBasename,
     onInternalLink: ({ anchor, label, slug }) => {
       const targetPage = input.pagesBySlug.get(slug)
 
@@ -588,7 +729,7 @@ const toListingChildrenMap = (
   const childrenByParent = new Map<string, GardenClassifiedPage[]>()
 
   for (const page of pages) {
-    if (page.exposure === 'hidden') {
+    if (page.exposure === 'hidden' || page.unlisted) {
       continue
     }
 
@@ -637,6 +778,21 @@ const compareOptionalOrder = (left: number | undefined, right: number | undefine
   return 0
 }
 
+const toSortableTime = (value: string | undefined): number | undefined => {
+  if (!value) {
+    return undefined
+  }
+
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? time : undefined
+}
+
+const inferSortableTime = (page: GardenClassifiedPage): number | undefined =>
+  toSortableTime(page.date) ??
+  toSortableTime(page.updated) ??
+  page.sourceUpdatedAtMs ??
+  toSortableTime(page.sourcePath.match(/\d{4}-\d{2}-\d{2}/)?.[0])
+
 const comparePagesForDisplay = (
   left: GardenClassifiedPage,
   right: GardenClassifiedPage,
@@ -647,15 +803,18 @@ const comparePagesForDisplay = (
     return orderComparison
   }
 
-  if (left.date && right.date) {
-    return right.date.localeCompare(left.date)
+  const leftTime = inferSortableTime(left)
+  const rightTime = inferSortableTime(right)
+
+  if (leftTime !== undefined && rightTime !== undefined) {
+    return rightTime - leftTime
   }
 
-  if (left.date) {
+  if (leftTime !== undefined) {
     return -1
   }
 
-  if (right.date) {
+  if (rightTime !== undefined) {
     return 1
   }
 
@@ -664,12 +823,20 @@ const comparePagesForDisplay = (
   })
 }
 
+const resolveDisplayUpdatedAt = (page: GardenClassifiedPage): string | undefined =>
+  page.updated ??
+  page.date ??
+  page.sourcePath.match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
+  page.sourceUpdatedAt
+
 const toListingItems = (pages: readonly GardenClassifiedPage[]): GardenListingItem[] =>
   pages.map((page) => ({
     date: page.date,
     description: page.excerpt ?? page.description,
     routePath: page.routePath,
+    tags: page.tags,
     title: page.title,
+    ...(resolveDisplayUpdatedAt(page) ? { updated: resolveDisplayUpdatedAt(page) } : {}),
   }))
 
 const titleizeSegment = (value: string): string =>
@@ -734,6 +901,32 @@ const sortSidebarItems = (items: GardenSidebarItem[]): GardenSidebarItem[] =>
     ...item,
     children: sortSidebarItems([...item.children]),
   }))
+
+const buildWikiTargetSlugByBasename = (
+  pages: readonly GardenClassifiedPage[],
+): Map<string, string> => {
+  const map = new Map<string, string>()
+
+  for (const page of pages) {
+    const basename = page.slug.split('/').pop()?.toLowerCase()
+
+    if (basename && !map.has(basename)) {
+      map.set(basename, page.slug)
+    }
+  }
+
+  for (const page of pages) {
+    for (const alias of page.aliases) {
+      const key = slugifyGardenSegment(alias).toLowerCase()
+
+      if (key && !map.has(key)) {
+        map.set(key, page.slug)
+      }
+    }
+  }
+
+  return map
+}
 
 const buildSearchSectionLabels = (input: {
   config: GardenSourceConfig
@@ -890,11 +1083,54 @@ const resolveCoverImageArtifactPath = (
   return ok(page.coverImage)
 }
 
+const withHomeAliasArtifact = (input: {
+  artifacts: GardenBuiltPage[]
+  homeAliasRoutePath?: string
+  homeSlug?: string
+  page: GardenClassifiedPage
+  siteTitle?: string
+}): GardenBuiltPage[] => {
+  if (
+    !input.homeAliasRoutePath ||
+    !input.homeSlug ||
+    input.page.slug !== input.homeSlug ||
+    input.page.exposure !== 'public' ||
+    input.page.routePath === input.homeAliasRoutePath
+  ) {
+    return input.artifacts
+  }
+
+  return [
+    ...input.artifacts,
+    {
+      artifactPath: routePathToArtifactPath(input.homeAliasRoutePath),
+      content: renderRedirectPage({
+        fromRoutePath: input.homeAliasRoutePath,
+        siteTitle: input.siteTitle,
+        targetRoutePath: input.page.routePath,
+        title: input.page.title,
+      }),
+      ...(input.page.coverImage ? { coverImageArtifactPath: input.page.coverImage } : {}),
+      ...(input.page.description ? { description: input.page.description } : {}),
+      ...(input.page.excerpt ? { excerpt: input.page.excerpt } : {}),
+      ...(input.page.order !== undefined ? { order: input.page.order } : {}),
+      routePath: input.homeAliasRoutePath,
+      sourcePath: input.page.sourcePath,
+      sourceSlug: input.page.slug,
+      tags: input.page.tags,
+      title: input.page.title,
+      visibility: 'public',
+    },
+  ]
+}
+
 const emitPageArtifacts = (input: {
   availablePublicAssetPaths: ReadonlySet<string>
   baseMarkdown: string
   config: GardenSourceConfig
   hasProtectedSearch: boolean
+  homeAliasRoutePath?: string
+  homeSlug?: string
   searchSectionLabels: Record<string, string>
   listingChildrenByParent: Map<string, GardenClassifiedPage[]>
   page: GardenClassifiedPage
@@ -902,7 +1138,7 @@ const emitPageArtifacts = (input: {
 }): Result<GardenBuiltPage[], DomainError> => {
   const visibility = input.page.exposure === 'protected' ? 'protected' : 'public'
   const listingChildren =
-    input.page.listing && input.page.exposure !== 'hidden'
+    input.page.listing !== false && input.page.exposure !== 'hidden'
       ? (input.listingChildrenByParent.get(input.page.slug) ?? []).filter((child) =>
           canListChildExposure(input.page.exposure, child.exposure),
         )
@@ -919,98 +1155,125 @@ const emitPageArtifacts = (input: {
   const pageSize =
     input.page.listingPageSize ?? input.config.listing.defaultPageSize ?? DEFAULT_LISTING_PAGE_SIZE
 
-  if (!input.page.listing || listingChildren.length === 0) {
-    return ok([
-      {
-        artifactPath: routePathToArtifactPath(input.page.routePath),
-        content: renderGardenPage({
-          bodyMarkdown: input.baseMarkdown,
-          coverImageArtifactPath: coverImageArtifactPath.value,
-          currentRoutePath: input.page.routePath,
-          date: input.page.date,
-          description: input.page.description,
-          excerpt: input.page.excerpt,
-          hasProtectedSearch: input.hasProtectedSearch,
-          order: input.page.order,
-          sidebarItems: input.sidebarItems,
-          seo: input.page.seo,
-          searchSectionLabels: input.searchSectionLabels,
-          siteTitle: input.config.title,
-          sourceSlug: input.page.slug,
-          tags: input.page.tags,
-          title: input.page.title,
-          updated: input.page.updated,
-          visibility,
-        }),
-        ...(coverImageArtifactPath.value
-          ? { coverImageArtifactPath: coverImageArtifactPath.value }
-          : {}),
-        ...(input.page.description ? { description: input.page.description } : {}),
-        ...(input.page.excerpt ? { excerpt: input.page.excerpt } : {}),
-        ...(input.page.order !== undefined ? { order: input.page.order } : {}),
-        routePath: input.page.routePath,
-        sourcePath: input.page.sourcePath,
-        sourceSlug: input.page.slug,
-        tags: input.page.tags,
-        title: input.page.title,
-        visibility,
-      },
-    ])
+  if (listingChildren.length === 0) {
+    return ok(
+      withHomeAliasArtifact({
+        artifacts: [
+          {
+            artifactPath: routePathToArtifactPath(input.page.routePath),
+            content: renderGardenPage({
+              bodyMarkdown: input.baseMarkdown,
+              coverImageArtifactPath: coverImageArtifactPath.value,
+              currentRoutePath: input.page.routePath,
+              date: input.page.date,
+              description: input.page.description,
+              excerpt: input.page.excerpt,
+              hasProtectedSearch: input.hasProtectedSearch,
+              order: input.page.order,
+              navigationItems: input.config.navigation,
+              noindex: input.config.noindex,
+              sidebarItems: input.sidebarItems,
+              seo: input.page.seo,
+              searchSectionLabels: input.searchSectionLabels,
+              siteDescription: input.config.description,
+              siteImage: input.config.image,
+              siteTitle: input.config.title,
+              siteTwitter: input.config.twitter,
+              lastUpdated: input.page.slug.includes('/')
+                ? resolveDisplayUpdatedAt(input.page)
+                : undefined,
+              sourceSlug: input.page.slug,
+              tags: input.page.tags,
+              title: input.page.title,
+              updated: input.page.updated,
+              visibility,
+            }),
+            ...(coverImageArtifactPath.value
+              ? { coverImageArtifactPath: coverImageArtifactPath.value }
+              : {}),
+            ...(input.page.description ? { description: input.page.description } : {}),
+            ...(input.page.excerpt ? { excerpt: input.page.excerpt } : {}),
+            ...(input.page.order !== undefined ? { order: input.page.order } : {}),
+            routePath: input.page.routePath,
+            sourcePath: input.page.sourcePath,
+            sourceSlug: input.page.slug,
+            tags: input.page.tags,
+            title: input.page.title,
+            visibility,
+          },
+        ],
+        homeAliasRoutePath: input.homeAliasRoutePath,
+        homeSlug: input.homeSlug,
+        page: input.page,
+        siteTitle: input.config.title,
+      }),
+    )
   }
 
   const listingChunks = chunkListingItems(listingChildren, pageSize)
 
   return ok(
-    listingChunks.map((chunk, index) => {
-      const listingPageNumber = index + 1
-      const routePath =
-        listingPageNumber === 1
-          ? input.page.routePath
-          : input.page.routePath === '/'
-            ? `/page/${listingPageNumber}`
-            : `${input.page.routePath}/page/${listingPageNumber}`
+    withHomeAliasArtifact({
+      artifacts: listingChunks.map((chunk, index) => {
+        const listingPageNumber = index + 1
+        const routePath =
+          listingPageNumber === 1
+            ? input.page.routePath
+            : input.page.routePath === '/'
+              ? `/page/${listingPageNumber}`
+              : `${input.page.routePath}/page/${listingPageNumber}`
 
-      return {
-        artifactPath: routePathToArtifactPath(routePath),
-        content: renderGardenPage({
-          bodyMarkdown: input.baseMarkdown,
-          coverImageArtifactPath: coverImageArtifactPath.value,
-          currentRoutePath: routePath,
-          date: input.page.date,
-          description: input.page.description,
-          excerpt: input.page.excerpt,
-          hasProtectedSearch: input.hasProtectedSearch,
-          listing: {
-            currentPage: listingPageNumber,
-            items: toListingItems(chunk),
-            parentRoutePath: input.page.routePath,
-            totalPages: listingChunks.length,
-          },
-          order: input.page.order,
-          sidebarItems: input.sidebarItems,
-          seo: input.page.seo,
-          searchSectionLabels: input.searchSectionLabels,
-          siteTitle: input.config.title,
+        return {
+          artifactPath: routePathToArtifactPath(routePath),
+          content: renderGardenPage({
+            bodyMarkdown: input.baseMarkdown,
+            coverImageArtifactPath: coverImageArtifactPath.value,
+            currentRoutePath: routePath,
+            date: input.page.date,
+            description: input.page.description,
+            excerpt: input.page.excerpt,
+            hasProtectedSearch: input.hasProtectedSearch,
+            listing: {
+              currentPage: listingPageNumber,
+              items: toListingItems(chunk),
+              parentRoutePath: input.page.routePath,
+              totalPages: listingChunks.length,
+            },
+            order: input.page.order,
+            navigationItems: input.config.navigation,
+            noindex: input.config.noindex,
+            sidebarItems: input.sidebarItems,
+            seo: input.page.seo,
+            searchSectionLabels: input.searchSectionLabels,
+            siteDescription: input.config.description,
+            siteImage: input.config.image,
+            siteTitle: input.config.title,
+            siteTwitter: input.config.twitter,
+            sourceSlug: input.page.slug,
+            tags: input.page.tags,
+            title: input.page.title,
+            updated: input.page.updated,
+            visibility,
+          }),
+          ...(coverImageArtifactPath.value
+            ? { coverImageArtifactPath: coverImageArtifactPath.value }
+            : {}),
+          ...(input.page.description ? { description: input.page.description } : {}),
+          ...(input.page.excerpt ? { excerpt: input.page.excerpt } : {}),
+          ...(input.page.order !== undefined ? { order: input.page.order } : {}),
+          listingPageNumber,
+          routePath,
+          sourcePath: input.page.sourcePath,
           sourceSlug: input.page.slug,
           tags: input.page.tags,
           title: input.page.title,
-          updated: input.page.updated,
           visibility,
-        }),
-        ...(coverImageArtifactPath.value
-          ? { coverImageArtifactPath: coverImageArtifactPath.value }
-          : {}),
-        ...(input.page.description ? { description: input.page.description } : {}),
-        ...(input.page.excerpt ? { excerpt: input.page.excerpt } : {}),
-        ...(input.page.order !== undefined ? { order: input.page.order } : {}),
-        listingPageNumber,
-        routePath,
-        sourcePath: input.page.sourcePath,
-        sourceSlug: input.page.slug,
-        tags: input.page.tags,
-        title: input.page.title,
-        visibility,
-      }
+        }
+      }),
+      homeAliasRoutePath: input.homeAliasRoutePath,
+      homeSlug: input.homeSlug,
+      page: input.page,
+      siteTitle: input.config.title,
     }),
   )
 }
@@ -1129,18 +1392,17 @@ export const buildGardenSite = async (input: {
     }
 
     const pageSource = prepared.value.pageSourcesBySlug.get(page.slug)
-
-    if (!pageSource) {
-      return err({
-        message: `failed to resolve source for ${page.sourcePath}`,
-        type: 'conflict',
-      })
-    }
-
-    const hydratedPage = await hydratePageMarkdown({
-      page,
-      pageSource,
-    })
+    const hydratedPage = page.synthetic
+      ? ok(page)
+      : pageSource
+        ? await hydratePageMarkdown({
+            page,
+            pageSource,
+          })
+        : err({
+            message: `failed to resolve source for ${page.sourcePath}`,
+            type: 'conflict',
+          } as DomainError)
 
     if (!hydratedPage.ok) {
       return hydratedPage
@@ -1151,6 +1413,7 @@ export const buildGardenSite = async (input: {
       page: hydratedPage.value,
       pagesBySlug: prepared.value.classifiedBySlug,
       warnings,
+      wikiTargetSlugByBasename: prepared.value.wikiTargetSlugByBasename,
     })
 
     const artifacts = emitPageArtifacts({
@@ -1158,6 +1421,8 @@ export const buildGardenSite = async (input: {
       baseMarkdown,
       config: prepared.value.config,
       hasProtectedSearch: prepared.value.hasProtectedSearch,
+      homeAliasRoutePath: prepared.value.homeAliasRoutePath,
+      homeSlug: prepared.value.homeSlug,
       searchSectionLabels: prepared.value.searchSectionLabels,
       listingChildrenByParent: prepared.value.listingChildrenByParent,
       page: hydratedPage.value,
@@ -1254,18 +1519,17 @@ export const compileGardenBuildOutput = async (input: {
       }
 
       const pageSource = prepared.value.pageSourcesBySlug.get(page.slug)
-
-      if (!pageSource) {
-        return err({
-          message: `failed to resolve source for ${page.sourcePath}`,
-          type: 'conflict',
-        })
-      }
-
-      const hydratedPage = await hydratePageMarkdown({
-        page,
-        pageSource,
-      })
+      const hydratedPage = page.synthetic
+        ? ok(page)
+        : pageSource
+          ? await hydratePageMarkdown({
+              page,
+              pageSource,
+            })
+          : err({
+              message: `failed to resolve source for ${page.sourcePath}`,
+              type: 'conflict',
+            } as DomainError)
 
       if (!hydratedPage.ok) {
         return hydratedPage
@@ -1276,6 +1540,7 @@ export const compileGardenBuildOutput = async (input: {
         page: hydratedPage.value,
         pagesBySlug: prepared.value.classifiedBySlug,
         warnings,
+        wikiTargetSlugByBasename: prepared.value.wikiTargetSlugByBasename,
       })
 
       const artifacts = emitPageArtifacts({
@@ -1283,6 +1548,8 @@ export const compileGardenBuildOutput = async (input: {
         baseMarkdown,
         config: prepared.value.config,
         hasProtectedSearch: prepared.value.hasProtectedSearch,
+        homeAliasRoutePath: prepared.value.homeAliasRoutePath,
+        homeSlug: prepared.value.homeSlug,
         listingChildrenByParent: prepared.value.listingChildrenByParent,
         page: hydratedPage.value,
         searchSectionLabels: prepared.value.searchSectionLabels,
