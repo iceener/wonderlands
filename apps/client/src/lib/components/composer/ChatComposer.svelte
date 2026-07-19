@@ -4,7 +4,6 @@ import {
   BACKEND_DEFAULT_MODEL,
   type BackendFilePickerResult,
   INLINE_MESSAGE_TEXT_LIMIT,
-  type MessageAttachment,
 } from '@wonderlands/contracts/chat'
 import { onDestroy, tick } from 'svelte'
 import {
@@ -27,7 +26,6 @@ import TiptapPromptEditor from '../../prompt-editor/TiptapPromptEditor.svelte'
 import type { LargeTextPastePayload, PromptEditorHandle } from '../../prompt-editor/types'
 import { listAgents } from '../../services/api'
 import { uploadAttachment } from '../../services/attachment-api'
-import { toApiUrl } from '../../services/backend'
 import { searchFilePicker } from '../../services/file-picker-api'
 import { chatStore } from '../../stores/chat-store.svelte'
 import { createComposerAttachmentStore } from '../../stores/composer-attachments.svelte'
@@ -37,6 +35,14 @@ import { typewriterPlayback } from '../../stores/typewriter-playback.svelte'
 import AttachmentTray from './AttachmentTray.svelte'
 import ContextBar from './ContextBar.svelte'
 import FilePickerPopover from './FilePickerPopover.svelte'
+import {
+  ACTIVE_THREAD_TIPS,
+  EMPTY_THREAD_TIPS,
+  buildTargetCycle,
+  getNextTarget,
+  pickComposerPlaceholderTip,
+  toPickedImageAttachment,
+} from './chat-composer-logic'
 
 interface Props {
   commandItems?: CommandItem[]
@@ -45,27 +51,13 @@ interface Props {
 
 let { commandItems = [], onPinToBottom = null }: Props = $props()
 
-const emptyThreadTips = [
-  'Type # to attach a file, @ to mention an agent, / for commands',
-  'Type / to browse available commands',
-  'Use # to search and attach files from your project',
-]
-const activeThreadTips = [
-  'Type # to attach a file, @ to mention an agent, / for commands',
-  'Use ↑ to navigate messages, c to copy, esc to dismiss',
-  'Type / to browse available commands',
-  'Press ↑ in an empty input to browse previous messages',
-  'Use # to search and attach files from your project',
-]
-const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)]
 let lastHasMessages: boolean | null = null
-let placeholderTip = $state(pick(emptyThreadTips))
+let placeholderTip: string = $state(EMPTY_THREAD_TIPS[0])
 $effect(() => {
-  const hasMessages = chatStore.messages.length > 0
-  if (hasMessages !== lastHasMessages) {
-    lastHasMessages = hasMessages
-    placeholderTip = pick(hasMessages ? activeThreadTips : emptyThreadTips)
-  }
+  const next = pickComposerPlaceholderTip(chatStore.messages.length > 0, lastHasMessages)
+  if (!next) return
+  lastHasMessages = next.lastHasMessages
+  placeholderTip = next.tip
 })
 
 let prompt = $state('')
@@ -245,23 +237,6 @@ const moveFilePickerSelection = (delta: number) => {
   filePickerSelectedIndex = (filePickerSelectedIndex + delta + count) % count
 }
 
-const toPickedImageAttachment = (result: BackendFilePickerResult): MessageAttachment | null => {
-  if (result.source !== 'attachment' || !result.fileId || !result.mimeType?.startsWith('image/')) {
-    return null
-  }
-
-  const contentUrl = toApiUrl(`/files/${result.fileId}/content`)
-
-  return {
-    id: result.fileId,
-    kind: 'image',
-    mime: result.mimeType,
-    name: result.label,
-    size: result.sizeBytes ?? 0,
-    thumbnailUrl: contentUrl,
-    url: contentUrl,
-  }
-}
 
 const selectFilePickerResult = (result: BackendFilePickerResult) => {
   const editor = filePickerEditor
@@ -903,30 +878,12 @@ const loadAgentsForCycle = async () => {
 
 const cycleTarget = async () => {
   await loadAgentsForCycle()
+  const next = getNextTarget(
+    buildTargetCycle(cachedAgentList),
+    chatStore.targetMode === 'agent' ? 'agent' : 'default',
+    chatStore.activeAgentId,
+  )
 
-  // Build cycle: Main → Agent1 → Agent2 → ... → Main
-  const cycle: Array<{ mode: 'default' } | { mode: 'agent'; id: string; name: string }> = [
-    { mode: 'default' },
-    ...cachedAgentList.map((a) => ({ mode: 'agent' as const, id: a.id, name: a.name })),
-  ]
-
-  if (cycle.length <= 1) {
-    // No agents — stay on Main
-    chatStore.setTargetMode('default')
-    return
-  }
-
-  // Find current position
-  let currentIndex = 0
-  if (chatStore.targetMode === 'agent' && chatStore.activeAgentId) {
-    const agentIndex = cycle.findIndex(
-      (e) => e.mode === 'agent' && 'id' in e && e.id === chatStore.activeAgentId,
-    )
-    if (agentIndex >= 0) currentIndex = agentIndex
-  }
-
-  // Advance
-  const next = cycle[(currentIndex + 1) % cycle.length]
   if (next.mode === 'default') {
     chatStore.setTargetMode('default')
   } else {
