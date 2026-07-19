@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { type Interactions } from '@google/genai-v2'
+import type { Interactions } from '@google/genai-v2'
 import { test } from 'vitest'
 
 import {

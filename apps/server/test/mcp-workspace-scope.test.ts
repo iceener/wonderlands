@@ -3,11 +3,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { onTestFinished, test } from 'vitest'
-
+import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
 import { closeAppRuntime } from '../src/app/runtime'
 import type { ToolContext } from '../src/application/tooling/tool-registry'
 import { mcpToolAssignments } from '../src/db/schema'
-import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
 import { asAccountId, asRunId, asTenantId } from '../src/shared/ids'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createAsyncTestHarness } from './helpers/create-test-app'
@@ -390,7 +389,10 @@ test('workspace-scoped files MCP accepts /vault aliases for search without rewri
   ).replace(/\\/g, '/')
 
   assert.equal(parsedOutput.success, true)
-  assert.deepEqual(parsedOutput.results?.byFilename?.map((entry) => entry.path), ['notes/index.md'])
+  assert.deepEqual(
+    parsedOutput.results?.byFilename?.map((entry) => entry.path),
+    ['notes/index.md'],
+  )
   assert.match(parsedOutput.hint ?? '', /Found 1 file\(s\)\./)
   assert.doesNotMatch(JSON.stringify(parsedOutput), new RegExp(scopedPrefix))
 })

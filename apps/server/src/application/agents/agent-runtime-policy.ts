@@ -1,13 +1,15 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createMcpToolAssignmentRepository } from '../persistence/repositories'
 import type { ToolSpec } from '../../application/tooling/tool-registry'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'
-import type { RepositoryDatabase } from '../../db/repository-database'
 import type { RunRecord } from '../../domain/runtime/run-repository'
 import type { ToolProfileId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createAgentRevisionRepository,
+  createMcpToolAssignmentRepository,
+} from '../persistence/repositories'
 import { parseSandboxPolicyJson } from '../sandbox/sandbox-policy'
 
 export interface AgentRuntimeSettings {

@@ -1,4 +1,3 @@
-import { createGardenBuildRepository, createGardenSiteRepository } from '../persistence/repositories'
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
@@ -6,6 +5,10 @@ import type { GardenBuildRecord } from '../../domain/garden/garden-build-reposit
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
 import type { GardenSiteId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createGardenBuildRepository,
+  createGardenSiteRepository,
+} from '../persistence/repositories'
 import { createPollingWorker } from '../polling-worker'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 import { computeGardenSourceFingerprint } from './compiler/build-site'

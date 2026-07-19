@@ -1,12 +1,6 @@
 import { z } from 'zod'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createSessionThreadRepository } from '../persistence/repositories'
-import { createWorkSessionRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import type { AppTransaction } from '../../db/transaction'
 import { withTransaction } from '../../db/transaction'
-import { createJobRepository } from '../persistence/repositories'
-import { createRunRepository } from '../persistence/repositories'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   JobId,
@@ -30,6 +24,14 @@ import {
   rootRunTargetInputSchema,
 } from '../agents/root-run-target-input'
 import { appendThreadNamingRequestedEvent } from '../naming/thread-title-events'
+import {
+  createJobRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+  createSessionThreadRepository,
+  createTenantMembershipRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 import { appendJobCreatedEvents } from '../runtime/scheduling/job-events'
 import { buildSessionBootstrapJobQueueReason } from '../runtime/scheduling/job-status-reasons'
 import { appendWorkspaceLifecycleEvents } from '../workspaces/workspace-events'

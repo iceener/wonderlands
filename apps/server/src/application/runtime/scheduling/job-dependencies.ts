@@ -1,13 +1,15 @@
 import type { RepositoryDatabase } from '../../../db/repository-database'
-import { createJobDependencyRepository } from '../../persistence/repositories'
-import { createRunDependencyRepository } from '../../persistence/repositories'
-import { createRunRepository } from '../../persistence/repositories'
 import type { JobStatus } from '../../../domain/runtime/job-types'
 import type { DomainError } from '../../../shared/errors'
 import type { JobId } from '../../../shared/ids'
 import { asRunId } from '../../../shared/ids'
 import { ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
+import {
+  createJobDependencyRepository,
+  createRunDependencyRepository,
+  createRunRepository,
+} from '../../persistence/repositories'
 import { isParentDeliverableChildWait } from '../waits/delegated-child-waits'
 
 const isTerminalDependencyStatus = (status: JobStatus): boolean =>

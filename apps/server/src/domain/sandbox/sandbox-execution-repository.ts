@@ -100,7 +100,10 @@ export interface SandboxExecutionRepository {
     scope: TenantScope,
     input: CreateSandboxExecutionInput,
   ) => Result<SandboxExecutionRecord, DomainError>
-  getById: (scope: TenantScope, id: SandboxExecutionId) => Result<SandboxExecutionRecord, DomainError>
+  getById: (
+    scope: TenantScope,
+    id: SandboxExecutionId,
+  ) => Result<SandboxExecutionRecord, DomainError>
   listByRunId: (scope: TenantScope, runId: RunId) => Result<SandboxExecutionRecord[], DomainError>
   listQueued: (scope: TenantScope, limit?: number) => Result<SandboxExecutionRecord[], DomainError>
   listQueuedGlobal: (limit?: number) => Result<SandboxExecutionRecord[], DomainError>

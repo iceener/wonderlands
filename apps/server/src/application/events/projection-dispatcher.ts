@@ -1,11 +1,10 @@
-import { createSessionMessageRepository } from '../persistence/repositories'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { asRunId, asSessionThreadId, asWorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { CommandContext } from '../commands/command-context'
 import { createInternalCommandContext } from '../commands/internal-command-context'
+import { createRunRepository, createSessionMessageRepository } from '../persistence/repositories'
 import {
   ensureProjectedThreadContext,
   listVisibleMessages,

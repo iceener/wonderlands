@@ -50,16 +50,13 @@ export const createUploadRoutes = (): Hono<AppEnv> => {
       })
     }
 
-    const result = await uploadFileCommand.execute(
-      commandContext,
-      {
-        accessScope,
-        file: fileEntry,
-        sessionId:
-          typeof sessionId === 'string' && sessionId.trim() ? asWorkSessionId(sessionId) : null,
-        title: typeof title === 'string' && title.trim() ? title.trim() : null,
-      },
-    )
+    const result = await uploadFileCommand.execute(commandContext, {
+      accessScope,
+      file: fileEntry,
+      sessionId:
+        typeof sessionId === 'string' && sessionId.trim() ? asWorkSessionId(sessionId) : null,
+      title: typeof title === 'string' && title.trim() ? title.trim() : null,
+    })
 
     if (!result.ok) {
       throw new DomainErrorException(result.error)

@@ -1,9 +1,4 @@
 import { z } from 'zod'
-import { createAgentRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createAgentSubagentLinkRepository } from '../persistence/repositories'
-import { createAccountPreferencesRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { AgentRecord } from '../../domain/agents/agent-repository'
 import type { AgentKind, AgentVisibility } from '../../domain/agents/agent-types'
@@ -19,6 +14,13 @@ import {
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import { type KernelPolicyInput, kernelPolicyInputSchema } from '../kernel/kernel-policy'
+import {
+  createAccountPreferencesRepository,
+  createAgentRepository,
+  createAgentRevisionRepository,
+  createAgentSubagentLinkRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import { type SandboxPolicyInput, sandboxPolicyInputSchema } from '../sandbox/sandbox-policy'
 import { canEditAgent, canReadAgent, canWriteAgents } from './agent-access'
 import { getAgentDescription } from './agent-capabilities'

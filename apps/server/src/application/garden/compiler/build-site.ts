@@ -1,12 +1,7 @@
 import type { DomainError } from '../../../shared/errors'
 import { err, ok, type Result } from '../../../shared/result'
 import { writeGardenSearchArtifacts } from '../search/pagefind-index'
-import {
-  buildGardenSourceFingerprint,
-  collectGardenAssets,
-  collectGardenPageSources,
-  loadGardenSourceData,
-} from './build-site-source'
+import { writeGardenBuildOutput } from './build-site-artifacts'
 import {
   buildManifest,
   emitPageArtifacts,
@@ -14,7 +9,12 @@ import {
   renderPageBody,
   toManifestPage,
 } from './build-site-pages'
-import { writeGardenBuildOutput } from './build-site-artifacts'
+import {
+  buildGardenSourceFingerprint,
+  collectGardenAssets,
+  collectGardenPageSources,
+  loadGardenSourceData,
+} from './build-site-source'
 import {
   buildSearchSectionLabels,
   buildSidebarNavigation,
@@ -25,15 +25,14 @@ import {
   resolveConfiguredHomeSlug,
   resolveSearchSectionSlug,
   synthesizeMissingListingPages,
-  toListingChildrenMap,
   titleizeSegment,
+  toListingChildrenMap,
 } from './build-site-structure'
 import type {
   GardenBuildResult,
   GardenBuildWarning,
   GardenBuiltPage,
   GardenCompiledBuildResult,
-  GardenManifestPage,
 } from './types'
 
 const createWarningCollector = () => {
@@ -234,8 +233,8 @@ export {
   resolveConfiguredHomeSlug,
   resolveSearchSectionSlug,
   synthesizeMissingListingPages,
-  toListingChildrenMap,
   titleizeSegment,
+  toListingChildrenMap,
   toManifestPage,
   writeGardenBuildOutput,
   writeGardenSearchArtifacts,

@@ -1,13 +1,15 @@
 import type { RepositoryDatabase } from '../../../db/repository-database'
 import type { RunDependencyRecord } from '../../../domain/runtime/run-dependency-repository'
-import { createRunDependencyRepository } from '../../persistence/repositories'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../persistence/repositories'
-import { createToolExecutionRepository } from '../../persistence/repositories'
 import type { DomainError } from '../../../shared/errors'
 import type { SessionThreadId } from '../../../shared/ids'
 import { ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
+import {
+  createRunDependencyRepository,
+  createRunRepository,
+  createToolExecutionRepository,
+} from '../../persistence/repositories'
 import { type JobReadModel, loadThreadRootJobReadModel } from '../scheduling/job-read-model'
 import { requiresConfirmationForToolWait } from '../waits/tool-confirmation'
 

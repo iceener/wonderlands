@@ -2,8 +2,8 @@ import { describe, expect, test } from 'vitest'
 
 import {
   ACTIVE_THREAD_TIPS,
-  EMPTY_THREAD_TIPS,
   buildTargetCycle,
+  EMPTY_THREAD_TIPS,
   getNextTarget,
   pickComposerPlaceholderTip,
   toPickedImageAttachment,
@@ -55,8 +55,20 @@ describe('chat-composer-logic', () => {
       { id: 'agent-2', name: 'Beta' },
     ])
 
-    expect(getNextTarget(cycle, 'default', null)).toEqual({ mode: 'agent', id: 'agent-1', name: 'Alpha' })
-    expect(getNextTarget(cycle, 'agent', 'agent-1')).toEqual({ mode: 'agent', id: 'agent-2', name: 'Beta' })
-    expect(getNextTarget(cycle, 'agent', 'missing')).toEqual({ mode: 'agent', id: 'agent-1', name: 'Alpha' })
+    expect(getNextTarget(cycle, 'default', null)).toEqual({
+      mode: 'agent',
+      id: 'agent-1',
+      name: 'Alpha',
+    })
+    expect(getNextTarget(cycle, 'agent', 'agent-1')).toEqual({
+      mode: 'agent',
+      id: 'agent-2',
+      name: 'Beta',
+    })
+    expect(getNextTarget(cycle, 'agent', 'missing')).toEqual({
+      mode: 'agent',
+      id: 'agent-1',
+      name: 'Alpha',
+    })
   })
 })

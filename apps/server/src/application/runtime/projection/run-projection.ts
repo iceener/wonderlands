@@ -1,7 +1,5 @@
-import { createSessionMessageRepository } from '../../persistence/repositories'
 import { withTransaction } from '../../../db/transaction'
 import type { ItemRecord } from '../../../domain/runtime/item-repository'
-import { createItemRepository } from '../../persistence/repositories'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { SessionMessageRecord } from '../../../domain/sessions/session-message-repository'
 import type { DomainError } from '../../../shared/errors'
@@ -9,6 +7,10 @@ import type { RunId } from '../../../shared/ids'
 import { asItemId } from '../../../shared/ids'
 import { err, ok, type Result } from '../../../shared/result'
 import type { CommandContext, CommandResult } from '../../commands/command-context'
+import {
+  createItemRepository,
+  createSessionMessageRepository,
+} from '../../persistence/repositories'
 
 const SESSION_MESSAGE_PROJECTION_SOURCE = 'session_message_projection'
 

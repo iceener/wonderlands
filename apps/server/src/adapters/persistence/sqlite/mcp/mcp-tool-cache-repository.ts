@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm'
-import { mcpToolCache } from '../../../../db/schema'
 import type { RepositoryDatabase } from '../../../../db/repository-database'
+import { mcpToolCache } from '../../../../db/schema'
 import type { McpAppsToolMeta } from '../../../../domain/mcp/mcp-domain-types'
 import type {
   McpToolCacheRecord,

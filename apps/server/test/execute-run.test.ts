@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-
+import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
 import { createCancelRunCommand } from '../src/application/commands/cancel-run'
 import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
 import { executeRunTurnLoop } from '../src/application/runtime/execution/drive-run'
@@ -23,7 +23,6 @@ import {
   usageLedger,
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
-import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
 import { asAccountId, asRunId, asTenantId } from '../src/shared/ids'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
@@ -278,7 +277,7 @@ test('execute run calls the AI interaction seam and persists assistant output, u
   })
 
   const runRow = runtime.db.select().from(runs).get()
-  const failedResultJson = runRow?.resultJson as {
+  const _failedResultJson = runRow?.resultJson as {
     assistantMessageId?: string
     outputText?: string
   } | null

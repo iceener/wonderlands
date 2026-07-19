@@ -1,14 +1,13 @@
 import { mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-
-import { createWorkspaceRepository } from '../persistence/repositories'
-import type { WorkspaceRecord } from '../../domain/agents/workspace-repository'
 import type { RepositoryDatabase } from '../../db/repository-database'
+import type { WorkspaceRecord } from '../../domain/agents/workspace-repository'
 import type { DomainError } from '../../shared/errors'
 import type { AccountId, RunId, WorkSessionId, WorkspaceId } from '../../shared/ids'
 import { asWorkspaceId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import { createWorkspaceRepository } from '../persistence/repositories'
 
 interface WorkspaceServiceDeps {
   createId: <TPrefix extends string>(prefix: TPrefix) => `${TPrefix}_${string}`

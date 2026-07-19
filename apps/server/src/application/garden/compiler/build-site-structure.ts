@@ -1,5 +1,10 @@
 import type { DomainError } from '../../../shared/errors'
 import { ok, type Result } from '../../../shared/result'
+import {
+  type GardenCollectedPageSource,
+  type GardenResolvedSourceData,
+  loadGardenSourceData,
+} from './build-site-source'
 import { slugifyGardenPath, slugifyGardenSegment } from './parse-page'
 import { isGardenReservedRoot } from './resolve-source-path'
 import type {
@@ -8,11 +13,6 @@ import type {
   GardenSidebarItem,
   GardenSourceConfig,
 } from './types'
-import {
-  type GardenCollectedPageSource,
-  type GardenResolvedSourceData,
-  loadGardenSourceData,
-} from './build-site-source'
 
 interface GardenPreparedBuildContext extends GardenResolvedSourceData {
   availablePublicAssetPaths: ReadonlySet<string>
@@ -585,6 +585,6 @@ export {
   resolveConfiguredHomeSlug,
   resolveSearchSectionSlug,
   synthesizeMissingListingPages,
-  toListingChildrenMap,
   titleizeSegment,
+  toListingChildrenMap,
 }

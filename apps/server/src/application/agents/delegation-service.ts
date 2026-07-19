@@ -1,9 +1,3 @@
-import { createAgentRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createAgentSubagentLinkRepository } from '../persistence/repositories'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createFileRepository } from '../persistence/repositories'
-import { createSessionMessageRepository } from '../persistence/repositories'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
@@ -11,11 +5,7 @@ import type { AgentRecord } from '../../domain/agents/agent-repository'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AgentSubagentLinkRecord } from '../../domain/agents/agent-subagent-link-repository'
 import type { DomainCommittedEventType } from '../../domain/events/committed-event-contract'
-import { createItemRepository } from '../persistence/repositories'
-import { createJobDependencyRepository } from '../persistence/repositories'
-import { createJobRepository } from '../persistence/repositories'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import {
   asFileId,
@@ -27,6 +17,18 @@ import {
 } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import { createEventStore } from '../commands/event-store'
+import {
+  createAgentRepository,
+  createAgentRevisionRepository,
+  createAgentSubagentLinkRepository,
+  createFileLinkRepository,
+  createFileRepository,
+  createItemRepository,
+  createJobDependencyRepository,
+  createJobRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+} from '../persistence/repositories'
 import { appendJobCreatedEvents } from '../runtime/scheduling/job-events'
 import { buildDelegatedChildJobQueueReason } from '../runtime/scheduling/job-status-reasons'
 import { createWorkspaceService } from '../workspaces/workspace-service'

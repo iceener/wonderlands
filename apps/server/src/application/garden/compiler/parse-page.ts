@@ -86,11 +86,7 @@ export const slugifyGardenSegment = (value: string): string =>
     .replace(/^-+|-+$/g, '')
 
 export const slugifyGardenPath = (value: string): string =>
-  value
-    .split('/')
-    .map(slugifyGardenSegment)
-    .filter(Boolean)
-    .join('/')
+  value.split('/').map(slugifyGardenSegment).filter(Boolean).join('/')
 
 const titleizeSegment = (value: string): string =>
   value
@@ -118,7 +114,10 @@ const markdownStripRegexes: Array<[RegExp, string | ((...args: string[]) => stri
   [/^>\s?/gm, ''],
   [/!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g, ''],
   [/!\[([^\]]*)\]\([^)]+\)/g, ''],
-  [/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match: string, target: string, alias?: string) => alias ?? target],
+  [
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (_match: string, target: string, alias?: string) => alias ?? target,
+  ],
   [/\[([^\]]+)\]\([^)]+\)/g, '$1'],
   [/`([^`]+)`/g, '$1'],
   [/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1'],
@@ -167,8 +166,7 @@ const extractExcerpt = (raw: string, maxLength = 160): string | undefined => {
   for (const paragraph of paragraphs) {
     if (!paragraph || /^#{1,6}\s/.test(paragraph)) continue
     if (/^[-*+]\s/.test(paragraph) || /^\d+\.\s/.test(paragraph)) continue
-    if (/^!?\[/.test(paragraph) && /(\)$|\]\]$)/.test(paragraph) && paragraph.length < 80)
-      continue
+    if (/^!?\[/.test(paragraph) && /(\)$|\]\]$)/.test(paragraph) && paragraph.length < 80) continue
 
     let stripped = paragraph
 
@@ -176,7 +174,10 @@ const extractExcerpt = (raw: string, maxLength = 160): string | undefined => {
       stripped = stripped.replace(regex, replacement as string)
     }
 
-    stripped = stripped.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+    stripped = stripped
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
 
     if (stripped.length < 12) {
       continue

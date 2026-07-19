@@ -1,5 +1,4 @@
 import { TextDecoder } from 'node:util'
-import { createFileRepository } from '../persistence/repositories'
 import type { AiMessage, AiProviderName } from '../../domain/ai/types'
 import type { FileRecord } from '../../domain/files/file-repository'
 import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'
@@ -7,6 +6,7 @@ import type { FileId, RunId, SessionMessageId } from '../../shared/ids'
 import { ok } from '../../shared/result'
 import type { CommandContext, CommandResult } from '../commands/command-context'
 import type { AttachmentRefAccessMode } from '../interactions/attachment-ref-access'
+import { createFileRepository } from '../persistence/repositories'
 
 export interface VisibleFileContextEntry {
   dataUrl: string | null

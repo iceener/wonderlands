@@ -2,12 +2,12 @@ import { and, asc, eq, gt, or, sql } from 'drizzle-orm'
 
 import { domainEvents, eventOutbox } from '../../../../db/schema'
 import { DEFAULT_REPLAY_EVENT_CATEGORY } from '../../../../domain/events/committed-event-contract'
+import type { DomainEventEnvelope } from '../../../../domain/events/domain-event'
 import type {
   AppendDomainEventRecordInput,
   DomainEventRepository,
   ListDomainEventsInput,
 } from '../../../../domain/events/domain-event-repository'
-import type { DomainEventEnvelope } from '../../../../domain/events/domain-event'
 import { hydrateStoredEventPayload } from '../../../../domain/events/event-payload-sidecar-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { asAccountId, asEventId, asTenantId, createPrefixedId } from '../../../../shared/ids'

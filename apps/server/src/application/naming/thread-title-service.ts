@@ -1,12 +1,14 @@
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createSessionThreadRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { asRunId, asSessionThreadId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'
 import type { CommandContext } from '../commands/command-context'
 import { createEventStore } from '../commands/event-store'
+import {
+  createRunRepository,
+  createSessionMessageRepository,
+  createSessionThreadRepository,
+} from '../persistence/repositories'
 import {
   appendThreadNamingCompletedEvent,
   appendThreadNamingFailedEvent,

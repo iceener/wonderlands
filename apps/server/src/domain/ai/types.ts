@@ -23,14 +23,7 @@ export type AiMessageRole = 'user' | 'assistant' | 'system' | 'developer' | 'too
 export type AiAssistantPhase = 'commentary' | 'final_answer'
 export type AiImageDetail = 'low' | 'high' | 'auto' | 'original'
 export type AiServiceTier = 'auto' | 'default' | 'flex' | 'priority' | 'scale'
-export type AiReasoningEffort =
-  | 'none'
-  | 'minimal'
-  | 'low'
-  | 'medium'
-  | 'high'
-  | 'xhigh'
-  | 'max'
+export type AiReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export type AiReasoningSummary = 'auto' | 'concise' | 'detailed'
 
 export interface AiReasoningOptions {

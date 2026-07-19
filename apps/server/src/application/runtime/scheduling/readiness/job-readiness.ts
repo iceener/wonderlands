@@ -1,14 +1,16 @@
 import type { AppConfig } from '../../../../app/config'
 import type { AppDatabase } from '../../../../db/client'
-import { createJobRunReadinessRepository } from '../../../persistence/repositories'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../persistence/repositories'
-import { createToolExecutionRepository } from '../../../persistence/repositories'
 import type { DomainError } from '../../../../shared/errors'
 import { asJobId, asRunId, asTenantId, asWorkSessionId } from '../../../../shared/ids'
 import { ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
+import {
+  createJobRunReadinessRepository,
+  createRunDependencyRepository,
+  createRunRepository,
+  createToolExecutionRepository,
+} from '../../../persistence/repositories'
 import { resolveExecutionScopeForSession } from '../../run-execution-scope'
 import { dependenciesSatisfiedForJob } from '../job-dependencies'
 import {

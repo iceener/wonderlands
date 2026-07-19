@@ -1,6 +1,4 @@
 import { z } from 'zod'
-import { createTenantMembershipRepository } from '../persistence/repositories'
-import { createToolProfileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import type {
   ToolProfileRecord,
@@ -17,6 +15,10 @@ import {
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import { writableTenantRoles } from '../agents/agent-access'
+import {
+  createTenantMembershipRepository,
+  createToolProfileRepository,
+} from '../persistence/repositories'
 import { canViewToolProfile } from './tool-profile-access'
 
 const createToolProfileInputSchema = z.object({

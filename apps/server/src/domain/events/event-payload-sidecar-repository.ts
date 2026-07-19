@@ -114,8 +114,6 @@ export interface CreateEventPayloadSidecarInput {
  */
 export interface EventPayloadSidecarRepository {
   create: (input: CreateEventPayloadSidecarInput) => Result<null, DomainError>
-  listByEventIds: (
-    eventIds: string[],
-  ) => Result<Map<string, Record<string, unknown>>, DomainError>
+  listByEventIds: (eventIds: string[]) => Result<Map<string, Record<string, unknown>>, DomainError>
   removeByEventId: (eventId: string) => Result<null, DomainError>
 }

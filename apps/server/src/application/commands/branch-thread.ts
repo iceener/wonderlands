@@ -1,8 +1,4 @@
 import { z } from 'zod'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createFileRepository } from '../persistence/repositories'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createSessionThreadRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'
 import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
@@ -11,6 +7,12 @@ import type { FileId, SessionThreadId } from '../../shared/ids'
 import { asSessionMessageId, asSessionThreadId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createSessionMessageRepository,
+  createSessionThreadRepository,
+} from '../persistence/repositories'
 import { loadThreadRootJobReadModel } from '../runtime/scheduling/job-read-model'
 import type { CommandContext, CommandResult } from './command-context'
 import { unwrapCommandResultOrThrow } from './command-result'

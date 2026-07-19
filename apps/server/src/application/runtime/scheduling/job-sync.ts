@@ -1,5 +1,4 @@
 import type { RepositoryDatabase } from '../../../db/repository-database'
-import { createJobRepository } from '../../persistence/repositories'
 import { reopenableJobStatuses } from '../../../domain/runtime/job-types'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../shared/errors'
@@ -7,6 +6,7 @@ import type { SessionMessageId, SessionThreadId, TraceId } from '../../../shared
 import { err, ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
 import type { createEventStore } from '../../commands/event-store'
+import { createJobRepository } from '../../persistence/repositories'
 import { appendJobStatusChangeEvent } from './job-events'
 import {
   buildNewUserMessageJobQueueReason,

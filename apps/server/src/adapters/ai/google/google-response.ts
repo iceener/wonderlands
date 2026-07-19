@@ -205,7 +205,7 @@ const detectUnsupportedOutputContent = (
 }
 
 const toTerminalIssue = (
-  interaction: Interactions.Interaction,
+  _interaction: Interactions.Interaction,
   status: AiInteractionResponse['status'],
   options: NormalizeGoogleResponseOptions,
 ): GoogleTerminalIssue | null => {

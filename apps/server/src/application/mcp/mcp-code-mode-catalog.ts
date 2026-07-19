@@ -1,9 +1,9 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
-import type { ToolContext, ToolSpec } from '../tooling/tool-registry'
 import {
   createMcpServerRepository,
   createMcpToolAssignmentRepository,
 } from '../persistence/repositories'
+import type { ToolContext, ToolSpec } from '../tooling/tool-registry'
 
 const MCP_RUNTIME_SEPARATOR = '__'
 const regexQueryPattern = /^\/(.+)\/([a-z]*)$/
@@ -308,12 +308,11 @@ export const searchMcpCodeModeCatalog = (
   }>
 } => {
   const matcher = normalizeQueryMatcher(input.query)
-  const queryMode =
-    input.query?.trim() && input.query.trim().match(regexQueryPattern)
-      ? 'regex'
-      : matcher
-        ? 'substring'
-        : 'all'
+  const queryMode = input.query?.trim()?.match(regexQueryPattern)
+    ? 'regex'
+    : matcher
+      ? 'substring'
+      : 'all'
   const scope = input.scope ?? 'both'
   const serverId = input.serverId?.trim() ?? ''
   const executableOnly = input.executableOnly === true

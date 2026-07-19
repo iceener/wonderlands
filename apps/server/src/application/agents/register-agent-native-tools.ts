@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { createFileRepository } from '../persistence/repositories'
 import type { ToolContext, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import type { DomainError } from '../../shared/errors'
@@ -13,6 +12,7 @@ import {
   resolveMcpCodeModeTools,
   searchMcpCodeModeCatalog,
 } from '../mcp/code-mode'
+import { createFileRepository } from '../persistence/repositories'
 import {
   isNativeToolAllowedForRun,
   isToolAllowedForRun,

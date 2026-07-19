@@ -1,9 +1,9 @@
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import type { AppDatabase } from '../../db/client'
 import type { ToolContext } from '../../application/tooling/tool-registry'
-import { createWorkspaceRepository } from '../persistence/sqlite/agents/workspace-repository'
+import type { AppDatabase } from '../../db/client'
 import type { DomainError } from '../../shared/errors'
 import { err, ok, type Result } from '../../shared/result'
+import { createWorkspaceRepository } from '../persistence/sqlite/agents/workspace-repository'
 import type { ConnectedServerState } from './gateway-state'
 import type { McpDiscoveredTool, McpStdioServerConfig } from './types'
 
@@ -71,7 +71,10 @@ const resolveScopedFilesystemRoot = (
   }
 
   if (context.run.workspaceId) {
-    const workspace = createWorkspaceRepository(db).getById(context.tenantScope, context.run.workspaceId)
+    const workspace = createWorkspaceRepository(db).getById(
+      context.tenantScope,
+      context.run.workspaceId,
+    )
 
     if (!workspace.ok) {
       return workspace
@@ -86,7 +89,10 @@ const resolveScopedFilesystemRoot = (
   })
 }
 
-export const toScopedPrefix = (mountRoot: string, scopedRoot: string): Result<string, DomainError> => {
+export const toScopedPrefix = (
+  mountRoot: string,
+  scopedRoot: string,
+): Result<string, DomainError> => {
   const scopedPrefix = relative(mountRoot, scopedRoot).replace(/\\/g, '/')
 
   if (
@@ -118,7 +124,10 @@ export const normalizeWorkspaceScopedInputPath = (value: string): string => {
 
   const normalized = trimmed.replace(/\\/g, '/').replace(/^\/+/, '').replace(/^\.\//, '')
 
-  if (normalized === WORKSPACE_SCOPED_VIRTUAL_ROOT || normalized === `${WORKSPACE_SCOPED_VIRTUAL_ROOT}/`) {
+  if (
+    normalized === WORKSPACE_SCOPED_VIRTUAL_ROOT ||
+    normalized === `${WORKSPACE_SCOPED_VIRTUAL_ROOT}/`
+  ) {
     return '.'
   }
 

@@ -133,11 +133,7 @@ export const createLiveAssistantLaneCoordinator = ({
     }
 
     let liveAssistantMessage = getLiveAssistantMessage()
-    if (
-      liveAssistantMessage &&
-      liveAssistantMessage.runId &&
-      liveAssistantMessage.runId !== runId
-    ) {
+    if (liveAssistantMessage?.runId && liveAssistantMessage.runId !== runId) {
       retainLiveAssistantForProjectionHandoff()
       setLiveAssistantMessage(null)
       setLiveAssistantMessageIdState(null)

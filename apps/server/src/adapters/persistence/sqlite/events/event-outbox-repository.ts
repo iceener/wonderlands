@@ -8,8 +8,8 @@ import type {
   EventOutboxBacklogSnapshot,
   EventOutboxQuarantineTopicStats,
   EventOutboxRecord,
-  EventOutboxRepository,
   EventOutboxReplayRecord,
+  EventOutboxRepository,
   GetQuarantinedEventOutboxByIdInput,
   InspectEventOutboxBacklogInput,
   InspectEventOutboxQuarantineInput,
@@ -19,12 +19,12 @@ import type {
   ReplayQuarantinedEventOutboxInput,
   RetryEventOutboxInput,
 } from '../../../../domain/events/event-outbox-repository'
+import { hydrateStoredEventPayload } from '../../../../domain/events/event-payload-sidecar-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { asAccountId, asEventId, asTenantId, createPrefixedId } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
 import type { RepositoryDatabase } from '../repository-database'
 import { createEventPayloadSidecarRepository } from './event-payload-sidecar-repository'
-import { hydrateStoredEventPayload } from '../../../../domain/events/event-payload-sidecar-repository'
 
 const toOutboxRecord = (
   row: {

@@ -1,13 +1,15 @@
-import { createAgentRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createAccountPreferencesRepository } from '../persistence/repositories'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'
-import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainError } from '../../shared/errors'
 import { type AgentId, type AgentRevisionId, asAgentId, type ToolProfileId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createAccountPreferencesRepository,
+  createAgentRepository,
+  createAgentRevisionRepository,
+} from '../persistence/repositories'
 import { canReadAgent } from './agent-access'
 import { resolveRuntimeSettingsFromAgentRevision } from './agent-runtime-policy'
 

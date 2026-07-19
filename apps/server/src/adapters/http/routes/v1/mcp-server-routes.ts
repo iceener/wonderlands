@@ -121,7 +121,7 @@ export const registerMcpServerRoutes = (routes: Hono<AppEnv>): void => {
     const deletedCache = unwrapRouteResult(
       toolCacheRepository.deleteByServerId(tenantScope, serverId),
     )
-    const deletedCredentials = unwrapRouteResult(
+    const _deletedCredentials = unwrapRouteResult(
       oauthCredentialRepository.deleteByServerId(tenantScope, serverId),
     )
 

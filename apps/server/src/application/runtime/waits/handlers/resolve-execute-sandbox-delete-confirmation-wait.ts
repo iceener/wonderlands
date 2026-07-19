@@ -1,11 +1,13 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createItemRepository } from '../../../persistence/repositories'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
-import { createToolExecutionRepository } from '../../../persistence/repositories'
 import { asItemId } from '../../../../shared/ids'
 import { err, ok } from '../../../../shared/result'
 import type { CommandResult } from '../../../commands/command-context'
 import { createEventStore } from '../../../commands/event-store'
+import {
+  createItemRepository,
+  createRunDependencyRepository,
+  createToolExecutionRepository,
+} from '../../../persistence/repositories'
 import { executeOneToolCall } from '../../execution/run-tool-execution'
 import { appendDomainEvent } from '../../run-events'
 import { getToolAppsMetaPayload } from '../../tool-apps-meta'

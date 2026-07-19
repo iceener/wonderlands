@@ -24,11 +24,11 @@ import {
 } from '../../../../application/runtime/projection/thread-activity-read-model'
 import { loadThreadRootJobReadModel } from '../../../../application/runtime/scheduling/job-read-model'
 import { resolveContextWindowForModel } from '../../../../application/system/models-catalog'
-import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asRunId, asSessionThreadId } from '../../../../shared/ids'
 import { createUsageLedgerRepository } from '../../../persistence/sqlite/ai/usage-ledger-repository'
 import { createFileRepository } from '../../../persistence/sqlite/files/file-repository'
+import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { createSessionMessageRepository } from '../../../persistence/sqlite/sessions/session-message-repository'
 import { createSessionThreadRepository } from '../../../persistence/sqlite/sessions/session-thread-repository'
 import { createThreadActivitySeenRepository } from '../../../persistence/sqlite/sessions/thread-activity-seen-repository'
@@ -181,7 +181,7 @@ export const registerThreadQueryRoutes = (routes: Hono<AppEnv>): void => {
       loadThreadRootJobReadModel(c.get('db'), tenantScope, threadId),
     )
 
-    if (!rootJob || !rootJob.currentRunId) {
+    if (!rootJob?.currentRunId) {
       return c.body(null, 204)
     }
 

@@ -163,12 +163,14 @@ export const replaceMessageFiles = (
     return ensured
   }
 
-  const fileDeletionPlan = createMessageFileReplacementRepository(dependencies.db).applyReplacement({
-    desiredFileIds: ensured.value,
-    messageId: input.messageId,
-    sessionId: dependencies.sessionId,
-    tenantId: context.tenantScope.tenantId,
-  })
+  const fileDeletionPlan = createMessageFileReplacementRepository(dependencies.db).applyReplacement(
+    {
+      desiredFileIds: ensured.value,
+      messageId: input.messageId,
+      sessionId: dependencies.sessionId,
+      tenantId: context.tenantScope.tenantId,
+    },
+  )
 
   return ok({
     attachedFileIds: ensured.value,

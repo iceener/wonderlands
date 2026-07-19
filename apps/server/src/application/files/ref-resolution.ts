@@ -1,11 +1,11 @@
 import { TextDecoder } from 'node:util'
-import { createFileRepository } from '../persistence/repositories'
 import type { AttachmentRefResolutionPolicy } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import type { BlobStore } from '../../domain/files/blob-store'
 import type { DomainError } from '../../shared/errors'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import { createFileRepository } from '../persistence/repositories'
 import type { AttachmentRefDescriptor } from './attachment-ref-context'
 
 export type AttachmentRefResolutionMode =

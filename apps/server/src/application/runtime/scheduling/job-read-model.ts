@@ -1,12 +1,11 @@
 import type { RepositoryDatabase } from '../../../db/repository-database'
-import { createJobDependencyRepository } from '../../persistence/repositories'
 import type { JobRecord } from '../../../domain/runtime/job-repository'
-import { createJobRepository } from '../../persistence/repositories'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../shared/errors'
 import type { SessionThreadId } from '../../../shared/ids'
 import { ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
+import { createJobDependencyRepository, createJobRepository } from '../../persistence/repositories'
 
 export interface JobReadModel {
   assignedAgentId: JobRecord['assignedAgentId']

@@ -13,10 +13,7 @@ export interface DeleteThreadOutput {
   threadId: SessionThreadId
 }
 
-const collectThreadSubtreeIds = (
-  rows: SessionThreadRecord[],
-  rootThreadId: string,
-): string[] => {
+const collectThreadSubtreeIds = (rows: SessionThreadRecord[], rootThreadId: string): string[] => {
   const childrenByParent = new Map<string, string[]>()
 
   for (const row of rows) {

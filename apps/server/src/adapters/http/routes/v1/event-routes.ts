@@ -5,9 +5,9 @@ import type { AppEnv } from '../../../../app/types'
 import { createResourceAccessService } from '../../../../application/access/resource-access'
 import { DEFAULT_REPLAY_EVENT_CATEGORY } from '../../../../domain/events/committed-event-contract'
 import type { DomainEventCategory } from '../../../../domain/events/domain-event'
-import { createDomainEventRepository } from '../../../persistence/sqlite/events/domain-event-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asRunId, asSessionThreadId, asWorkSessionId } from '../../../../shared/ids'
+import { createDomainEventRepository } from '../../../persistence/sqlite/events/domain-event-repository'
 import { writeDomainEventSse } from '../../sse'
 
 const parseOptionalInteger = (value: string | undefined): number | undefined => {

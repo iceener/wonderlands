@@ -1,11 +1,5 @@
-import { createAgentRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createAgentSubagentLinkRepository } from '../persistence/repositories'
-import { createMemoryRecordRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { MemoryRecordRecord } from '../../domain/memory/memory-record-repository'
-import { createContextSummaryRepository } from '../persistence/repositories'
-import { createRunDependencyRepository } from '../persistence/repositories'
 import type { RunRecord } from '../../domain/runtime/run-repository'
 import { ok } from '../../shared/result'
 import { getAgentDescription, listAgentCapabilities } from '../agents/agent-capabilities'
@@ -19,6 +13,14 @@ import {
   estimateReflectionTokenCount,
   reflectRunLocalMemory,
 } from '../memory/reflect-run-local-memory'
+import {
+  createAgentRepository,
+  createAgentRevisionRepository,
+  createAgentSubagentLinkRepository,
+  createContextSummaryRepository,
+  createMemoryRecordRepository,
+  createRunDependencyRepository,
+} from '../persistence/repositories'
 import { maybeCompactMainThreadContext } from '../runtime/execution/context-compaction'
 import {
   ensureProjectedThreadContext,

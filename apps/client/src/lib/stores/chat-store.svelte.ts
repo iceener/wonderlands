@@ -85,7 +85,6 @@ import { createChatStoreFacade } from '../chat/store-facade'
 import { createThreadStreamController } from '../chat/transport/thread-stream-controller'
 import { createThreadStreamRuntime } from '../chat/transport/thread-stream-runtime'
 import type {
-  ChatReasoningModeOption,
   ContextBudget,
   ConversationTargetMode,
   MessageEditDraft,
@@ -870,7 +869,6 @@ export const createChatStore = (dependencies: ChatStoreDependencies = {}) => {
   const bindActiveRun = activeRunShell.bindActiveRun
   const resetRunState = activeRunShell.resetRunState
   const resetState = activeRunShell.resetState
-  const getLiveAssistantMessageId = activeRunShell.getLiveAssistantMessageId
   const primeLiveAssistantMessageId = activeRunShell.primeLiveAssistantMessageId
   const ensureLiveAssistantMessage = activeRunShell.ensureLiveAssistantMessage
   const prepareFreshLiveAssistantLane = activeRunShell.prepareFreshLiveAssistantLane

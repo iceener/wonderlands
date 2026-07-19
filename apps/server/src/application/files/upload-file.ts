@@ -1,9 +1,5 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createFileRepository } from '../persistence/repositories'
-import { createUploadRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import { type FileAccessScope, isMimeTypeAllowed } from '../../domain/files/file-access'
 import type { FileRecord } from '../../domain/files/file-repository'
@@ -13,6 +9,12 @@ import { err, ok, type Result } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
 import type { CommandContext, CommandResult } from '../commands/command-context'
 import { createEventStore } from '../commands/event-store'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createTenantMembershipRepository,
+  createUploadRepository,
+} from '../persistence/repositories'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 import { toAttachmentStorageKey } from './attachment-storage'
 

@@ -1,4 +1,3 @@
-import { createFileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import type { MessageLinkedFileRecord } from '../../domain/files/file-repository'
 import type { ItemRecord } from '../../domain/runtime/item-repository'
@@ -8,6 +7,7 @@ import type { FileId, SessionMessageId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import type { CommandContext, CommandResult } from '../commands/command-context'
+import { createFileRepository } from '../persistence/repositories'
 import { readMessageAttachmentFileIds } from './attachment-metadata'
 import { toAttachmentInternalPath } from './attachment-storage'
 

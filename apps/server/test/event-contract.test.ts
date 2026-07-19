@@ -3,15 +3,14 @@ import { BACKEND_EVENT_TYPES } from '@wonderlands/contracts/chat'
 
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-
+import { createDomainEventRepository } from '../src/adapters/persistence/sqlite/events/domain-event-repository'
+import { createEventOutboxRepository } from '../src/adapters/persistence/sqlite/events/event-outbox-repository'
 import { createEventStore } from '../src/application/commands/event-store'
 import { domainEvents, eventOutbox, eventPayloadSidecars } from '../src/db/schema'
 import {
   DOMAIN_EVENT_TYPES,
   TELEMETRY_EVENT_TYPES,
 } from '../src/domain/events/committed-event-contract'
-import { createDomainEventRepository } from '../src/adapters/persistence/sqlite/events/domain-event-repository'
-import { createEventOutboxRepository } from '../src/adapters/persistence/sqlite/events/event-outbox-repository'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
 

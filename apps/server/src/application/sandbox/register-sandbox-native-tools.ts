@@ -1,12 +1,5 @@
 import type { AppDatabase } from '../../db/client'
 import type { SandboxPolicy } from '../../domain/sandbox/types'
-import {
-  createAgentRevisionRepository,
-  createSandboxExecutionRepository,
-  createSandboxWritebackRepository,
-  createToolExecutionRepository,
-} from '../persistence/repositories'
-import type { ToolOutcome, ToolRegistry, ToolSpec } from '../tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import {
   asJobId,
@@ -32,6 +25,13 @@ import {
   MCP_CODE_MODE_CONFIRMATION_TARGET_REF,
   renderMcpCodeModeWrapperScript,
 } from '../mcp/code-mode'
+import {
+  createAgentRevisionRepository,
+  createSandboxExecutionRepository,
+  createSandboxWritebackRepository,
+  createToolExecutionRepository,
+} from '../persistence/repositories'
+import type { ToolOutcome, ToolRegistry, ToolSpec } from '../tooling/tool-registry'
 import { buildSandboxBashWrapperScript, wrapBashRequestForNodeCompat } from './sandbox-bash-wrapper'
 import {
   formatSandboxDeleteWritebackConfirmationDescription,

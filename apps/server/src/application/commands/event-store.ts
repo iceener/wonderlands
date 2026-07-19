@@ -1,4 +1,3 @@
-import { createDomainEventRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import {
   type CanonicalCommittedEventType,
@@ -13,6 +12,7 @@ import type { AccountId, TenantId } from '../../shared/ids'
 import { asEventId, createPrefixedId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import { signalOutboxPending } from '../events/outbox-signal'
+import { createDomainEventRepository } from '../persistence/repositories'
 
 export interface AppendDomainEventInput<TPayload> {
   actorAccountId?: AccountId

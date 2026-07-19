@@ -9,7 +9,13 @@ import type {
 } from '../../../../domain/runtime/job-dependency-repository'
 import type { JobDependencyType } from '../../../../domain/runtime/job-types'
 import type { DomainError } from '../../../../shared/errors'
-import { asJobDependencyId, asJobId, asTenantId, asWorkSessionId, type JobId } from '../../../../shared/ids'
+import {
+  asJobDependencyId,
+  asJobId,
+  asTenantId,
+  asWorkSessionId,
+  type JobId,
+} from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
 import type { RepositoryDatabase } from '../repository-database'

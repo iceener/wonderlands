@@ -117,7 +117,8 @@ export const createFileLinkRepository = (db: RepositoryDatabase): FileLinkReposi
 
       return ok(rows.map(toFileLinkRecord))
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown file link target list failure'
+      const message =
+        error instanceof Error ? error.message : 'Unknown file link target list failure'
 
       return err({
         message: `failed to list file links for target ${input.targetId}: ${message}`,

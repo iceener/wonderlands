@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-
+import { createItemRepository } from '../src/adapters/persistence/sqlite/runtime/item-repository'
+import { createRunClaimRepository } from '../src/adapters/persistence/sqlite/runtime/run-claim-repository'
+import { createRunDependencyRepository } from '../src/adapters/persistence/sqlite/runtime/run-dependency-repository'
+import { createToolExecutionRepository } from '../src/adapters/persistence/sqlite/runtime/tool-execution-repository'
 import { closeAppRuntime, createAppRuntime, initializeAppRuntime } from '../src/app/runtime'
 import { createExecuteRunCommand } from '../src/application/commands/execute-run'
 import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
@@ -21,10 +24,6 @@ import {
   toolExecutions,
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
-import { createItemRepository } from '../src/adapters/persistence/sqlite/runtime/item-repository'
-import { createRunClaimRepository } from '../src/adapters/persistence/sqlite/runtime/run-claim-repository'
-import { createRunDependencyRepository } from '../src/adapters/persistence/sqlite/runtime/run-dependency-repository'
-import { createToolExecutionRepository } from '../src/adapters/persistence/sqlite/runtime/tool-execution-repository'
 import { asAccountId, asItemId, asRunId, asTenantId } from '../src/shared/ids'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'

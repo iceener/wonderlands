@@ -28,8 +28,8 @@ import {
 } from './render/scripts'
 import type { GardenNavigationItem, GardenPageSeo, GardenSidebarItem } from './types'
 
-export { GARDEN_PROTECTED_SEARCH_STATE_TOKEN }
 export type { GardenListingContext, GardenListingItem }
+export { GARDEN_PROTECTED_SEARCH_STATE_TOKEN }
 
 // --- Main Render ---
 

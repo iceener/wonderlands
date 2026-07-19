@@ -25,7 +25,7 @@ const renderSitemapItems = (
     })
     .join('\n')
 
-const renderSearchPanel = (hasProtectedSearch: boolean): string => `
+const renderSearchPanel = (_hasProtectedSearch: boolean): string => `
 <section class="garden-search" data-garden-search-root data-pagefind-ignore="all">
   <div class="garden-search-field">
     <input
@@ -97,4 +97,3 @@ export const renderSearchConfig = (input: {
     protectedSearchState: GARDEN_PROTECTED_SEARCH_STATE_TOKEN,
     sectionLabels: input.searchSectionLabels,
   })}</script>`
-

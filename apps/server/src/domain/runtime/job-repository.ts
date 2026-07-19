@@ -1,12 +1,12 @@
 import type { DomainError } from '../../shared/errors'
-import {
-  type AgentId,
-  type AgentRevisionId,
-  type JobId,
-  type RunId,
-  type SessionThreadId,
-  type TenantId,
-  type WorkSessionId,
+import type {
+  AgentId,
+  AgentRevisionId,
+  JobId,
+  RunId,
+  SessionThreadId,
+  TenantId,
+  WorkSessionId,
 } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'

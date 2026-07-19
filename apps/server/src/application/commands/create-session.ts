@@ -1,11 +1,13 @@
 import { z } from 'zod'
-import { createWorkSessionRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { WorkSessionRecord } from '../../domain/sessions/work-session-repository'
 import { DomainErrorException } from '../../shared/errors'
 import { asWorkSessionId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
+import {
+  createTenantMembershipRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 import { appendWorkspaceLifecycleEvents } from '../workspaces/workspace-events'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 import type { CommandContext, CommandResult } from './command-context'

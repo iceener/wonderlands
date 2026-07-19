@@ -1,6 +1,3 @@
-import { createAgentScheduledTaskRepository } from '../persistence/repositories'
-import { createAgentScheduledTaskRunRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import type { AppRuntime } from '../../app/runtime'
 import { withTransaction } from '../../db/transaction'
 import type { AgentScheduledTaskRecord } from '../../domain/agent-tasks/agent-scheduled-task-repository'
@@ -8,7 +5,6 @@ import type {
   AgentScheduledTaskRunRecord,
   AgentScheduledTaskRunTrigger,
 } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
-import { createRunRepository } from '../persistence/repositories'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import { asAgentScheduledTaskRunId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
@@ -16,6 +12,12 @@ import type { TenantScope } from '../../shared/scope'
 import { resolveRootRunAgentBinding } from '../agents/root-run-agent-binding'
 import { runBootstrapSessionTransaction } from '../commands/bootstrap-session'
 import { createInternalCommandContext } from '../commands/internal-command-context'
+import {
+  createAgentScheduledTaskRepository,
+  createAgentScheduledTaskRunRepository,
+  createRunRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import { computeNextRunAt } from './cron-schedule'
 import { isRuntimeRunActive } from './scheduled-task-status'
 

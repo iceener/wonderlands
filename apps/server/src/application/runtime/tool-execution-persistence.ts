@@ -1,9 +1,12 @@
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import type { createItemRepository, createToolExecutionRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { ItemId, RunId } from '../../shared/ids'
 import type { CommandContext } from '../commands/command-context'
 import type { createEventStore } from '../commands/event-store'
+import type {
+  createItemRepository,
+  createToolExecutionRepository,
+} from '../persistence/repositories'
 import { appendDomainEvent, resolveRunEventThreadId, unwrapOrThrow } from './run-events'
 
 type ToolExecutionScopedRun = Pick<

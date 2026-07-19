@@ -23,9 +23,7 @@ const isBackendFilePickerResult = (value: unknown): value is BackendFilePickerRe
     (typeof value.mimeType === 'string' || value.mimeType === null) &&
     typeof value.relativePath === 'string' &&
     (typeof value.sizeBytes === 'number' || value.sizeBytes === null) &&
-    (value.source === 'attachment' ||
-      value.source === 'workspace' ||
-      value.source === 'mcp')
+    (value.source === 'attachment' || value.source === 'workspace' || value.source === 'mcp')
   )
 }
 

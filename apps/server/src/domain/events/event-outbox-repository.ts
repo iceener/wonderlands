@@ -1,5 +1,5 @@
 import type { DomainError } from '../../shared/errors'
-import { type asEventId, type asTenantId, type TenantId } from '../../shared/ids'
+import type { asEventId, asTenantId, TenantId } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { DomainEventEnvelope } from './domain-event'
 

@@ -1,9 +1,5 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../../../adapters/mcp/normalize-tool'
-import { createMcpToolAssignmentRepository } from '../../../persistence/repositories'
 import { withTransaction } from '../../../../db/transaction'
-import { createItemRepository } from '../../../persistence/repositories'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
-import { createToolExecutionRepository } from '../../../persistence/repositories'
 import { asItemId } from '../../../../shared/ids'
 import { err, ok } from '../../../../shared/result'
 import { isToolAllowedForRun } from '../../../agents/agent-runtime-policy'
@@ -15,6 +11,12 @@ import {
   filterMcpCodeModeCatalogToLoadedTools,
   findReferencedNonExecutableMcpCodeModeTools,
 } from '../../../mcp/code-mode'
+import {
+  createItemRepository,
+  createMcpToolAssignmentRepository,
+  createRunDependencyRepository,
+  createToolExecutionRepository,
+} from '../../../persistence/repositories'
 import { type ExecuteArgs, validateExecuteArgs } from '../../../sandbox/sandbox-policy'
 import { executeOneToolCall, toToolContext } from '../../execution/run-tool-execution'
 import { appendDomainEvent } from '../../run-events'

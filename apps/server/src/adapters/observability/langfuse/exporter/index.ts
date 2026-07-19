@@ -4,12 +4,11 @@ import { propagateAttributes, setLangfuseTracerProvider } from '@langfuse/tracin
 import type { TracerProvider } from '@opentelemetry/api'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import type { SpanExporter } from '@opentelemetry/sdk-trace-base'
-
-import type { RepositoryDatabase } from '../../../persistence/sqlite/repository-database'
 import type { EventOutboxRecord } from '../../../../domain/events/event-outbox-repository'
 import type { DomainError } from '../../../../shared/errors'
 import type { AppLogger } from '../../../../shared/logger'
 import { err, ok, type Result } from '../../../../shared/result'
+import type { RepositoryDatabase } from '../../../persistence/sqlite/repository-database'
 import { toLangfuseProviderError } from './errors'
 import { DeterministicIdGenerator } from './ids'
 import { normalizeBaseUrl } from './normalization'

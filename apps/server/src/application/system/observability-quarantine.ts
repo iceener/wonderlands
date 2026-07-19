@@ -1,9 +1,9 @@
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createEventOutboxRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import { createEventOutboxRepository } from '../persistence/repositories'
 
 interface ObservabilityQuarantinePayloadIdentity {
   rootRunId?: string

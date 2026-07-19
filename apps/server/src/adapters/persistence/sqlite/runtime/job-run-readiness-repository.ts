@@ -12,10 +12,7 @@ import type { RepositoryDatabase } from '../repository-database'
 export const createJobRunReadinessRepository = (
   db: RepositoryDatabase,
 ): JobRunReadinessRepository => ({
-  listExecutionCapableJobRunSnapshots: (): Result<
-    JobRunReadinessSnapshotRecord[],
-    DomainError
-  > => {
+  listExecutionCapableJobRunSnapshots: (): Result<JobRunReadinessSnapshotRecord[], DomainError> => {
     try {
       const rows = db
         .select({

@@ -1,5 +1,3 @@
-import { createGardenSiteRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type {
   GardenProtectedAccessMode,
@@ -11,6 +9,10 @@ import type { AgentRevisionId, GardenSiteId } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import { ok } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createAgentRevisionRepository,
+  createGardenSiteRepository,
+} from '../persistence/repositories'
 import { parseSandboxPolicyJson } from '../sandbox/sandbox-policy'
 import { gardenFrontmatterReferenceRelativePath } from './meta-files'
 

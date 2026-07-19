@@ -11,7 +11,13 @@ import type {
   ItemRepository,
 } from '../../../../domain/runtime/item-repository'
 import type { DomainError } from '../../../../shared/errors'
-import { asItemId, asRunId, asTenantId, type RunId, type SessionThreadId } from '../../../../shared/ids'
+import {
+  asItemId,
+  asRunId,
+  asTenantId,
+  type RunId,
+  type SessionThreadId,
+} from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
 import type { RepositoryDatabase } from '../repository-database'

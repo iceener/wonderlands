@@ -26,7 +26,6 @@ import {
   appendThreadUpdatedEvent,
 } from '../../../../application/naming/thread-title-events'
 import { withTransaction } from '../../../../db/transaction'
-import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import {
   asFileId,
@@ -35,6 +34,7 @@ import {
   asSessionThreadId,
   asWorkSessionId,
 } from '../../../../shared/ids'
+import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { createSessionThreadRepository } from '../../../persistence/sqlite/sessions/session-thread-repository'
 import { successEnvelope } from '../../api-envelope'
 import {

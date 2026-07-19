@@ -1,13 +1,9 @@
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
 import type { JobRecord } from '../../domain/runtime/job-repository'
-import { createJobRepository } from '../persistence/repositories'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
-import { createSandboxExecutionRepository } from '../persistence/repositories'
 import type { SandboxExecutionPackageRecord } from '../../domain/sandbox/sandbox-package-repository'
-import { createSandboxExecutionPackageRepository } from '../persistence/repositories'
 import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
-import { createSandboxWritebackRepository } from '../persistence/repositories'
 import type { SandboxPolicy, SandboxProvider, SandboxRuntime } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'
 import type {
@@ -24,6 +20,12 @@ import type {
 } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createJobRepository,
+  createSandboxExecutionPackageRepository,
+  createSandboxExecutionRepository,
+  createSandboxWritebackRepository,
+} from '../persistence/repositories'
 import type {
   NormalizedSandboxExecutionRequest,
   NormalizedSandboxRequestedPackage,

@@ -1,4 +1,3 @@
-import { createSessionMessageRepository } from '../../../persistence/repositories'
 import type { ToolContext, ToolSpec } from '../../../../application/tooling/tool-registry'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'
@@ -7,6 +6,7 @@ import { isToolAllowedForRun } from '../../../agents/agent-runtime-policy'
 import type { CommandContext } from '../../../commands/command-context'
 import { loadAttachmentRefDescriptors } from '../../../files/attachment-ref-context'
 import { resolveAttachmentRefsForToolPolicy } from '../../../files/ref-resolution'
+import { createSessionMessageRepository } from '../../../persistence/repositories'
 import { toToolContext } from './prepare-tool-execution'
 import type { ToolExecutionResult } from './tool-execution-types'
 

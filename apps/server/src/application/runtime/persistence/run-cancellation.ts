@@ -1,15 +1,17 @@
 import type { AppDatabase } from '../../../db/client'
-import { withTransaction } from '../../../db/transaction'
 import type { RepositoryDatabase } from '../../../db/repository-database'
-import { createRunDependencyRepository } from '../../persistence/repositories'
+import { withTransaction } from '../../../db/transaction'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../persistence/repositories'
-import { createToolExecutionRepository } from '../../persistence/repositories'
 import { type DomainError, DomainErrorException } from '../../../shared/errors'
 import type { RunId } from '../../../shared/ids'
 import { err, ok, type Result } from '../../../shared/result'
 import type { CommandContext } from '../../commands/command-context'
 import { createEventStore } from '../../commands/event-store'
+import {
+  createRunDependencyRepository,
+  createRunRepository,
+  createToolExecutionRepository,
+} from '../../persistence/repositories'
 import { appendDomainEvent, resolveRunEventThreadId } from '../run-events'
 import { toRunExecutionTerminalError } from '../run-execution-convergence'
 import { markRunJobCancelled } from '../scheduling/job-sync'

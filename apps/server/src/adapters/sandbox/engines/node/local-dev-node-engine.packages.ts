@@ -2,7 +2,10 @@ import { lstat, mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promis
 import { createRequire } from 'node:module'
 import { basename, dirname, join } from 'node:path'
 
-import type { PreparedSandboxExecution, SandboxRunPackageResult } from '../../../../domain/sandbox/sandbox-runner'
+import type {
+  PreparedSandboxExecution,
+  SandboxRunPackageResult,
+} from '../../../../domain/sandbox/sandbox-runner'
 
 const require = createRequire(import.meta.url)
 

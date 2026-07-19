@@ -1,6 +1,4 @@
 import { z } from 'zod'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
@@ -8,6 +6,10 @@ import type { SessionMessageId, SessionThreadId, WorkSessionId } from '../../sha
 import { asSessionMessageId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
+import {
+  createSessionMessageRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import { reopenThreadRootJobForNewMessage } from '../runtime/scheduling/job-sync'
 import type { CommandContext, CommandResult } from './command-context'
 import { unwrapCommandResultOrThrow } from './command-result'

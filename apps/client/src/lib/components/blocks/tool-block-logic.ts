@@ -1,13 +1,10 @@
+import type { ToolInteractionBlock } from '@wonderlands/contracts/chat'
 import type {
-  MessageAttachment,
-  ToolInteractionBlock,
-} from '@wonderlands/contracts/chat'
-import {
-  type BackendSandboxExecution,
-  type BackendSandboxExecutionFailure,
-  type BackendSandboxExecutionFile,
-  type BackendSandboxIsolationSummary,
-  type BackendSandboxWritebackOperation,
+  BackendSandboxExecution,
+  BackendSandboxExecutionFailure,
+  BackendSandboxExecutionFile,
+  BackendSandboxIsolationSummary,
+  BackendSandboxWritebackOperation,
 } from '../../services/api'
 import { escapeHtml, hljs } from '../../services/markdown/highlight'
 
@@ -27,7 +24,8 @@ export const formatDurationLabel = (durationMs: number | null): string | null =>
   return durationMs >= 1000 ? `${(durationMs / 1000).toFixed(1)}s` : `${durationMs}ms`
 }
 
-export const completionKey = (block: ToolInteractionBlock): string => `${block.toolCallId}:${block.finishedAt ?? ''}`
+export const completionKey = (block: ToolInteractionBlock): string =>
+  `${block.toolCallId}:${block.finishedAt ?? ''}`
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -111,7 +109,10 @@ export const parseSandboxExecution = (value: unknown): BackendSandboxExecution |
   const files = candidate.files.filter(isSandboxExecutionFile)
   const writebacks = candidate.writebacks.filter(isSandboxWritebackOperation)
 
-  if (files.length !== candidate.files.length || writebacks.length !== candidate.writebacks.length) {
+  if (
+    files.length !== candidate.files.length ||
+    writebacks.length !== candidate.writebacks.length
+  ) {
     return null
   }
 
@@ -146,7 +147,9 @@ export const parseSandboxExecution = (value: unknown): BackendSandboxExecution |
 }
 
 /** Parse generate_image tool args for skeleton layout. */
-export const parseImageToolArgs = (value: unknown): { aspectRatio: string | null; count: number } => {
+export const parseImageToolArgs = (
+  value: unknown,
+): { aspectRatio: string | null; count: number } => {
   if (!isRecord(value)) return { aspectRatio: null, count: 1 }
   const aspectRatio = typeof value.aspectRatio === 'string' ? value.aspectRatio : null
   const refs = Array.isArray(value.references) ? value.references.length : 0

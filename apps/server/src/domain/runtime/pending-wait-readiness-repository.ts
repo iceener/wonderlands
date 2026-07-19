@@ -1,6 +1,6 @@
-import type { WaitTargetKind, WaitType } from '../tooling/tool-vocabulary'
 import type { DomainError } from '../../shared/errors'
 import type { Result } from '../../shared/result'
+import type { WaitTargetKind, WaitType } from '../tooling/tool-vocabulary'
 import type { RunRecord } from './run-repository'
 
 export interface PendingWaitReadinessSnapshotRecord {
@@ -27,8 +27,5 @@ export interface PendingWaitReadinessSnapshotRecord {
  */
 export interface PendingWaitReadinessRepository {
   /** Lists every run dependency (wait) that is still pending, joined with its owning run. */
-  listPendingRunDependencySnapshots: () => Result<
-    PendingWaitReadinessSnapshotRecord[],
-    DomainError
-  >
+  listPendingRunDependencySnapshots: () => Result<PendingWaitReadinessSnapshotRecord[], DomainError>
 }

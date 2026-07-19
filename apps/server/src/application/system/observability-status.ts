@@ -1,10 +1,10 @@
 import type { AppConfig } from '../../app/config'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { EventOutboxTopic } from '../../domain/events/committed-event-contract'
-import { createEventOutboxRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import { createEventOutboxRepository } from '../persistence/repositories'
 
 export type ObservabilityWorkerName = 'events' | 'observability'
 export type ObservabilityWorkerLane = 'durable' | 'observability' | 'realtime'

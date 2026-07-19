@@ -84,7 +84,8 @@ export const seedAuthSession = (runtime: AppRuntime, options: SeedAuthSessionOpt
     .values({
       accountId,
       createdAt: now,
-      expiresAt: options.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt:
+        options.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       hashedSecret: hashAuthSessionSecret(secret),
       id: authSessionId,
       lastUsedAt: null,

@@ -1,10 +1,5 @@
 import { z } from 'zod'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import { createJobRepository } from '../persistence/repositories'
-import { createRunRepository } from '../persistence/repositories'
 import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type { FileId, SessionMessageId, SessionThreadId, WorkSessionId } from '../../shared/ids'
@@ -12,6 +7,13 @@ import { asFileId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
 import { withMessageAttachmentFileIds } from '../files/attachment-metadata'
+import {
+  createFileLinkRepository,
+  createJobRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import { buildNewUserMessageJobQueueReason } from '../runtime/scheduling/job-status-reasons'
 import type { CommandContext, CommandResult } from './command-context'
 import { unwrapCommandResultOrThrow } from './command-result'

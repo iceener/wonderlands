@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import {
   aspectRatioToDecimal,
   completionKey,
+  extractSandboxScript,
   formatDurationLabel,
   formatSandboxNetworkMode,
   formatSandboxProvider,
@@ -16,7 +17,6 @@ import {
   sandboxStatusClass,
   sandboxStatusLabel,
   toolDurationMs,
-  extractSandboxScript,
 } from './tool-block-logic'
 
 describe('tool-block-logic', () => {
@@ -39,7 +39,14 @@ describe('tool-block-logic', () => {
 
     expect(parsed?.sandboxExecutionId).toBe('run-1')
     expect(parsed?.status).toBe('completed')
-    expect(parseSandboxExecution({ sandboxExecutionId: 'run-1', files: [{}], status: 'completed', writebacks: [] })).toBeNull()
+    expect(
+      parseSandboxExecution({
+        sandboxExecutionId: 'run-1',
+        files: [{}],
+        status: 'completed',
+        writebacks: [],
+      }),
+    ).toBeNull()
   })
 
   test('parses generate image outputs and args', () => {
@@ -53,7 +60,10 @@ describe('tool-block-logic', () => {
         imageCount: 1,
         images: [{ fileId: 'file-1', name: 'generated' }],
       }),
-    ).toMatchObject({ imageCount: 1, images: [{ fileId: 'file-1', mimeType: 'image/png', name: 'generated' }] })
+    ).toMatchObject({
+      imageCount: 1,
+      images: [{ fileId: 'file-1', mimeType: 'image/png', name: 'generated' }],
+    })
   })
 
   test('formats sandbox metadata labels', () => {
@@ -77,6 +87,12 @@ describe('tool-block-logic', () => {
   test('converts ratios and duration values', () => {
     expect(aspectRatioToDecimal('16:9')).toBeCloseTo(16 / 9)
     expect(aspectRatioToDecimal(null)).toBe(1)
-    expect(toolDurationMs({ status: 'complete', createdAt: '2025-01-01T00:00:00.000Z', finishedAt: '2025-01-01T00:00:01.000Z' } as never)).toBe(1000)
+    expect(
+      toolDurationMs({
+        status: 'complete',
+        createdAt: '2025-01-01T00:00:00.000Z',
+        finishedAt: '2025-01-01T00:00:01.000Z',
+      } as never),
+    ).toBe(1000)
   })
 })

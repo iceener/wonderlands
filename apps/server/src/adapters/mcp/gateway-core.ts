@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { join } from 'node:path'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {
@@ -24,29 +23,20 @@ import {
   toLangfuseObservationId,
   toLangfuseTraceId,
 } from '../observability/langfuse/trace-identity'
-import { createWorkspaceRepository } from '../persistence/sqlite/agents/workspace-repository'
 import { createMcpOauthCredentialRepository } from '../persistence/sqlite/mcp/mcp-oauth-credential-repository'
 import { createMcpServerRepository } from '../persistence/sqlite/mcp/mcp-server-repository'
 import { createMcpToolAssignmentRepository } from '../persistence/sqlite/mcp/mcp-tool-assignment-repository'
 import { createMcpToolCacheRepository } from '../persistence/sqlite/mcp/mcp-tool-cache-repository'
 import { createMcpClientBundle } from './client-factory'
-import {
-  type ConnectedServerState,
-  type InFlightCorrelation,
-  type ServerRegistration,
-} from './gateway-state'
+import { toMcpDomainError } from './errors'
 import {
   isWorkspaceScopedFilesServer,
-  normalizeWorkspaceScopedInputPath,
-  prefixScopedPath,
-  resolveWorkspaceScopedMountRoot,
   resolveWorkspaceScopedPrefix,
   rewriteWorkspaceScopedArgs,
   rewriteWorkspaceScopedOutput,
-  WORKSPACE_SCOPED_FILES_REMOTE_NAMES,
   WORKSPACE_SCOPED_TOOL_PATH_KEYS,
 } from './gateway-scope'
-import { toMcpDomainError } from './errors'
+import type { ConnectedServerState, ServerRegistration } from './gateway-state'
 import { normalizeMcpCallToolResult } from './normalize-result'
 import { getMcpRuntimeNameAliasesFromRuntimeName, normalizeMcpTool } from './normalize-tool'
 import {
@@ -56,13 +46,7 @@ import {
 import { createStoredMcpOAuthProvider } from './oauth-provider'
 import { toMcpServerConfig } from './server-config'
 import { revealStoredOauthTokens } from './stored-oauth'
-import type {
-  McpDiscoveredTool,
-  McpGateway,
-  McpServerConfig,
-  McpServerSnapshot,
-  McpServerStatus,
-} from './types'
+import type { McpDiscoveredTool, McpGateway, McpServerConfig, McpServerSnapshot } from './types'
 
 const mapLogLevel = (level: LoggingLevel): 'debug' | 'error' | 'info' | 'warn' => {
   switch (level) {
@@ -158,8 +142,6 @@ const isToolAssignedToProfile = (
 
 const getConfirmationTargetRef = (descriptor: McpDiscoveredTool): string =>
   `${descriptor.runtimeName}:${descriptor.fingerprint}`
-
-
 
 export const createMcpGateway = (input: {
   clientInfo: {

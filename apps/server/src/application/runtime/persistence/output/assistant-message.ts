@@ -1,11 +1,11 @@
-import { createSessionMessageRepository } from '../../../persistence/repositories'
-import type { AiProviderName } from '../../../../domain/ai/types'
 import type { RepositoryDatabase } from '../../../../db/repository-database'
+import type { AiProviderName } from '../../../../domain/ai/types'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { asSessionMessageId, type SessionMessageId } from '../../../../shared/ids'
 import { ok, type Result } from '../../../../shared/result'
 import type { CommandContext } from '../../../commands/command-context'
+import { createSessionMessageRepository } from '../../../persistence/repositories'
 import { unwrapOrThrow } from '../../run-events'
 import {
   isAiProviderName,

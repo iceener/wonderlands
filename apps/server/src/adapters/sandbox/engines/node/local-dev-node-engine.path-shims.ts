@@ -1,4 +1,4 @@
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import type { SandboxExecutionRequest } from '../../../../domain/sandbox/types'
 

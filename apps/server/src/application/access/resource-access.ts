@@ -1,13 +1,6 @@
-import { createFileRepository } from '../persistence/repositories'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createSessionThreadRepository } from '../persistence/repositories'
-import { createWorkSessionRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { FileRecord } from '../../domain/files/file-repository'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import { createRunRepository } from '../persistence/repositories'
-import { createToolExecutionRepository } from '../persistence/repositories'
 import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
 import type { WorkSessionRecord } from '../../domain/sessions/work-session-repository'
 import type { DomainError } from '../../shared/errors'
@@ -23,6 +16,15 @@ import {
 } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantRole, TenantScope } from '../../shared/scope'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+  createSessionThreadRepository,
+  createToolExecutionRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 
 export interface AuthorizedThreadAccess {
   session: WorkSessionRecord

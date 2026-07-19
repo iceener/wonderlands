@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import type { DomainError } from '../../../shared/errors'
 import { err, ok, type Result } from '../../../shared/result'
 import { writeGardenSearchArtifacts } from '../search/pagefind-index'
-import type { GardenBuiltAsset, GardenBuiltPage, GardenBuildWriteResult } from './types'
+import type { GardenBuildWriteResult, GardenBuiltAsset, GardenBuiltPage } from './types'
 
 const createDirectoryEnsurer = () => {
   const ensured = new Set<string>()

@@ -1,4 +1,3 @@
-import { createRunDependencyRepository } from '../../persistence/repositories'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { RunId } from '../../../shared/ids'
 import { err, ok } from '../../../shared/result'
@@ -7,6 +6,7 @@ import type { CancelRunOutput, createCancelRunCommand } from '../../commands/can
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import type { createExecuteRunCommand, ExecuteRunInput } from '../../commands/execute-run'
 import type { createResumeRunCommand, RuntimeResumeRunInput } from '../../commands/resume-run'
+import { createRunDependencyRepository } from '../../persistence/repositories'
 import { rebuildRunExecutionOutput } from '../projection/rebuild-run-execution-output'
 import { toRunExecutionTerminalError } from '../run-execution-convergence'
 import { classifyRunForCancelRecovery } from './run-cancellation'

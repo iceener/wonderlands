@@ -33,7 +33,9 @@ export const pickComposerPlaceholderTip = (
   }
 }
 
-export const toPickedImageAttachment = (result: BackendFilePickerResult): MessageAttachment | null => {
+export const toPickedImageAttachment = (
+  result: BackendFilePickerResult,
+): MessageAttachment | null => {
   if (result.source !== 'attachment' || !result.fileId || !result.mimeType?.startsWith('image/')) {
     return null
   }
@@ -60,7 +62,9 @@ export type ComposerTargetCycleEntry =
   | { mode: 'default' }
   | { id: string; mode: 'agent'; name: string }
 
-export const buildTargetCycle = (agents: readonly ComposerTargetAgent[]): ComposerTargetCycleEntry[] => [
+export const buildTargetCycle = (
+  agents: readonly ComposerTargetAgent[],
+): ComposerTargetCycleEntry[] => [
   { mode: 'default' },
   ...agents.map((agent) => ({ mode: 'agent' as const, id: agent.id, name: agent.name })),
 ]
@@ -76,7 +80,9 @@ export const getNextTarget = (
 
   let currentIndex = 0
   if (currentMode === 'agent' && currentAgentId) {
-    const agentIndex = cycle.findIndex((entry) => entry.mode === 'agent' && entry.id === currentAgentId)
+    const agentIndex = cycle.findIndex(
+      (entry) => entry.mode === 'agent' && entry.id === currentAgentId,
+    )
     if (agentIndex >= 0) {
       currentIndex = agentIndex
     }

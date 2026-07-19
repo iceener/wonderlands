@@ -17,11 +17,7 @@ const slugifyGardenSegment = (value: string): string =>
     .replace(/^-+|-+$/g, '')
 
 const slugifyGardenPath = (value: string): string =>
-  value
-    .split('/')
-    .map(slugifyGardenSegment)
-    .filter(Boolean)
-    .join('/')
+  value.split('/').map(slugifyGardenSegment).filter(Boolean).join('/')
 
 const headingToAnchor = (value: string): string =>
   value

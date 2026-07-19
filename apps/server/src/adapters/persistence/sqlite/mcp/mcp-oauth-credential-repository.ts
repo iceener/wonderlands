@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm'
-import { mcpOauthCredentials } from '../../../../db/schema'
 import type { RepositoryDatabase } from '../../../../db/repository-database'
+import { mcpOauthCredentials } from '../../../../db/schema'
 import type {
   McpOauthDiscoveryStateJson,
   McpStoredOAuthClientInformation,

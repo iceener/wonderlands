@@ -1,10 +1,5 @@
 import type { DomainError } from '../../shared/errors'
-import type {
-  JobDependencyId,
-  JobId,
-  TenantId,
-  WorkSessionId,
-} from '../../shared/ids'
+import type { JobDependencyId, JobId, TenantId, WorkSessionId } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import type { JobDependencyType, JobStatus } from './job-types'

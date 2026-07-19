@@ -3,15 +3,15 @@ import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
 
 import { pruneThreadHistoryInTransaction } from '../src/application/commands/thread-history-pruning'
-import { withTransaction } from '../src/db/transaction'
 import {
   domainEvents,
   eventPayloadSidecars,
+  runs,
   sessionThreads,
   tenants,
   workSessions,
-  runs,
 } from '../src/db/schema'
+import { withTransaction } from '../src/db/transaction'
 import { createTestHarness } from './helpers/create-test-app'
 
 const now = '2026-03-29T00:00:00.000Z'
@@ -139,7 +139,11 @@ test('pruneThreadHistoryInTransaction deletes event payload sidecars before thei
   assert.deepEqual(result.value.deletedRunIds, ['run_root'])
 
   assert.equal(
-    runtime.db.select().from(domainEvents).where(eq(domainEvents.id, 'evt_generation_completed')).get(),
+    runtime.db
+      .select()
+      .from(domainEvents)
+      .where(eq(domainEvents.id, 'evt_generation_completed'))
+      .get(),
     undefined,
   )
   assert.equal(

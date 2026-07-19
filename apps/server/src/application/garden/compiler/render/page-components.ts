@@ -97,7 +97,9 @@ export const renderSeoMeta = (input: {
   const documentTitle =
     input.siteTitle && input.routePath !== '/' ? `${seoTitle} | ${input.siteTitle}` : seoTitle
 
-  meta.push(`<title>${escapeHtml(input.routePath === '/' && input.siteTitle ? input.siteTitle : documentTitle)}</title>`)
+  meta.push(
+    `<title>${escapeHtml(input.routePath === '/' && input.siteTitle ? input.siteTitle : documentTitle)}</title>`,
+  )
 
   if (seoDescription) {
     meta.push(`<meta name="description" content="${escapeHtml(seoDescription)}">`)

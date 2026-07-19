@@ -1,10 +1,5 @@
 import type { DomainError } from '../../shared/errors'
-import type {
-  FileId,
-  SandboxExecutionFileId,
-  SandboxExecutionId,
-  TenantId,
-} from '../../shared/ids'
+import type { FileId, SandboxExecutionFileId, SandboxExecutionId, TenantId } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import type { SandboxExecutionFileRole } from './types'

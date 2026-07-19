@@ -1,7 +1,7 @@
-import { createAgentScheduledTaskRepository } from '../persistence/repositories'
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
+import { createAgentScheduledTaskRepository } from '../persistence/repositories'
 import { createPollingWorker } from '../polling-worker'
 import { fireAgentScheduledTask } from './fire-agent-task'
 

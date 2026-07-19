@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-
+import { createSandboxExecutionRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
+import { createSandboxWritebackRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
 import { createInternalCommandContext } from '../../src/application/commands/internal-command-context'
 import { MCP_CODE_MODE_CONFIRMATION_TARGET_REF } from '../../src/application/mcp/code-mode'
 import { toToolContext } from '../../src/application/runtime/execution/run-tool-execution'
@@ -23,8 +24,6 @@ import {
   toolExecutions,
   workSessions,
 } from '../../src/db/schema'
-import { createSandboxExecutionRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
-import { createSandboxWritebackRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
 import {
   asAccountId,
   asJobId,
@@ -1105,10 +1104,8 @@ test('approving execute MCP confirmation queues the sandbox with one-shot approv
       .from(domainEvents)
       .all()
       .map((event) => event.type)
-    const confirmationGrantedIndex = eventTypes.findIndex(
-      (type) => type === 'tool.confirmation_granted',
-    )
-    const toolWaitingIndex = eventTypes.findIndex((type) => type === 'tool.waiting')
+    const confirmationGrantedIndex = eventTypes.indexOf('tool.confirmation_granted')
+    const toolWaitingIndex = eventTypes.indexOf('tool.waiting')
 
     assert.equal(originalWait?.status, 'resolved')
     assert.deepEqual(originalWait?.resolutionJson, {
@@ -1369,10 +1366,8 @@ test('approving execute delete confirmation queues the sandbox with the delete w
     .from(domainEvents)
     .all()
     .map((event) => event.type)
-  const confirmationGrantedIndex = eventTypes.findIndex(
-    (type) => type === 'tool.confirmation_granted',
-  )
-  const toolWaitingIndex = eventTypes.findIndex((type) => type === 'tool.waiting')
+  const confirmationGrantedIndex = eventTypes.indexOf('tool.confirmation_granted')
+  const toolWaitingIndex = eventTypes.indexOf('tool.waiting')
 
   assert.equal(originalWait?.status, 'resolved')
   assert.deepEqual(originalWait?.resolutionJson, {

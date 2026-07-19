@@ -155,7 +155,7 @@ describe('local dev sandbox runner', () => {
     const expectedNpmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 
     spawnMock.mockImplementation(
-      (command: string, args: string[], options: { cwd: string; env: Record<string, string> }) => {
+      (command: string, _args: string[], options: { cwd: string; env: Record<string, string> }) => {
         const child = new MockChildProcess()
 
         queueMicrotask(() => {

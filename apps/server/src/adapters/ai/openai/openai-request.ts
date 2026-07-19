@@ -393,10 +393,9 @@ const createBaseRequestBody = (
     reasoning: request.reasoning
       ? {
           // The API accepts `max` for gpt-5.6-sol; the installed SDK's union lags the API.
-          effort:
-            request.reasoning.effort as NonNullable<
-              ResponseCreateParamsBase['reasoning']
-            >['effort'],
+          effort: request.reasoning.effort as NonNullable<
+            ResponseCreateParamsBase['reasoning']
+          >['effort'],
           summary:
             request.reasoning.effort === 'none'
               ? request.reasoning.summary

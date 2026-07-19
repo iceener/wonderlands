@@ -1,9 +1,12 @@
-import { createTenantMembershipRepository, createWorkSessionRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainError } from '../../shared/errors'
 import type { TenantId, WorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createTenantMembershipRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 
 export const resolveExecutionScopeForSession = (
   db: RepositoryDatabase,

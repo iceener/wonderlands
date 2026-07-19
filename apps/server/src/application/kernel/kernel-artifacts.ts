@@ -1,8 +1,5 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createFileRepository } from '../persistence/repositories'
-import { createKernelSessionArtifactRepository } from '../persistence/repositories'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { BlobStore } from '../../domain/files/blob-store'
 import type { FileRecord } from '../../domain/files/file-repository'
@@ -13,6 +10,11 @@ import type { DomainError } from '../../shared/errors'
 import { asFileId, asKernelSessionArtifactId, type KernelSessionArtifactId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'
 import { toAttachmentStorageKey } from '../files/attachment-storage'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createKernelSessionArtifactRepository,
+} from '../persistence/repositories'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 
 export interface PersistKernelArtifactInput {

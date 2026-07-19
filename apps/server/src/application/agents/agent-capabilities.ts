@@ -1,13 +1,15 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
-import { createMcpToolAssignmentRepository } from '../persistence/repositories'
-import { createMcpToolCacheRepository } from '../persistence/repositories'
 import type { ToolRegistry } from '../../application/tooling/tool-registry'
-import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { RepositoryDatabase } from '../../db/repository-database'
+import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { McpToolCacheRecord } from '../../domain/mcp/mcp-tool-cache-repository'
 import type { DomainError } from '../../shared/errors'
 import { ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createMcpToolAssignmentRepository,
+  createMcpToolCacheRepository,
+} from '../persistence/repositories'
 import { parseStoredAgentFrontmatter } from './agent-markdown'
 import { getGrantedToolProfileId } from './agent-runtime-policy'
 

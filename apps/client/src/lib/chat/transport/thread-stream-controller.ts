@@ -5,7 +5,7 @@ export interface ActiveThreadStreamContext {
   threadId: ThreadId
 }
 
-interface ThreadStreamControllerDependencies<Lease> {
+interface ThreadStreamControllerDependencies {
   isAbortError: (error: unknown, signal?: AbortSignal) => boolean
   streamThreadEvents: (input: {
     cursor?: number
@@ -28,7 +28,7 @@ interface ConnectThreadStreamOptions<Lease> {
 export const createThreadStreamController = <Lease>({
   isAbortError,
   streamThreadEvents,
-}: ThreadStreamControllerDependencies<Lease>) => {
+}: ThreadStreamControllerDependencies) => {
   let activeAbortController: AbortController | null = null
   let activePromise: Promise<void> | null = null
   let activeContext: ActiveThreadStreamContext | null = null

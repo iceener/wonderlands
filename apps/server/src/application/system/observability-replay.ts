@@ -1,13 +1,15 @@
-import { createWorkSessionRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainEventEnvelope } from '../../domain/events/domain-event'
-import { createDomainEventRepository } from '../persistence/repositories'
-import { createEventOutboxRepository } from '../persistence/repositories'
-import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { asRunId, asWorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createDomainEventRepository,
+  createEventOutboxRepository,
+  createRunRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 
 export interface ObservabilityReplayEntry {
   eventId: string

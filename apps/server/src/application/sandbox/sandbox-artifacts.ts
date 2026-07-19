@@ -1,11 +1,8 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join, matchesGlob, relative, resolve } from 'node:path'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createFileRepository } from '../persistence/repositories'
 import type { BlobStore } from '../../domain/files/blob-store'
 import type { FileRecord } from '../../domain/files/file-repository'
-import { createSandboxExecutionFileRepository } from '../persistence/repositories'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
 import type { SandboxExecutionRequest } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'
@@ -13,6 +10,11 @@ import { asFileId, asSandboxExecutionFileId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import { toAttachmentStorageKey } from '../files/attachment-storage'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createSandboxExecutionFileRepository,
+} from '../persistence/repositories'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 
 export interface PromotedSandboxArtifact {

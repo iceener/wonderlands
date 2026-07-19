@@ -390,9 +390,7 @@ const pruneThreadHistory = (
         )
         .run()
 
-      db.delete(eventPayloadSidecars)
-        .where(inArray(eventPayloadSidecars.eventId, eventIds))
-        .run()
+      db.delete(eventPayloadSidecars).where(inArray(eventPayloadSidecars.eventId, eventIds)).run()
 
       db.delete(domainEvents)
         .where(and(eq(domainEvents.tenantId, input.tenantId), inArray(domainEvents.id, eventIds)))

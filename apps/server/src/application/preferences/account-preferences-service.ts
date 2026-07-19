@@ -1,8 +1,4 @@
 import { z } from 'zod'
-import { createAgentRepository } from '../persistence/repositories'
-import { createAccountPreferencesRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
-import { createToolProfileRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import {
   mergeShortcutBindingOverrides,
@@ -14,6 +10,12 @@ import { type AgentId, asAgentId, asToolProfileId, type ToolProfileId } from '..
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import { canReadAgent } from '../agents/agent-access'
+import {
+  createAccountPreferencesRepository,
+  createAgentRepository,
+  createTenantMembershipRepository,
+  createToolProfileRepository,
+} from '../persistence/repositories'
 import { canReadToolProfile } from '../tool-access/tool-profile-access'
 
 const shortcutBindingsPatchSchema = z.record(z.string(), z.union([z.string(), z.null()]))

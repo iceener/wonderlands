@@ -1,6 +1,4 @@
 import { z } from 'zod'
-import { createSessionThreadRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
 import { DomainErrorException } from '../../shared/errors'
@@ -8,6 +6,10 @@ import type { SessionThreadId, WorkSessionId } from '../../shared/ids'
 import { asSessionThreadId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
+import {
+  createSessionThreadRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import type { CommandContext, CommandResult } from './command-context'
 import { unwrapCommandResultOrThrow } from './command-result'
 import { createEventStore } from './event-store'

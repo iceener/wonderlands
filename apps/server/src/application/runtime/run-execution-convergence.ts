@@ -1,10 +1,9 @@
-import { createRunDependencyRepository } from '../persistence/repositories'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { RunId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
 import type { CommandContext, CommandResult } from '../commands/command-context'
+import { createRunDependencyRepository, createRunRepository } from '../persistence/repositories'
 import type { RunExecutionOutput } from './persistence/run-persistence'
 import { rebuildRunExecutionOutput } from './projection/rebuild-run-execution-output'
 

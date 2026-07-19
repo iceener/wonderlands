@@ -1,13 +1,7 @@
 import { z } from 'zod'
-import { createFileLinkRepository } from '../persistence/repositories'
-import { createSessionMessageRepository } from '../persistence/repositories'
-import { createWorkSessionRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { JobRecord } from '../../domain/runtime/job-repository'
-import { createJobRepository } from '../persistence/repositories'
 import { reopenableJobStatuses } from '../../domain/runtime/job-types'
-import { createRunRepository } from '../persistence/repositories'
 import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
@@ -27,6 +21,14 @@ import {
 } from '../agents/root-run-target-input'
 import { withMessageAttachmentFileIds } from '../files/attachment-metadata'
 import { appendThreadNamingRequestedEvent } from '../naming/thread-title-events'
+import {
+  createFileLinkRepository,
+  createJobRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+  createTenantMembershipRepository,
+  createWorkSessionRepository,
+} from '../persistence/repositories'
 import {
   appendJobCreatedEvents,
   appendJobStatusChangeEvent,

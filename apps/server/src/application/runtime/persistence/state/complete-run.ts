@@ -1,10 +1,6 @@
-import { createFileLinkRepository } from '../../../persistence/repositories'
-import { createFileRepository } from '../../../persistence/repositories'
-import { createSessionMessageRepository } from '../../../persistence/repositories'
 import { withTransaction } from '../../../../db/transaction'
 import type { AiInteractionResponse } from '../../../../domain/ai/types'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../persistence/repositories'
 import type { DomainError } from '../../../../shared/errors'
 import { asSessionMessageId, type SessionMessageId } from '../../../../shared/ids'
 import { ok, type Result } from '../../../../shared/result'
@@ -16,6 +12,12 @@ import {
   normalizeAssistantMessageContent,
   normalizeAssistantOutputText,
 } from '../../../interactions/normalize-interaction-response'
+import {
+  createFileLinkRepository,
+  createFileRepository,
+  createRunRepository,
+  createSessionMessageRepository,
+} from '../../../persistence/repositories'
 import { appendDomainEvent, appendRunEvent, unwrapOrThrow } from '../../run-events'
 import { emitProgressReported } from '../../run-telemetry'
 import { markRunJobCompleted } from '../../scheduling/job-sync'

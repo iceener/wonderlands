@@ -2,10 +2,7 @@ import type { AppConfig } from '../../../../app/config'
 import type { AppServices } from '../../../../app/runtime'
 import type { AppDatabase } from '../../../../db/client'
 import { withTransaction } from '../../../../db/transaction'
-import { createRunClaimRepository } from '../../../persistence/repositories'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../persistence/repositories'
 import type { DomainError } from '../../../../shared/errors'
 import { asRunId, asTenantId, asWorkSessionId } from '../../../../shared/ids'
 import type { AppLogger } from '../../../../shared/logger'
@@ -13,6 +10,11 @@ import { ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
 import { createEventStore } from '../../../commands/event-store'
 import { createInternalCommandContext } from '../../../commands/internal-command-context'
+import {
+  createRunClaimRepository,
+  createRunDependencyRepository,
+  createRunRepository,
+} from '../../../persistence/repositories'
 import { executeRunTurnLoop } from '../../execution/drive-run'
 import { appendRunEvent } from '../../run-events'
 import { resolveExecutionScopeForSession } from '../../run-execution-scope'

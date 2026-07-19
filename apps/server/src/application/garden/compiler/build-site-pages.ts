@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import type { DomainError } from '../../../shared/errors'
 import { err, ok, type Result } from '../../../shared/result'
+import { canListChildExposure } from './build-site-structure'
 import { parseGardenPage } from './parse-page'
+import { type GardenListingItem, renderGardenPage } from './render-page'
 import { buildRelativeRouteHref, rewriteGardenLinks } from './rewrite-links'
-import { renderGardenPage, type GardenListingItem } from './render-page'
 import type {
   GardenBuildManifest,
   GardenBuildWarning,
@@ -14,11 +15,6 @@ import type {
   GardenSidebarItem,
   GardenSourceConfig,
 } from './types'
-import {
-  canListChildExposure,
-  type GardenPreparedBuildContext,
-  toListingChildrenMap,
-} from './build-site-structure'
 
 const DEFAULT_LISTING_PAGE_SIZE = 20
 
@@ -266,7 +262,7 @@ const inferSortableTime = (page: GardenClassifiedPage): number | undefined =>
   page.sourceUpdatedAtMs ??
   toSortableTime(page.sourcePath.match(/\d{4}-\d{2}-\d{2}/)?.[0])
 
-const comparePagesForDisplay = (
+const _comparePagesForDisplay = (
   left: GardenClassifiedPage,
   right: GardenClassifiedPage,
 ): number => {

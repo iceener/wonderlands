@@ -34,15 +34,15 @@ import { typewriter } from '../../stores/typewriter.svelte'
 import { typewriterPlayback } from '../../stores/typewriter-playback.svelte'
 import AttachmentTray from './AttachmentTray.svelte'
 import ContextBar from './ContextBar.svelte'
-import FilePickerPopover from './FilePickerPopover.svelte'
 import {
   ACTIVE_THREAD_TIPS,
-  EMPTY_THREAD_TIPS,
   buildTargetCycle,
+  EMPTY_THREAD_TIPS,
   getNextTarget,
   pickComposerPlaceholderTip,
   toPickedImageAttachment,
 } from './chat-composer-logic'
+import FilePickerPopover from './FilePickerPopover.svelte'
 
 interface Props {
   commandItems?: CommandItem[]
@@ -236,7 +236,6 @@ const moveFilePickerSelection = (delta: number) => {
 
   filePickerSelectedIndex = (filePickerSelectedIndex + delta + count) % count
 }
-
 
 const selectFilePickerResult = (result: BackendFilePickerResult) => {
   const editor = filePickerEditor

@@ -26,28 +26,6 @@ import {
 import { openAssetInNewTab } from '../../services/authenticated-asset'
 import { toApiUrl } from '../../services/backend'
 import { escapeHtml, hljs } from '../../services/markdown/highlight'
-import {
-  aspectRatioToDecimal,
-  completionKey,
-  extractSandboxScript,
-  formatDurationLabel,
-  formatSandboxNetworkMode,
-  formatSandboxProvider,
-  formatSandboxRuntime,
-  highlightCode,
-  highlightJson,
-  parseImageToolArgs,
-  parseImageToolOutput,
-  parseSandboxExecution,
-  parseToolErrorMessage,
-  isRecord,
-  isSandboxNetworkMode,
-  SKELETON_HEIGHT,
-  SKELETON_MAX_WIDTH,
-  sandboxStatusClass,
-  sandboxStatusLabel,
-  toolDurationMs,
-} from './tool-block-logic'
 import { getShortcutManagerContext } from '../../shortcuts/shortcut-manager'
 import { chatStore } from '../../stores/chat-store.svelte'
 import FileChip from '../FileChip.svelte'
@@ -59,6 +37,28 @@ import {
   getExpandableToggleLabel,
 } from './block-accessibility'
 import McpAppView from './McpAppView.svelte'
+import {
+  aspectRatioToDecimal,
+  completionKey,
+  extractSandboxScript,
+  formatDurationLabel,
+  formatSandboxNetworkMode,
+  formatSandboxProvider,
+  formatSandboxRuntime,
+  highlightCode,
+  highlightJson,
+  isRecord,
+  isSandboxNetworkMode,
+  parseImageToolArgs,
+  parseImageToolOutput,
+  parseSandboxExecution,
+  parseToolErrorMessage,
+  SKELETON_HEIGHT,
+  SKELETON_MAX_WIDTH,
+  sandboxStatusClass,
+  sandboxStatusLabel,
+  toolDurationMs,
+} from './tool-block-logic'
 import { shouldShowSandboxPreview } from './tool-block-sandbox'
 import { getSuspendedToolLabel, isSuspendedToolBlock } from './tool-state'
 
@@ -79,7 +79,6 @@ const shortcutLabels = {
 
 let userHasToggled = false
 let expanded = $state(false)
-
 
 let holdRunningVisual = $state(false)
 let releasedCompletionKey = $state<string | null>(null)

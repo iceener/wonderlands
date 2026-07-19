@@ -12,7 +12,7 @@ interface NormalizeOpenAiInputImagesOptions {
 }
 
 const guessImageFileExtension = (mimeType: string | null): string => {
-  if (!mimeType || !mimeType.includes('/')) {
+  if (!mimeType?.includes('/')) {
     return 'bin'
   }
 
@@ -48,7 +48,7 @@ const uploadVisionImage = async (
   const uploadPromise = (async () => {
     const decoded = decodeDataUrl(url)
 
-    if (!decoded || !decoded.isBase64) {
+    if (!decoded?.isBase64) {
       throw new DomainErrorException({
         message: 'OpenAI image uploads expect base64 data URLs for inline image content',
         type: 'validation',

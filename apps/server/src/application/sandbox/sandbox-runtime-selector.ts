@@ -70,7 +70,7 @@ const getRuntimeCompatibilityFailure = (
   for (const requestedPackage of requestedPackages) {
     const compatibleRuntimes = resolveCompatibleRuntimesForPackage(input.policy, requestedPackage)
 
-    if (!compatibleRuntimes || !compatibleRuntimes.includes(runtime)) {
+    if (!compatibleRuntimes?.includes(runtime)) {
       return `package ${requestedPackage.name}@${requestedPackage.version} is not marked compatible with sandbox runtime ${runtime}`
     }
   }

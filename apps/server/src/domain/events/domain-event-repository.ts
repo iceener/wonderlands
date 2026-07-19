@@ -38,9 +38,7 @@ export interface AppendDomainEventRecordInput {
  * `test/architecture-guardrails.test.ts`.
  */
 export interface DomainEventRepository {
-  append: (
-    input: AppendDomainEventRecordInput,
-  ) => Result<DomainEventEnvelope<unknown>, DomainError>
+  append: (input: AppendDomainEventRecordInput) => Result<DomainEventEnvelope<unknown>, DomainError>
   listAfterCursor: (
     scope: TenantScope,
     input: ListDomainEventsInput,

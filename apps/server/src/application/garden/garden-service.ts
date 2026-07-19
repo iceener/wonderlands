@@ -1,11 +1,9 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { createGardenBuildRepository, createGardenSiteRepository } from '../persistence/repositories'
-import { createTenantMembershipRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
-import { withTransaction } from '../../db/transaction'
 import type { RepositoryDatabase } from '../../db/repository-database'
+import { withTransaction } from '../../db/transaction'
 import type { GardenBuildRecord } from '../../domain/garden/garden-build-repository'
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
 import type { DomainError } from '../../shared/errors'
@@ -19,6 +17,11 @@ import {
 } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
+import {
+  createGardenBuildRepository,
+  createGardenSiteRepository,
+  createTenantMembershipRepository,
+} from '../persistence/repositories'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 import { bootstrapGardenSource, type GardenSourceBootstrapResult } from './bootstrap-source'
 import { compileGardenBuildOutput } from './compiler/build-site'

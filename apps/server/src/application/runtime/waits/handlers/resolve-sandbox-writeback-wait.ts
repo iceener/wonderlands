@@ -1,8 +1,4 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createItemRepository } from '../../../persistence/repositories'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
-import { createToolExecutionRepository } from '../../../persistence/repositories'
-import { createSandboxWritebackRepository } from '../../../persistence/repositories'
 import {
   asItemId,
   asSandboxExecutionId,
@@ -11,6 +7,12 @@ import {
 import { ok } from '../../../../shared/result'
 import type { CommandResult } from '../../../commands/command-context'
 import { createEventStore } from '../../../commands/event-store'
+import {
+  createItemRepository,
+  createRunDependencyRepository,
+  createSandboxWritebackRepository,
+  createToolExecutionRepository,
+} from '../../../persistence/repositories'
 import { toCommitSandboxWritebackOutput } from '../../../sandbox/register-sandbox-native-tools'
 import { validateCommitSandboxWritebackArgs } from '../../../sandbox/sandbox-policy'
 import { getToolAppsMetaPayload } from '../../tool-apps-meta'

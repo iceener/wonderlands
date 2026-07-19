@@ -1,7 +1,4 @@
 import { createHash } from 'node:crypto'
-import { createAgentRepository } from '../persistence/repositories'
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import { createAgentSubagentLinkRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
 import type { AgentRecord } from '../../domain/agents/agent-repository'
@@ -25,6 +22,11 @@ import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import { createEventStore } from '../commands/event-store'
 import { parseKernelPolicyJson } from '../kernel/kernel-policy'
+import {
+  createAgentRepository,
+  createAgentRevisionRepository,
+  createAgentSubagentLinkRepository,
+} from '../persistence/repositories'
 import { parseSandboxPolicyJson } from '../sandbox/sandbox-policy'
 import { buildEffectiveNativeTools } from './agent-capability-tools'
 import {

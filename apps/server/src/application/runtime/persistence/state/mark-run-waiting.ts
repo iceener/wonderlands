@@ -1,12 +1,14 @@
 import { withTransaction } from '../../../../db/transaction'
 import type { AiInteractionResponse } from '../../../../domain/ai/types'
-import { createRunDependencyRepository } from '../../../persistence/repositories'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../persistence/repositories'
 import type { DomainError } from '../../../../shared/errors'
 import { ok, type Result } from '../../../../shared/result'
 import type { CommandContext } from '../../../commands/command-context'
 import { createEventStore } from '../../../commands/event-store'
+import {
+  createRunDependencyRepository,
+  createRunRepository,
+} from '../../../persistence/repositories'
 import { appendRunEvent, unwrapOrThrow } from '../../run-events'
 import { markLinkedJobWaiting } from '../../scheduling/job-sync'
 import type { WaitingRunExecutionOutput, WaitingRunPendingWait } from '../run-persistence'

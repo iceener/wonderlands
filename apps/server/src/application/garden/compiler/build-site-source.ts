@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { finished } from 'node:stream/promises'
 import type { DomainError } from '../../../shared/errors'
