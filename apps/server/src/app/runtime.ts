@@ -12,6 +12,7 @@ import {
   createLangfuseExporter,
   type LangfuseExporter,
 } from '../adapters/observability/langfuse/exporter'
+import { createGardenBuildRepository } from '../adapters/persistence/sqlite'
 import { createSandboxRunner } from '../adapters/sandbox'
 import {
   type AgentTaskWorker,
@@ -485,6 +486,21 @@ export const createAppRuntime = (config: AppConfig): AppRuntime => {
 }
 
 export const initializeAppRuntime = async (runtime: AppRuntime): Promise<AppRuntime> => {
+  const recoveredGardenBuilds = createGardenBuildRepository(runtime.db).recoverInterruptedBuilds({
+    completedAt: runtime.services.clock.nowIso(),
+    errorMessage: 'Garden build interrupted by application restart before completion',
+  })
+
+  if (!recoveredGardenBuilds.ok) {
+    throw new Error(recoveredGardenBuilds.error.message)
+  }
+
+  if (recoveredGardenBuilds.value > 0) {
+    runtime.services.logger.warn('Recovered interrupted Garden builds during startup', {
+      recoveredBuildCount: recoveredGardenBuilds.value,
+    })
+  }
+
   const reconciledOutbox = runtime.services.events.outbox.reconcileProcessingEntries()
 
   if (!reconciledOutbox.ok) {

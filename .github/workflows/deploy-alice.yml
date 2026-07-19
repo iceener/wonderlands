@@ -73,6 +73,3 @@ jobs:
 
           pm2 save
           pm2 list
-
-      - name: Rebuild and publish active Gardens
-        run: npm run garden:rebuild-active --workspace @wonderlands/server
