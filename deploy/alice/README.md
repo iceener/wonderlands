@@ -1,7 +1,6 @@
-# alice.overment.ai deployment
+# overment.ai deployment
 
-This repo deploys the main Wonderlands app with a self-hosted GitHub Actions runner in `~/wonderlands`.
-The companion `~/wonderlands-pulse` event API deploys with its own runner and is proxied at `/pulse/`.
+This repo deploys the Wonderlands app with a self-hosted GitHub Actions runner in `~/wonderlands`, supervised by PM2 (not systemd) as a single process named `wonderlands-app`.
 
 ## GitHub runner
 
@@ -23,8 +22,7 @@ Create deployment directories:
 
 ```bash
 mkdir -p ~/wonderlands/shared/var/files ~/wonderlands/shared/tmp
-mkdir -p ~/wonderlands-pulse/shared/data
-chmod 700 ~/wonderlands/shared ~/wonderlands-pulse/shared
+chmod 700 ~/wonderlands/shared
 ```
 
 Create `~/wonderlands/shared/server.env` from `deploy/alice/server.env.example` and fill secrets.
@@ -40,23 +38,16 @@ pm2 save
 
 ## Nginx / domain
 
-Point `alice.overment.ai` DNS to the VPS, then run the nginx setup script from this repo on the VPS:
+`overment.ai` (apex) is the canonical host. Point `overment.ai`, `www.overment.ai`, and `alice.overment.ai` DNS at the VPS, then run the nginx setup script from this repo on the VPS:
 
 ```bash
 sudo EMAIL=you@example.com bash deploy/alice/setup-nginx.sh
 ```
 
-The script installs nginx/certbot, creates a temporary HTTP-only site for the Let's Encrypt challenge, requests the certificate, then installs `deploy/alice/nginx-alice.overment.ai.conf`.
+The script installs nginx/certbot, creates a temporary HTTP-only site for the Let's Encrypt challenge covering all three hostnames, requests a certificate for `overment.ai` with `www.overment.ai` and `alice.overment.ai` as subject alternative names, then installs `deploy/alice/nginx-overment.ai.conf`.
 
 Routing:
 
-- `/ai/` serves the built Svelte client
-- `/` and `/api` proxy to the main app API on `127.0.0.1:3001`
-- `/pulse/` proxies to Wonderlands Pulse on `127.0.0.1:3737`
-
-External event registration URL:
-
-```txt
-POST https://alice.overment.ai/pulse/api/events
-x-api-key: <Wonderlands Pulse API_KEY>
-```
+- `overment.ai/ai/` and `overment.ai/ai/assets/` serve the built Svelte client directly from nginx
+- `overment.ai/` (everything else) proxies to the app (PM2 process `wonderlands-app`) on `127.0.0.1:3001`
+- `www.overment.ai` and `alice.overment.ai` return a 301 redirect to the equivalent `overment.ai` path
