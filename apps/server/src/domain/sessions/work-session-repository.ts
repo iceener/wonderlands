@@ -65,4 +65,15 @@ export interface WorkSessionRepository {
     input: CreateWorkSessionInput,
   ) => Result<WorkSessionRecord, DomainError>
   getById: (scope: TenantScope, sessionId: WorkSessionId) => Result<WorkSessionRecord, DomainError>
+  /**
+   * Looks up a work session by tenant + id without requiring an already
+   * resolved {@link TenantScope}. Used to bootstrap a tenant scope (e.g.
+   * resolving the owning account/role for a session) before the caller's
+   * accountId/role are known. Returns `null` (not an error) when no session
+   * matches.
+   */
+  findByIdForTenant: (
+    tenantId: TenantId,
+    sessionId: WorkSessionId,
+  ) => Result<WorkSessionRecord | null, DomainError>
 }

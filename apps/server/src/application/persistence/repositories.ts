@@ -21,6 +21,7 @@ import { createHttpIdempotencyKeyRepository } from '../../adapters/persistence/s
 import { createItemRepository } from '../../adapters/persistence/sqlite/runtime/item-repository'
 import { createJobDependencyRepository } from '../../adapters/persistence/sqlite/runtime/job-dependency-repository'
 import { createJobRepository } from '../../adapters/persistence/sqlite/runtime/job-repository'
+import { createJobRunReadinessRepository } from '../../adapters/persistence/sqlite/runtime/job-run-readiness-repository'
 import { createKernelSessionArtifactRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-artifact-repository'
 import { createKernelSessionRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-repository'
 import { createMcpOauthAuthorizationRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
@@ -31,6 +32,7 @@ import { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/
 import { createMemoryRecordRepository } from '../../adapters/persistence/sqlite/memory/memory-record-repository'
 import { createMessageFileReplacementRepository } from '../../adapters/persistence/sqlite/files/message-file-replacement-repository'
 import { createPasswordCredentialRepository } from '../../adapters/persistence/sqlite/identity/password-credential-repository'
+import { createPendingWaitReadinessRepository } from '../../adapters/persistence/sqlite/runtime/pending-wait-readiness-repository'
 import { createRunClaimRepository } from '../../adapters/persistence/sqlite/runtime/run-claim-repository'
 import { createRunDependencyRepository } from '../../adapters/persistence/sqlite/runtime/run-dependency-repository'
 import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
@@ -71,6 +73,7 @@ import type { HttpIdempotencyKeyRepository } from '../../domain/operations/http-
 import type { ItemRepository } from '../../domain/runtime/item-repository'
 import type { JobDependencyRepository } from '../../domain/runtime/job-dependency-repository'
 import type { JobRepository } from '../../domain/runtime/job-repository'
+import type { JobRunReadinessRepository } from '../../domain/runtime/job-run-readiness-repository'
 import type { KernelSessionArtifactRepository } from '../../domain/kernel/kernel-session-artifact-repository'
 import type { KernelSessionRepository } from '../../domain/kernel/kernel-session-repository'
 import type { McpOauthAuthorizationRepository } from '../../domain/mcp/mcp-oauth-authorization-repository'
@@ -81,6 +84,7 @@ import type { McpToolCacheRepository } from '../../domain/mcp/mcp-tool-cache-rep
 import type { MemoryRecordRepository } from '../../domain/memory/memory-record-repository'
 import type { MessageFileReplacementRepository } from '../../domain/files/message-file-replacement-repository'
 import type { PasswordCredentialRepository } from '../../domain/identity/password-credential-repository'
+import type { PendingWaitReadinessRepository } from '../../domain/runtime/pending-wait-readiness-repository'
 import type { RunClaimRepository } from '../../domain/runtime/run-claim-repository'
 import type { RunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
 import type { RunRepository } from '../../domain/runtime/run-repository'
@@ -134,6 +138,7 @@ export interface Repositories {
   item: ItemRepository
   job: JobRepository
   jobDependency: JobDependencyRepository
+  jobRunReadiness: JobRunReadinessRepository
   kernelSession: KernelSessionRepository
   kernelSessionArtifact: KernelSessionArtifactRepository
   mcpOauthAuthorization: McpOauthAuthorizationRepository
@@ -144,6 +149,7 @@ export interface Repositories {
   memoryRecord: MemoryRecordRepository
   messageFileReplacement: MessageFileReplacementRepository
   passwordCredential: PasswordCredentialRepository
+  pendingWaitReadiness: PendingWaitReadinessRepository
   run: RunRepository
   runClaim: RunClaimRepository
   runDependency: RunDependencyRepository
@@ -186,6 +192,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   item: createItemRepository(db),
   job: createJobRepository(db),
   jobDependency: createJobDependencyRepository(db),
+  jobRunReadiness: createJobRunReadinessRepository(db),
   kernelSession: createKernelSessionRepository(db),
   kernelSessionArtifact: createKernelSessionArtifactRepository(db),
   mcpOauthAuthorization: createMcpOauthAuthorizationRepository(db),
@@ -196,6 +203,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   memoryRecord: createMemoryRecordRepository(db),
   messageFileReplacement: createMessageFileReplacementRepository(db),
   passwordCredential: createPasswordCredentialRepository(db),
+  pendingWaitReadiness: createPendingWaitReadinessRepository(db),
   run: createRunRepository(db),
   runClaim: createRunClaimRepository(db),
   runDependency: createRunDependencyRepository(db),
@@ -241,6 +249,7 @@ export { createHttpIdempotencyKeyRepository } from '../../adapters/persistence/s
 export { createItemRepository } from '../../adapters/persistence/sqlite/runtime/item-repository'
 export { createJobDependencyRepository } from '../../adapters/persistence/sqlite/runtime/job-dependency-repository'
 export { createJobRepository } from '../../adapters/persistence/sqlite/runtime/job-repository'
+export { createJobRunReadinessRepository } from '../../adapters/persistence/sqlite/runtime/job-run-readiness-repository'
 export { createKernelSessionArtifactRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-artifact-repository'
 export { createKernelSessionRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-repository'
 export { createMcpOauthAuthorizationRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
@@ -251,6 +260,7 @@ export { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/
 export { createMemoryRecordRepository } from '../../adapters/persistence/sqlite/memory/memory-record-repository'
 export { createMessageFileReplacementRepository } from '../../adapters/persistence/sqlite/files/message-file-replacement-repository'
 export { createPasswordCredentialRepository } from '../../adapters/persistence/sqlite/identity/password-credential-repository'
+export { createPendingWaitReadinessRepository } from '../../adapters/persistence/sqlite/runtime/pending-wait-readiness-repository'
 export { createRunClaimRepository } from '../../adapters/persistence/sqlite/runtime/run-claim-repository'
 export { createRunDependencyRepository } from '../../adapters/persistence/sqlite/runtime/run-dependency-repository'
 export { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'

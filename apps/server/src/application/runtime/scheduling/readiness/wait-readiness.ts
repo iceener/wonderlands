@@ -1,6 +1,5 @@
-import { and, eq } from 'drizzle-orm'
 import type { AppDatabase } from '../../../../db/client'
-import { runDependencies, runs } from '../../../../db/schema'
+import { createPendingWaitReadinessRepository } from '../../../persistence/repositories'
 import { createRunDependencyRepository } from '../../../persistence/repositories'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import { createRunRepository } from '../../../persistence/repositories'
@@ -27,30 +26,15 @@ export const listPendingWaitReadinessDecisions = (
   DomainError
 > => {
   const runDependencyRepository = createRunDependencyRepository(db)
+  const pendingWaitSnapshots =
+    createPendingWaitReadinessRepository(db).listPendingRunDependencySnapshots()
+
+  if (!pendingWaitSnapshots.ok) {
+    return pendingWaitSnapshots
+  }
 
   try {
-    const rows = db
-      .select({
-        ownerRunId: runs.id,
-        ownerRunStatus: runs.status,
-        sessionId: runs.sessionId,
-        targetRunId: runDependencies.targetRunId,
-        tenantId: runs.tenantId,
-        timeoutAt: runDependencies.timeoutAt,
-        waitCreatedAt: runDependencies.createdAt,
-        waitId: runDependencies.id,
-        waitTargetKind: runDependencies.targetKind,
-        waitType: runDependencies.type,
-      })
-      .from(runDependencies)
-      .innerJoin(
-        runs,
-        and(eq(runDependencies.runId, runs.id), eq(runDependencies.tenantId, runs.tenantId)),
-      )
-      .where(eq(runDependencies.status, 'pending'))
-      .all()
-
-    const snapshots = rows.map((row) => ({
+    const snapshots = pendingWaitSnapshots.value.map((row) => ({
       ownerRunId: row.ownerRunId,
       ownerRunStatus: row.ownerRunStatus,
       sessionId: row.sessionId,

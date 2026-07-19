@@ -1,17 +1,16 @@
-import { and, eq } from 'drizzle-orm'
-
-import { jobDependencies, jobs } from '../../../db/schema'
 import type { RepositoryDatabase } from '../../../db/repository-database'
+import { createJobDependencyRepository } from '../../persistence/repositories'
 import { createRunDependencyRepository } from '../../persistence/repositories'
 import { createRunRepository } from '../../persistence/repositories'
+import type { JobStatus } from '../../../domain/runtime/job-types'
 import type { DomainError } from '../../../shared/errors'
 import type { JobId } from '../../../shared/ids'
 import { asRunId } from '../../../shared/ids'
-import { err, ok, type Result } from '../../../shared/result'
+import { ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
 import { isParentDeliverableChildWait } from '../waits/delegated-child-waits'
 
-const isTerminalDependencyStatus = (status: typeof jobs.$inferSelect.status): boolean =>
+const isTerminalDependencyStatus = (status: JobStatus): boolean =>
   status === 'completed' ||
   status === 'cancelled' ||
   status === 'blocked' ||
@@ -56,50 +55,30 @@ export const dependenciesSatisfiedForJob = (
   scope: TenantScope,
   jobId: JobId,
 ): Result<boolean, DomainError> => {
-  try {
-    const rows = db
-      .select({
-        metadataJson: jobDependencies.metadataJson,
-        status: jobs.status,
-      })
-      .from(jobDependencies)
-      .innerJoin(
-        jobs,
-        and(eq(jobDependencies.toJobId, jobs.id), eq(jobDependencies.tenantId, jobs.tenantId)),
-      )
-      .where(
-        and(
-          eq(jobDependencies.fromJobId, jobId),
-          eq(jobDependencies.tenantId, scope.tenantId),
-          eq(jobDependencies.type, 'depends_on'),
-        ),
-      )
-      .all()
+  const dependencyTargetStatuses = createJobDependencyRepository(db).listDependencyTargetStatuses(
+    scope,
+    { fromJobId: jobId, type: 'depends_on' },
+  )
 
-    for (const row of rows) {
-      if (isTerminalDependencyStatus(row.status)) {
-        continue
-      }
+  if (!dependencyTargetStatuses.ok) {
+    return dependencyTargetStatuses
+  }
 
-      const suspended = isDelegatedChildSuspended(db, scope, row.metadataJson)
-
-      if (!suspended.ok) {
-        return suspended
-      }
-
-      if (!suspended.value) {
-        return ok(false)
-      }
+  for (const dependency of dependencyTargetStatuses.value) {
+    if (isTerminalDependencyStatus(dependency.toJobStatus)) {
+      continue
     }
 
-    return ok(true)
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown work-item dependency readiness failure'
+    const suspended = isDelegatedChildSuspended(db, scope, dependency.metadataJson)
 
-    return err({
-      message: `failed to evaluate dependencies for work item ${jobId}: ${message}`,
-      type: 'conflict',
-    })
+    if (!suspended.ok) {
+      return suspended
+    }
+
+    if (!suspended.value) {
+      return ok(false)
+    }
   }
+
+  return ok(true)
 }

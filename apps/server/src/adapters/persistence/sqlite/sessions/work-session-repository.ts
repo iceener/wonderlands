@@ -15,6 +15,7 @@ import {
   asTenantId,
   asWorkSessionId,
   asWorkspaceId,
+  type TenantId,
   type WorkSessionId,
 } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
@@ -61,6 +62,18 @@ export const createWorkSessionRepository = (db: RepositoryDatabase): WorkSession
   }
 
   return {
+    findByIdForTenant: (
+      tenantId: TenantId,
+      sessionId: WorkSessionId,
+    ): Result<WorkSessionRecord | null, DomainError> => {
+      const sessionRecord = db
+        .select()
+        .from(workSessions)
+        .where(and(eq(workSessions.id, sessionId), eq(workSessions.tenantId, tenantId)))
+        .get()
+
+      return ok(sessionRecord ? toWorkSessionRecord(sessionRecord) : null)
+    },
     create: (
       scope: TenantScope,
       input: CreateWorkSessionInput,

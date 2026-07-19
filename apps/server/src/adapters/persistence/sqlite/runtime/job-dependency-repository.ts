@@ -1,11 +1,13 @@
 import { and, asc, eq } from 'drizzle-orm'
 
-import { jobDependencies } from '../../../../db/schema'
+import { jobDependencies, jobs } from '../../../../db/schema'
 import type {
   CreateJobDependencyInput,
   JobDependencyRecord,
   JobDependencyRepository,
+  JobDependencyTargetStatus,
 } from '../../../../domain/runtime/job-dependency-repository'
+import type { JobDependencyType } from '../../../../domain/runtime/job-types'
 import type { DomainError } from '../../../../shared/errors'
 import { asJobDependencyId, asJobId, asTenantId, asWorkSessionId, type JobId } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
@@ -99,6 +101,46 @@ export const createJobDependencyRepository = (db: RepositoryDatabase): JobDepend
 
       return err({
         message: `failed to list dependencies to job ${jobId}: ${message}`,
+        type: 'conflict',
+      })
+    }
+  },
+  listDependencyTargetStatuses: (
+    scope: TenantScope,
+    input: { fromJobId: JobId; type: JobDependencyType },
+  ): Result<JobDependencyTargetStatus[], DomainError> => {
+    try {
+      const rows = db
+        .select({
+          metadataJson: jobDependencies.metadataJson,
+          toJobStatus: jobs.status,
+        })
+        .from(jobDependencies)
+        .innerJoin(
+          jobs,
+          and(eq(jobDependencies.toJobId, jobs.id), eq(jobDependencies.tenantId, jobs.tenantId)),
+        )
+        .where(
+          and(
+            eq(jobDependencies.fromJobId, input.fromJobId),
+            eq(jobDependencies.tenantId, scope.tenantId),
+            eq(jobDependencies.type, input.type),
+          ),
+        )
+        .all()
+
+      return ok(
+        rows.map((row) => ({
+          metadataJson: row.metadataJson,
+          toJobStatus: row.toJobStatus,
+        })),
+      )
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown job dependency target status list failure'
+
+      return err({
+        message: `failed to list dependency target statuses from job ${input.fromJobId}: ${message}`,
         type: 'conflict',
       })
     }

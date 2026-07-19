@@ -7,7 +7,7 @@ import type {
 } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
-import type { JobDependencyType } from './job-types'
+import type { JobDependencyType, JobStatus } from './job-types'
 
 export interface JobDependencyRecord {
   createdAt: string
@@ -30,6 +30,11 @@ export interface CreateJobDependencyInput {
   type: JobDependencyType
 }
 
+export interface JobDependencyTargetStatus {
+  metadataJson: unknown | null
+  toJobStatus: JobStatus
+}
+
 /**
  * Persistence-neutral port for job dependency storage. Concrete
  * implementations (e.g. the Drizzle/SQLite adapter) live under
@@ -44,4 +49,15 @@ export interface JobDependencyRepository {
   ) => Result<JobDependencyRecord, DomainError>
   listByFromJobId: (scope: TenantScope, jobId: JobId) => Result<JobDependencyRecord[], DomainError>
   listByToJobId: (scope: TenantScope, jobId: JobId) => Result<JobDependencyRecord[], DomainError>
+  /**
+   * Lists the target-job status for every outgoing dependency edge of the
+   * given type from `fromJobId`, joined against the target job's current
+   * status. Used by scheduling readiness to evaluate whether a job's
+   * dependencies are satisfied without pulling every dependency record and
+   * re-querying each target job individually.
+   */
+  listDependencyTargetStatuses: (
+    scope: TenantScope,
+    input: { fromJobId: JobId; type: JobDependencyType },
+  ) => Result<JobDependencyTargetStatus[], DomainError>
 }
