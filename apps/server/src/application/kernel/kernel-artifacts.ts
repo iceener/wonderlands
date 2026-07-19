@@ -1,13 +1,12 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
+import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createKernelSessionArtifactRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-artifact-repository'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { BlobStore } from '../../domain/files/blob-store'
-import { createFileLinkRepository } from '../../domain/files/file-link-repository'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
-import {
-  createKernelSessionArtifactRepository,
-  type KernelSessionArtifactRecord,
-} from '../../domain/kernel/kernel-session-artifact-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
+import type { KernelSessionArtifactRecord } from '../../domain/kernel/kernel-session-artifact-repository'
 import type { KernelSessionRecord } from '../../domain/kernel/kernel-session-repository'
 import type { KernelArtifactKind } from '../../domain/kernel/types'
 import type { DomainError } from '../../shared/errors'

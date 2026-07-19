@@ -1,8 +1,6 @@
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { AppDatabase } from '../../db/client'
-import {
-  createFileRepository,
-  type MessageLinkedFileRecord,
-} from '../../domain/files/file-repository'
+import type { MessageLinkedFileRecord } from '../../domain/files/file-repository'
 import type { ItemRecord } from '../../domain/runtime/item-repository'
 import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'
 import type { DomainError } from '../../shared/errors'

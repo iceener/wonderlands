@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { BlobStore } from '../../domain/files/blob-store'
-import { createFileRepository } from '../../domain/files/file-repository'
 import {
   createSandboxExecutionFileRepository,
   type SandboxExecutionFileRecord,

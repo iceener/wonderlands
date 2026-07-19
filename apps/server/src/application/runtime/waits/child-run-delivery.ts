@@ -1,8 +1,8 @@
+import { createFileRepository } from '../../../adapters/persistence/sqlite/files/file-repository'
 import type {
   ChildRunResultEnvelope,
   ChildRunSuspendedWait,
 } from '../../../domain/agents/agent-types'
-import { createFileRepository } from '../../../domain/files/file-repository'
 import { createRunDependencyRepository } from '../../../domain/runtime/run-dependency-repository'
 import { createRunRepository, type RunRecord } from '../../../domain/runtime/run-repository'
 import { createToolExecutionRepository } from '../../../domain/runtime/tool-execution-repository'

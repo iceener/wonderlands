@@ -9,9 +9,9 @@ import {
   createCreateSessionThreadCommand,
   parseCreateSessionThreadInput,
 } from '../../../../application/commands/create-session-thread'
-import { createFileRepository } from '../../../../domain/files/file-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asWorkSessionId } from '../../../../shared/ids'
+import { createFileRepository } from '../../../persistence/sqlite/files/file-repository'
 import { successEnvelope } from '../../api-envelope'
 import { buildRecordedProgressIdempotentRoute } from '../../idempotency'
 import {

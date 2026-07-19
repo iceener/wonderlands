@@ -1,7 +1,7 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { domainEvents, eventOutbox, fileLinks, files, uploads } from '../../db/schema'
 import type { AppTransaction } from '../../db/transaction'
-import type { createFileLinkRepository } from '../../domain/files/file-link-repository'
+import type { FileLinkRepository } from '../../domain/files/file-link-repository'
 import type { DomainError } from '../../shared/errors'
 import type { FileId, SessionMessageId, WorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
@@ -13,7 +13,7 @@ import { buildFileDeletionPlanFromDirectLinks } from './file-link-cleanup'
 interface MessageFileLinkDependencies {
   db: AppTransaction
   eventStore: ReturnType<typeof createEventStore>
-  fileLinkRepository: ReturnType<typeof createFileLinkRepository>
+  fileLinkRepository: FileLinkRepository
   now: string
   resourceAccess: ReturnType<typeof createResourceAccessService>
   sessionId: WorkSessionId

@@ -79,9 +79,7 @@ const buildPatch = (
   return patch
 }
 
-export const createKernelSessionRepository = (
-  db: RepositoryDatabase,
-): KernelSessionRepository => {
+export const createKernelSessionRepository = (db: RepositoryDatabase): KernelSessionRepository => {
   const getById = (
     scope: TenantScope,
     id: KernelSessionId,

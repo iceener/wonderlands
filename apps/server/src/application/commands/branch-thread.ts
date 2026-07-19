@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import { withTransaction } from '../../db/transaction'
-import { createFileLinkRepository } from '../../domain/files/file-link-repository'
-import { createFileRepository } from '../../domain/files/file-repository'
 import {
   createSessionMessageRepository,
   type SessionMessageRecord,

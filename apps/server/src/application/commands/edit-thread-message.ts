@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
-import { createFileLinkRepository } from '../../domain/files/file-link-repository'
 import { createJobRepository } from '../../domain/runtime/job-repository'
 import { createRunRepository } from '../../domain/runtime/run-repository'
 import {

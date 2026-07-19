@@ -1,5 +1,11 @@
 import type { DomainError } from '../../shared/errors'
-import type { KernelSessionId, RunId, SessionThreadId, TenantId, WorkSessionId } from '../../shared/ids'
+import type {
+  KernelSessionId,
+  RunId,
+  SessionThreadId,
+  TenantId,
+  WorkSessionId,
+} from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import type { KernelProvider, KernelSessionStatus } from './types'

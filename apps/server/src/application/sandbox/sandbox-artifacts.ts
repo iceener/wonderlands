@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join, matchesGlob, relative, resolve } from 'node:path'
-
+import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { BlobStore } from '../../domain/files/blob-store'
-import { createFileLinkRepository } from '../../domain/files/file-link-repository'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
 import { createSandboxExecutionFileRepository } from '../../domain/sandbox/sandbox-execution-file-repository'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
 import type { SandboxExecutionRequest } from '../../domain/sandbox/types'

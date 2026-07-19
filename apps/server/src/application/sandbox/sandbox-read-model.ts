@@ -1,5 +1,6 @@
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { AppDatabase } from '../../db/client'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
 import { createJobRepository } from '../../domain/runtime/job-repository'
 import {
   createSandboxExecutionFileRepository,

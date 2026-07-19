@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm'
-
+import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import { fileLinks } from '../../db/schema'
 import type { RepositoryDatabase } from '../../domain/database-port'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
 import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
 import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
 import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
