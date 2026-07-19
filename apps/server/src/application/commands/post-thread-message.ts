@@ -1,10 +1,10 @@
 import { z } from 'zod'
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
 import {
   createSessionMessageRepository,
   type SessionMessageContentPart,
 } from '../../domain/sessions/session-message-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type { SessionMessageId, SessionThreadId, WorkSessionId } from '../../shared/ids'
 import { asSessionMessageId } from '../../shared/ids'

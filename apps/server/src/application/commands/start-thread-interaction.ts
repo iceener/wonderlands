@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
 import { createFileLinkRepository } from '../../domain/files/file-link-repository'
 import { createJobRepository, type JobRecord } from '../../domain/runtime/job-repository'
@@ -9,7 +10,6 @@ import {
   type SessionMessageContentPart,
 } from '../../domain/sessions/session-message-repository'
 import { createWorkSessionRepository } from '../../domain/sessions/work-session-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   FileId,

@@ -1,6 +1,6 @@
 import { z } from 'zod'
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppDatabase } from '../../db/client'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import {
   createToolProfileRepository,
   type ToolProfileRecord,

@@ -1,9 +1,9 @@
 import type { RepositoryDatabase } from '../../../domain/database-port'
-import { createTenantMembershipRepository } from '../../../domain/tenancy/tenant-membership-repository'
 import type { DomainError } from '../../../shared/errors'
 import { type AccountId, asTenantId, type TenantId } from '../../../shared/ids'
 import { err, ok, type Result } from '../../../shared/result'
 import type { TenantScope } from '../../../shared/scope'
+import { createTenantMembershipRepository } from '../../persistence/sqlite/tenancy/tenant-membership-repository'
 
 export const parseTenantIdHeader = (
   value: string | undefined,

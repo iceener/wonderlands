@@ -1,5 +1,5 @@
 import { z } from 'zod'
-
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { createAgentRepository } from '../../domain/agents/agent-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
 import { createAccountPreferencesRepository } from '../../domain/preferences/account-preferences-repository'
@@ -8,7 +8,6 @@ import {
   resetShortcutBindingOverrides,
   type ShortcutBindingOverrides,
 } from '../../domain/preferences/shortcut-bindings'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import { createToolProfileRepository } from '../../domain/tool-access/tool-profile-repository'
 import type { DomainError } from '../../shared/errors'
 import { type AgentId, asAgentId, asToolProfileId, type ToolProfileId } from '../../shared/ids'

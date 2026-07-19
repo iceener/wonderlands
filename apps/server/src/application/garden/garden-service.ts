@@ -5,12 +5,12 @@ import {
   createGardenBuildRepository,
   createGardenSiteRepository,
 } from '../../adapters/persistence/sqlite'
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
 import type { RepositoryDatabase } from '../../domain/database-port'
 import type { GardenBuildRecord } from '../../domain/garden/garden-build-repository'
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import type { DomainError } from '../../shared/errors'
 import { getReservedPublicSegments } from '../../shared/http-routing'
 import {
@@ -36,15 +36,15 @@ import type {
 } from './garden-inputs'
 import { ensureGardenSourceMetaFiles } from './meta-files'
 
-export {
-  parseCreateGardenSiteInput,
-  parseRequestGardenBuildInput,
-  parseUpdateGardenSiteInput,
-} from './garden-inputs'
 export type {
   CreateGardenSiteInput,
   RequestGardenBuildInput,
   UpdateGardenSiteInput,
+} from './garden-inputs'
+export {
+  parseCreateGardenSiteInput,
+  parseRequestGardenBuildInput,
+  parseUpdateGardenSiteInput,
 } from './garden-inputs'
 
 const gardenAdminRoles = new Set<TenantScope['role']>(['admin', 'owner'])

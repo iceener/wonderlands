@@ -1,3 +1,4 @@
+import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppRuntime } from '../../app/runtime'
 import { withTransaction } from '../../db/transaction'
 import {
@@ -10,7 +11,6 @@ import {
   createAgentScheduledTaskRunRepository,
 } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
 import { createRunRepository } from '../../domain/runtime/run-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import { asAgentScheduledTaskRunId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

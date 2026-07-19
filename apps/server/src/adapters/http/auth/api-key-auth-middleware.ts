@@ -2,10 +2,10 @@ import { createMiddleware } from 'hono/factory'
 
 import type { AppConfig } from '../../../app/config'
 import type { AppEnv } from '../../../app/types'
-import { createApiKeyRepository } from '../../../domain/identity/api-key-repository'
 import { hashApiKeySecret, parseBearerToken } from '../../../shared/api-key'
 import { DomainErrorException } from '../../../shared/errors'
 import type { RequestScope, TenantScope } from '../../../shared/scope'
+import { createApiKeyRepository } from '../../persistence/sqlite/identity/api-key-repository'
 import { parseTenantIdHeader, resolveTenantScopeForAccount } from './tenant-scope'
 
 export const apiKeyAuthMiddleware = (config: AppConfig) =>
