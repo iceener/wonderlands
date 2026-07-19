@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-
+import { createGardenSiteRepository } from '../../src/adapters/persistence/sqlite'
 import { createInternalCommandContext } from '../../src/application/commands/internal-command-context'
 import { MCP_CODE_MODE_CONFIRMATION_TARGET_REF } from '../../src/application/mcp/code-mode'
 import { toToolContext } from '../../src/application/runtime/execution/run-tool-execution'
@@ -20,7 +20,6 @@ import {
   toolExecutions,
   workSessions,
 } from '../../src/db/schema'
-import { createGardenSiteRepository } from '../../src/domain/garden/garden-site-repository'
 import { asAccountId, asAgentRevisionId, asGardenSiteId, asTenantId } from '../../src/shared/ids'
 import { seedApiKeyAuth } from '../helpers/api-key-auth'
 import { createTestHarness } from '../helpers/create-test-app'

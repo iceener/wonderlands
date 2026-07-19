@@ -1,19 +1,7 @@
-import { and, asc, desc, eq, ne } from 'drizzle-orm'
-import { gardenSites } from '../../db/schema'
 import type { DomainError } from '../../shared/errors'
-import {
-  type AccountId,
-  asAccountId,
-  asGardenBuildId,
-  asGardenSiteId,
-  asTenantId,
-  type GardenBuildId,
-  type GardenSiteId,
-  type TenantId,
-} from '../../shared/ids'
-import { err, ok, type Result } from '../../shared/result'
+import type { AccountId, GardenBuildId, GardenSiteId, TenantId } from '../../shared/ids'
+import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
-import type { RepositoryDatabase } from '../database-port'
 
 export type GardenSiteStatus = 'active' | 'archived' | 'disabled' | 'draft'
 export type GardenBuildMode = 'debounced_scan' | 'manual'
@@ -78,252 +66,34 @@ export interface UpdateGardenSiteInput {
   updatedByAccountId: AccountId
 }
 
-const toGardenSiteRecord = (row: typeof gardenSites.$inferSelect): GardenSiteRecord => ({
-  buildMode: row.buildMode,
-  createdAt: row.createdAt,
-  createdByAccountId: asAccountId(row.createdByAccountId),
-  currentBuildId: row.currentBuildId ? asGardenBuildId(row.currentBuildId) : null,
-  currentPublishedBuildId: row.currentPublishedBuildId
-    ? asGardenBuildId(row.currentPublishedBuildId)
-    : null,
-  deployMode: row.deployMode,
-  id: asGardenSiteId(row.id),
-  isDefault: row.isDefault,
-  name: row.name,
-  protectedAccessMode: row.protectedAccessMode,
-  protectedSecretRef: row.protectedSecretRef,
-  protectedSessionTtlSeconds: row.protectedSessionTtlSeconds,
-  slug: row.slug,
-  sourceScopePath: row.sourceScopePath,
-  status: row.status,
-  tenantId: asTenantId(row.tenantId),
-  updatedAt: row.updatedAt,
-  updatedByAccountId: asAccountId(row.updatedByAccountId),
-})
-
-export const createGardenSiteRepository = (db: RepositoryDatabase) => {
-  const getById = (
+/**
+ * Persistence-neutral port for Garden site storage. Concrete implementations
+ * (e.g. the Drizzle/SQLite adapter) live under
+ * `adapters/persistence/sqlite/`. This module must not import anything from
+ * `db`, `drizzle-orm`, `application`, or `adapters` -- see
+ * `test/architecture-guardrails.test.ts`.
+ */
+export interface GardenSiteRepository {
+  clearDefault: (exceptSiteId?: GardenSiteId) => Result<null, DomainError>
+  create: (
+    scope: TenantScope,
+    input: CreateGardenSiteInput,
+  ) => Result<GardenSiteRecord, DomainError>
+  findById: (gardenSiteId: GardenSiteId) => Result<GardenSiteRecord | null, DomainError>
+  findBySlug: (slug: string) => Result<GardenSiteRecord | null, DomainError>
+  findDefault: () => Result<GardenSiteRecord | null, DomainError>
+  getById: (scope: TenantScope, gardenSiteId: GardenSiteId) => Result<GardenSiteRecord, DomainError>
+  /**
+   * Lists every Garden site with `status: 'active'` across all tenants.
+   * Used by out-of-band maintenance tooling (e.g. the active-Garden rebuild
+   * script) that operates outside a single tenant scope.
+   */
+  listActive: () => Result<GardenSiteRecord[], DomainError>
+  listAutoBuildCandidates: () => Result<GardenSiteRecord[], DomainError>
+  listByTenant: (scope: TenantScope) => Result<GardenSiteRecord[], DomainError>
+  update: (
     scope: TenantScope,
     gardenSiteId: GardenSiteId,
-  ): Result<GardenSiteRecord, DomainError> => {
-    const row = db
-      .select()
-      .from(gardenSites)
-      .where(and(eq(gardenSites.id, gardenSiteId), eq(gardenSites.tenantId, scope.tenantId)))
-      .get()
-
-    if (!row) {
-      return err({
-        message: `garden site ${gardenSiteId} not found in tenant ${scope.tenantId}`,
-        type: 'not_found',
-      })
-    }
-
-    return ok(toGardenSiteRecord(row))
-  }
-
-  const findBySlug = (slug: string): Result<GardenSiteRecord | null, DomainError> => {
-    try {
-      const row = db.select().from(gardenSites).where(eq(gardenSites.slug, slug)).get()
-
-      return ok(row ? toGardenSiteRecord(row) : null)
-    } catch (error) {
-      return err({
-        message: `failed to resolve garden site by slug ${slug}: ${error instanceof Error ? error.message : 'Unknown garden site lookup failure'}`,
-        type: 'conflict',
-      })
-    }
-  }
-
-  const findById = (gardenSiteId: GardenSiteId): Result<GardenSiteRecord | null, DomainError> => {
-    try {
-      const row = db.select().from(gardenSites).where(eq(gardenSites.id, gardenSiteId)).get()
-
-      return ok(row ? toGardenSiteRecord(row) : null)
-    } catch (error) {
-      return err({
-        message: `failed to resolve garden site ${gardenSiteId}: ${error instanceof Error ? error.message : 'Unknown garden site lookup failure'}`,
-        type: 'conflict',
-      })
-    }
-  }
-
-  const findDefault = (): Result<GardenSiteRecord | null, DomainError> => {
-    try {
-      const row = db.select().from(gardenSites).where(eq(gardenSites.isDefault, true)).get()
-
-      return ok(row ? toGardenSiteRecord(row) : null)
-    } catch (error) {
-      return err({
-        message: `failed to resolve default garden site: ${error instanceof Error ? error.message : 'Unknown garden site lookup failure'}`,
-        type: 'conflict',
-      })
-    }
-  }
-
-  return {
-    create: (
-      scope: TenantScope,
-      input: CreateGardenSiteInput,
-    ): Result<GardenSiteRecord, DomainError> => {
-      try {
-        const record: GardenSiteRecord = {
-          buildMode: input.buildMode,
-          createdAt: input.createdAt,
-          createdByAccountId: input.createdByAccountId,
-          currentBuildId: input.currentBuildId ?? null,
-          currentPublishedBuildId: input.currentPublishedBuildId ?? null,
-          deployMode: input.deployMode,
-          id: input.id,
-          isDefault: input.isDefault ?? false,
-          name: input.name,
-          protectedAccessMode: input.protectedAccessMode,
-          protectedSecretRef: input.protectedSecretRef ?? null,
-          protectedSessionTtlSeconds: input.protectedSessionTtlSeconds,
-          slug: input.slug,
-          sourceScopePath: input.sourceScopePath,
-          status: input.status,
-          tenantId: scope.tenantId,
-          updatedAt: input.updatedAt,
-          updatedByAccountId: input.updatedByAccountId,
-        }
-
-        db.insert(gardenSites).values(record).run()
-
-        return ok(record)
-      } catch (error) {
-        return err({
-          message: `failed to create garden site ${input.id}: ${error instanceof Error ? error.message : 'Unknown garden site create failure'}`,
-          type: 'conflict',
-        })
-      }
-    },
-    findDefault,
-    findById,
-    findBySlug,
-    clearDefault: (exceptSiteId?: GardenSiteId): Result<null, DomainError> => {
-      try {
-        db.update(gardenSites)
-          .set({
-            isDefault: false,
-          })
-          .where(
-            exceptSiteId
-              ? and(eq(gardenSites.isDefault, true), ne(gardenSites.id, exceptSiteId))
-              : eq(gardenSites.isDefault, true),
-          )
-          .run()
-
-        return ok(null)
-      } catch (error) {
-        return err({
-          message: `failed to clear garden default site: ${error instanceof Error ? error.message : 'Unknown garden site update failure'}`,
-          type: 'conflict',
-        })
-      }
-    },
-    getById,
-    listByTenant: (scope: TenantScope): Result<GardenSiteRecord[], DomainError> => {
-      try {
-        const rows = db
-          .select()
-          .from(gardenSites)
-          .where(eq(gardenSites.tenantId, scope.tenantId))
-          .orderBy(desc(gardenSites.isDefault), asc(gardenSites.slug), asc(gardenSites.id))
-          .all()
-
-        return ok(rows.map(toGardenSiteRecord))
-      } catch (error) {
-        return err({
-          message: `failed to list garden sites for tenant ${scope.tenantId}: ${error instanceof Error ? error.message : 'Unknown garden site list failure'}`,
-          type: 'conflict',
-        })
-      }
-    },
-    listAutoBuildCandidates: (): Result<GardenSiteRecord[], DomainError> => {
-      try {
-        const rows = db
-          .select()
-          .from(gardenSites)
-          .where(and(eq(gardenSites.buildMode, 'debounced_scan'), eq(gardenSites.status, 'active')))
-          .orderBy(asc(gardenSites.tenantId), asc(gardenSites.slug), asc(gardenSites.id))
-          .all()
-
-        return ok(rows.map(toGardenSiteRecord))
-      } catch (error) {
-        return err({
-          message: `failed to list automatic garden build candidates: ${error instanceof Error ? error.message : 'Unknown garden site list failure'}`,
-          type: 'conflict',
-        })
-      }
-    },
-    update: (
-      scope: TenantScope,
-      gardenSiteId: GardenSiteId,
-      input: UpdateGardenSiteInput,
-    ): Result<GardenSiteRecord, DomainError> => {
-      const current = getById(scope, gardenSiteId)
-
-      if (!current.ok) {
-        return current
-      }
-
-      try {
-        const nextRecord: GardenSiteRecord = {
-          ...current.value,
-          ...(input.buildMode !== undefined ? { buildMode: input.buildMode } : {}),
-          ...(input.currentBuildId !== undefined ? { currentBuildId: input.currentBuildId } : {}),
-          ...(input.currentPublishedBuildId !== undefined
-            ? { currentPublishedBuildId: input.currentPublishedBuildId }
-            : {}),
-          ...(input.deployMode !== undefined ? { deployMode: input.deployMode } : {}),
-          ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
-          ...(input.name !== undefined ? { name: input.name } : {}),
-          ...(input.protectedAccessMode !== undefined
-            ? { protectedAccessMode: input.protectedAccessMode }
-            : {}),
-          ...(input.protectedSecretRef !== undefined
-            ? { protectedSecretRef: input.protectedSecretRef }
-            : {}),
-          ...(input.protectedSessionTtlSeconds !== undefined
-            ? { protectedSessionTtlSeconds: input.protectedSessionTtlSeconds }
-            : {}),
-          ...(input.slug !== undefined ? { slug: input.slug } : {}),
-          ...(input.sourceScopePath !== undefined
-            ? { sourceScopePath: input.sourceScopePath }
-            : {}),
-          ...(input.status !== undefined ? { status: input.status } : {}),
-          updatedAt: input.updatedAt,
-          updatedByAccountId: input.updatedByAccountId,
-        }
-
-        db.update(gardenSites)
-          .set({
-            buildMode: nextRecord.buildMode,
-            currentBuildId: nextRecord.currentBuildId,
-            currentPublishedBuildId: nextRecord.currentPublishedBuildId,
-            deployMode: nextRecord.deployMode,
-            isDefault: nextRecord.isDefault,
-            name: nextRecord.name,
-            protectedAccessMode: nextRecord.protectedAccessMode,
-            protectedSecretRef: nextRecord.protectedSecretRef,
-            protectedSessionTtlSeconds: nextRecord.protectedSessionTtlSeconds,
-            slug: nextRecord.slug,
-            sourceScopePath: nextRecord.sourceScopePath,
-            status: nextRecord.status,
-            updatedAt: nextRecord.updatedAt,
-            updatedByAccountId: nextRecord.updatedByAccountId,
-          })
-          .where(and(eq(gardenSites.id, gardenSiteId), eq(gardenSites.tenantId, scope.tenantId)))
-          .run()
-
-        return ok(nextRecord)
-      } catch (error) {
-        return err({
-          message: `failed to update garden site ${gardenSiteId}: ${error instanceof Error ? error.message : 'Unknown garden site update failure'}`,
-          type: 'conflict',
-        })
-      }
-    },
-  }
+    input: UpdateGardenSiteInput,
+  ) => Result<GardenSiteRecord, DomainError>
 }

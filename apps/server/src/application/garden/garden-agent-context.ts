@@ -1,9 +1,9 @@
+import { createGardenSiteRepository } from '../../adapters/persistence/sqlite'
 import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
-import {
-  createGardenSiteRepository,
-  type GardenProtectedAccessMode,
-  type GardenSiteStatus,
+import type {
+  GardenProtectedAccessMode,
+  GardenSiteStatus,
 } from '../../domain/garden/garden-site-repository'
 import type { SandboxVaultAccessMode } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'

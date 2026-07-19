@@ -1,11 +1,11 @@
+import {
+  createGardenBuildRepository,
+  createGardenSiteRepository,
+} from '../../adapters/persistence/sqlite'
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
-import { createGardenBuildRepository } from '../../domain/garden/garden-build-repository'
-import {
-  createGardenSiteRepository,
-  type GardenSiteRecord,
-} from '../../domain/garden/garden-site-repository'
+import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
 import type { GardenSiteId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'
 import { createPollingWorker } from '../polling-worker'

@@ -78,4 +78,32 @@ describe('server architecture guardrails', () => {
       /\bz\.(?:array|enum|intersection|literal|object|record|union)\s*\(/,
     )
   })
+
+  it('domain/garden modules stay persistence-neutral', async () => {
+    const gardenDomainDir = resolve(testDir, '../src/domain/garden')
+    const files = await collectTypescriptFiles(gardenDomainDir)
+    const importSpecifierPattern = /from\s+['"]([^'"]+)['"]/g
+    const offenders: string[] = []
+
+    for (const file of files) {
+      const contents = await readFile(file, 'utf8')
+
+      for (const match of contents.matchAll(importSpecifierPattern)) {
+        const specifier = match[1]
+        const isBareDrizzleImport =
+          specifier === 'drizzle-orm' || specifier.startsWith('drizzle-orm/')
+        const touchesForbiddenLayer = specifier
+          .split('/')
+          .some(
+            (segment) => segment === 'db' || segment === 'application' || segment === 'adapters',
+          )
+
+        if (isBareDrizzleImport || touchesForbiddenLayer) {
+          offenders.push(`${file} -> ${specifier}`)
+        }
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
 })

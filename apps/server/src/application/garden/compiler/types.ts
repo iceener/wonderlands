@@ -1,6 +1,28 @@
-export type GardenPageVisibility = 'private' | 'protected' | 'public'
+// Garden build manifest persistence types now live in the domain layer
+// (`domain/garden/garden-build-manifest.ts`). Re-exported here temporarily to
+// avoid churn across the compiler call sites that still import them from
+// this module.
+import type {
+  GardenBuildManifest,
+  GardenBuildWarning,
+  GardenManifestAsset,
+  GardenManifestPage,
+  GardenManifestSearch,
+  GardenManifestSearchBundle,
+  GardenPageExposure,
+  GardenPageVisibility,
+} from '../../../domain/garden/garden-build-manifest'
 
-export type GardenPageExposure = Exclude<GardenPageVisibility, 'private'> | 'hidden'
+export type {
+  GardenBuildManifest,
+  GardenBuildWarning,
+  GardenManifestAsset,
+  GardenManifestPage,
+  GardenManifestSearch,
+  GardenManifestSearchBundle,
+  GardenPageExposure,
+  GardenPageVisibility,
+}
 
 export interface GardenNavigationItem {
   label: string
@@ -89,56 +111,6 @@ export interface GardenParsedPage {
 export interface GardenClassifiedPage extends GardenParsedPage {
   exposure: GardenPageExposure
   hiddenReason?: string
-}
-
-export interface GardenBuildWarning {
-  code: 'asset_link_rewritten' | 'hidden_link' | 'unresolved_link'
-  message: string
-  sourcePath: string
-  target?: string
-}
-
-export interface GardenManifestPage {
-  artifactPath: string
-  coverImageArtifactPath?: string
-  description?: string
-  excerpt?: string
-  listingPageNumber?: number
-  order?: number
-  routePath: string
-  sourcePath: string
-  sourceSlug: string
-  tags: string[]
-  title: string
-  visibility: Exclude<GardenPageExposure, 'hidden'>
-}
-
-export interface GardenManifestAsset {
-  artifactPath: string
-  sourcePath: string
-}
-
-export interface GardenManifestSearchBundle {
-  artifactPrefix: string
-  fileCount: number
-  indexedPageCount: number
-}
-
-export interface GardenManifestSearch {
-  enabled: boolean
-  engine: 'pagefind'
-  protectedBundle: GardenManifestSearchBundle | null
-  publicBundle: GardenManifestSearchBundle
-}
-
-export interface GardenBuildManifest {
-  assets: GardenManifestAsset[]
-  pages: GardenManifestPage[]
-  protectedPageCount: number
-  publicPageCount: number
-  search?: GardenManifestSearch
-  sourceFingerprintSha256: string
-  warnings: GardenBuildWarning[]
 }
 
 export interface GardenBuiltPage {
