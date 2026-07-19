@@ -1,18 +1,24 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { z } from 'zod'
 
-import type { McpServerConfig } from '../adapters/mcp/types'
-import type { AiImageModelRegistry } from '../domain/ai/image-types'
-import type { AiModelRegistry, AiProviderName } from '../domain/ai/types'
-import { type KernelProvider, kernelProviderValues } from '../domain/kernel/types'
-import { type SandboxProvider, sandboxProviderValues } from '../domain/sandbox/types'
-import { type AuthMethod, authMethodValues } from '../shared/auth'
+import type { McpServerConfig } from '../../adapters/mcp/types'
+import type { AiImageModelRegistry } from '../../domain/ai/image-types'
+import type { AiModelRegistry, AiProviderName } from '../../domain/ai/types'
+import { type KernelProvider, kernelProviderValues } from '../../domain/kernel/types'
+import { type SandboxProvider, sandboxProviderValues } from '../../domain/sandbox/types'
+import { type AuthMethod, authMethodValues } from '../../shared/auth'
 import {
-  getRootReservedApiBasePathPrefixes,
-  isRootReservedApiBasePath,
-} from '../shared/http-routing'
+  parseBasePath,
+  parseBoolean,
+  parseCsv,
+  parseInteger,
+  parseNonNegativeInteger,
+  parseOptionalString,
+  parseUnitInterval,
+  parseUrl,
+} from './env'
+import { resolveMcpServers } from './mcp-servers'
 
 const nodeEnvSchema = z.enum(['development', 'test', 'production'])
 const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error'])
@@ -25,95 +31,6 @@ const fileStorageKindSchema = z.enum(['local'])
 const kernelProviderSchema = z.enum(kernelProviderValues)
 const multiagentRuntimeProfileSchema = z.enum(['single_process'])
 const sandboxProviderSchema = z.enum(sandboxProviderValues)
-const mcpServerIdSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .regex(/^[A-Za-z0-9_-]+$/)
-const mcpWorkspaceScopeSchema = z.enum(['account', 'run'])
-const mcpLoggingLevelSchema = z.enum([
-  'alert',
-  'critical',
-  'debug',
-  'emergency',
-  'error',
-  'info',
-  'notice',
-  'warning',
-])
-const mcpRecordSchema = z.record(z.string(), z.string())
-const rawMcpHttpAuthSchema = z.discriminatedUnion('kind', [
-  z.object({
-    kind: z.literal('none'),
-  }),
-  z.object({
-    kind: z.literal('bearer'),
-    tokenEnv: z.string().trim().min(1),
-  }),
-  z.object({
-    clientId: z.string().trim().min(1).optional(),
-    clientName: z.string().trim().min(1).optional(),
-    clientSecretEnv: z.string().trim().min(1).optional(),
-    kind: z.literal('oauth_authorization_code'),
-    resource: z.string().trim().min(1).optional(),
-    resourceMetadataUrl: z.string().url().optional(),
-    scope: z.string().trim().min(1).optional(),
-    tokenEndpointAuthMethod: z.string().trim().min(1).optional(),
-  }),
-  z.object({
-    clientId: z.string().trim().min(1),
-    clientSecretEnv: z.string().trim().min(1),
-    kind: z.literal('oauth_client_credentials'),
-    resource: z.string().trim().min(1).optional(),
-    resourceMetadataUrl: z.string().url().optional(),
-    scope: z.string().trim().min(1).optional(),
-  }),
-  z.object({
-    algorithm: z.string().trim().min(1),
-    clientId: z.string().trim().min(1),
-    kind: z.literal('oauth_private_key_jwt'),
-    privateKeyEnv: z.string().trim().min(1),
-    resource: z.string().trim().min(1).optional(),
-    resourceMetadataUrl: z.string().url().optional(),
-    scope: z.string().trim().min(1).optional(),
-  }),
-  z.object({
-    assertionEnv: z.string().trim().min(1),
-    clientId: z.string().trim().min(1),
-    kind: z.literal('oauth_static_private_key_jwt'),
-    resource: z.string().trim().min(1).optional(),
-    resourceMetadataUrl: z.string().url().optional(),
-    scope: z.string().trim().min(1).optional(),
-  }),
-])
-const rawMcpServerSchema = z.discriminatedUnion('kind', [
-  z.object({
-    allowedTenantIds: z.array(z.string().trim().min(1)).optional(),
-    args: z.array(z.string()).optional(),
-    command: z.string().trim().min(1),
-    cwd: z.string().trim().min(1).optional(),
-    enabled: z.boolean().optional(),
-    env: mcpRecordSchema.optional(),
-    id: mcpServerIdSchema,
-    kind: z.literal('stdio'),
-    logLevel: mcpLoggingLevelSchema.optional(),
-    stderr: z.enum(['inherit', 'pipe']).optional(),
-    toolPrefix: mcpServerIdSchema.optional(),
-    workspaceScoped: mcpWorkspaceScopeSchema.optional(),
-  }),
-  z.object({
-    allowedTenantIds: z.array(z.string().trim().min(1)).optional(),
-    auth: rawMcpHttpAuthSchema.optional(),
-    enabled: z.boolean().optional(),
-    headers: mcpRecordSchema.optional(),
-    id: mcpServerIdSchema,
-    kind: z.literal('streamable_http'),
-    logLevel: mcpLoggingLevelSchema.optional(),
-    toolPrefix: mcpServerIdSchema.optional(),
-    url: z.string().url(),
-  }),
-])
-const rawMcpServersSchema = z.array(rawMcpServerSchema)
 
 const envSchema = z.object({
   API_BASE_PATH: z.string().optional(),
@@ -227,140 +144,6 @@ const defaultCorsExposeHeaders = [
   'X-Trace-Id',
 ]
 
-const parseCsv = (value: string | undefined, fallback: string[]): string[] => {
-  if (!value) {
-    return fallback
-  }
-
-  const values = value
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-
-  if (values.length === 0) {
-    throw new Error('Expected a non-empty comma-separated list')
-  }
-
-  return [...new Set(values)]
-}
-
-const parseInteger = (value: string | undefined, fallback: number, fieldName: string): number => {
-  const resolved = value ?? String(fallback)
-  const parsed = Number.parseInt(resolved, 10)
-
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${fieldName} must be a positive integer`)
-  }
-
-  return parsed
-}
-
-const parseBoolean = (value: string | undefined, fallback: boolean, fieldName: string): boolean => {
-  if (value === undefined) {
-    return fallback
-  }
-
-  if (value === 'true') {
-    return true
-  }
-
-  if (value === 'false') {
-    return false
-  }
-
-  throw new Error(`${fieldName} must be "true" or "false"`)
-}
-
-const parseNonNegativeInteger = (
-  value: string | undefined,
-  fallback: number,
-  fieldName: string,
-): number => {
-  const resolved = value ?? String(fallback)
-  const parsed = Number.parseInt(resolved, 10)
-
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`${fieldName} must be a non-negative integer`)
-  }
-
-  return parsed
-}
-
-const parseOptionalString = (value: string | undefined): string | null => {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : null
-}
-
-const parseUrl = (value: string | undefined, fallback: string, fieldName: string): string => {
-  const resolved = value?.trim() || fallback
-
-  try {
-    return new URL(resolved).toString()
-  } catch {
-    throw new Error(`${fieldName} must be a valid URL`)
-  }
-}
-
-const parseUnitInterval = (
-  value: string | undefined,
-  fallback: number,
-  fieldName: string,
-): number => {
-  const resolved = value ?? String(fallback)
-  const parsed = Number.parseFloat(resolved)
-
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1) {
-    throw new Error(`${fieldName} must be a number between 0 and 1`)
-  }
-
-  return parsed
-}
-
-const parseBasePath = (value: string | undefined): string => {
-  // This is the canonical API mount used for generated links and primary routing.
-  // It must stay distinct from root-owned routes such as /status and /_auth.
-  const basePath = value?.trim() || '/api'
-
-  if (!basePath.startsWith('/')) {
-    throw new Error('API_BASE_PATH must start with "/"')
-  }
-
-  if (basePath.length > 1 && basePath.endsWith('/')) {
-    throw new Error('API_BASE_PATH must not end with "/"')
-  }
-
-  if (basePath === '/') {
-    throw new Error('API_BASE_PATH must not be "/"')
-  }
-
-  if (isRootReservedApiBasePath(basePath)) {
-    throw new Error(
-      `API_BASE_PATH must not shadow root-owned routes: ${getRootReservedApiBasePathPrefixes().join(', ')}`,
-    )
-  }
-
-  return basePath
-}
-
-const parseJsonString = <TValue>(
-  value: string | undefined,
-  fallback: TValue,
-  parser: (input: unknown) => TValue,
-  fieldName: string,
-): TValue => {
-  if (!value) {
-    return fallback
-  }
-
-  try {
-    const parsed = JSON.parse(value)
-    return parser(parsed)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown JSON parse failure'
-    throw new Error(`${fieldName} is invalid: ${message}`)
-  }
-}
-
 const deriveAuthMethodsFromMode = (authMode: z.infer<typeof authModeSchema>): AuthMethod[] => {
   switch (authMode) {
     case 'api_key':
@@ -385,149 +168,6 @@ const parseAuthMethods = (
     .map((method) => authMethodSchema.parse(method))
 
   return [...new Set(methods)]
-}
-
-const resolveMcpServers = (
-  rawFilePath: string | undefined,
-  env: NodeJS.ProcessEnv,
-): McpServerConfig[] => {
-  const configuredFilePath = rawFilePath?.trim()
-  const filePath = resolve(process.cwd(), configuredFilePath || './.mcp-servers.json')
-  const fileExists = existsSync(filePath)
-
-  if (!fileExists) {
-    if (configuredFilePath) {
-      throw new Error(`MCP_SERVERS_FILE does not exist: ${filePath}`)
-    }
-
-    return []
-  }
-
-  const fileContents = readFileSync(filePath, 'utf8').trim()
-  const parsed = parseJsonString(
-    fileContents.length > 0 ? fileContents : '[]',
-    [],
-    (input) => rawMcpServersSchema.parse(input),
-    `MCP_SERVERS_FILE (${filePath})`,
-  )
-  const serverIds = new Set<string>()
-  const toolPrefixes = new Set<string>()
-
-  return parsed.map<McpServerConfig>((server) => {
-    if (serverIds.has(server.id)) {
-      throw new Error(`MCP server id ${server.id} is duplicated`)
-    }
-
-    serverIds.add(server.id)
-
-    const toolPrefix = server.toolPrefix ?? server.id
-
-    if (toolPrefixes.has(toolPrefix)) {
-      throw new Error(`MCP tool prefix ${toolPrefix} is duplicated`)
-    }
-
-    toolPrefixes.add(toolPrefix)
-
-    if (server.kind === 'stdio') {
-      return {
-        allowedTenantIds: server.allowedTenantIds,
-        args: server.args,
-        command: server.command,
-        cwd: server.cwd,
-        enabled: server.enabled ?? true,
-        env: server.env,
-        id: server.id,
-        kind: 'stdio',
-        logLevel: server.logLevel,
-        stderr: server.stderr ?? 'pipe',
-        toolPrefix,
-        workspaceScoped: server.workspaceScoped,
-      }
-    }
-
-    const auth = server.auth ?? { kind: 'none' as const }
-    const toBaseStreamableHttpServerConfig = () => ({
-      allowedTenantIds: server.allowedTenantIds,
-      enabled: server.enabled ?? true,
-      headers: server.headers,
-      id: server.id,
-      kind: 'streamable_http' as const,
-      logLevel: server.logLevel,
-      toolPrefix,
-      url: server.url,
-    })
-
-    switch (auth.kind) {
-      case 'none':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth,
-        }
-      case 'bearer':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth: {
-            kind: 'bearer',
-            token: parseOptionalString(env[auth.tokenEnv]),
-          },
-        }
-      case 'oauth_client_credentials':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth: {
-            clientId: auth.clientId,
-            clientSecret: parseOptionalString(env[auth.clientSecretEnv]),
-            kind: auth.kind,
-            resource: parseOptionalString(auth.resource),
-            resourceMetadataUrl: parseOptionalString(auth.resourceMetadataUrl),
-            scope: parseOptionalString(auth.scope),
-          },
-        }
-      case 'oauth_authorization_code':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth: {
-            clientId: parseOptionalString(auth.clientId),
-            clientName: parseOptionalString(auth.clientName),
-            clientSecret: parseOptionalString(
-              auth.clientSecretEnv ? env[auth.clientSecretEnv] : undefined,
-            ),
-            kind: auth.kind,
-            resource: parseOptionalString(auth.resource),
-            resourceMetadataUrl: parseOptionalString(auth.resourceMetadataUrl),
-            scope: parseOptionalString(auth.scope),
-            tokenEndpointAuthMethod: parseOptionalString(auth.tokenEndpointAuthMethod),
-          },
-        }
-      case 'oauth_private_key_jwt':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth: {
-            algorithm: auth.algorithm,
-            clientId: auth.clientId,
-            kind: auth.kind,
-            privateKey: parseOptionalString(env[auth.privateKeyEnv]),
-            resource: parseOptionalString(auth.resource),
-            resourceMetadataUrl: parseOptionalString(auth.resourceMetadataUrl),
-            scope: parseOptionalString(auth.scope),
-          },
-        }
-      case 'oauth_static_private_key_jwt':
-        return {
-          ...toBaseStreamableHttpServerConfig(),
-          auth: {
-            assertion: parseOptionalString(env[auth.assertionEnv]),
-            clientId: auth.clientId,
-            kind: auth.kind,
-            resource: parseOptionalString(auth.resource),
-            resourceMetadataUrl: parseOptionalString(auth.resourceMetadataUrl),
-            scope: parseOptionalString(auth.scope),
-          },
-        }
-    }
-
-    throw new Error(`Unsupported MCP auth kind ${(auth as { kind: string }).kind}`)
-  })
 }
 
 export interface AppConfig {
@@ -718,8 +358,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const googleDefaultModel = raw.GOOGLE_DEFAULT_MODEL?.trim() || 'gemini-3.1-pro-preview'
   const openRouterDefaultModel = raw.OPENROUTER_DEFAULT_MODEL?.trim() || 'openai/gpt-5.4'
   const openAiImageDefaultModel = raw.OPENAI_IMAGE_DEFAULT_MODEL?.trim() || 'gpt-image-1.5'
-  const googleImageDefaultModel =
-    raw.GOOGLE_IMAGE_DEFAULT_MODEL?.trim() || 'gemini-3.1-flash-image'
+  const googleImageDefaultModel = raw.GOOGLE_IMAGE_DEFAULT_MODEL?.trim() || 'gemini-3.1-flash-image'
   const openRouterImageDefaultModel =
     raw.OPENROUTER_IMAGE_DEFAULT_MODEL?.trim() || 'google/gemini-3.1-flash-image-preview'
   const openAiConfigured = Boolean(parseOptionalString(raw.OPENAI_API_KEY))
