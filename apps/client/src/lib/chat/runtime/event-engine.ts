@@ -8,14 +8,17 @@ import type {
   ThreadId,
   ToolInteractionBlock,
 } from '@wonderlands/contracts/chat'
-import {
-  asEventId,
-  asMessageId,
-  asRunId,
-  asSessionId,
-  asThreadId,
-} from '@wonderlands/contracts/chat'
+import { asMessageId, asRunId, asSessionId, asThreadId } from '@wonderlands/contracts/chat'
 import type { ContextBudget, RunTranscriptState, UiMessage } from '../types'
+import {
+  doesEventSettleAssistantAttachments,
+  eventRunId,
+  eventThreadId,
+  isChildTranscriptEvent,
+  isDelegationParentBlock,
+} from './event-identity'
+import { buildOptimisticConfirmationEvent } from './optimistic-confirmation'
+import { resolveForeignPendingWaitAction } from './pending-wait-sync'
 
 interface PendingOptimisticOwnerSnapshot {
   viewEpoch: number
@@ -152,66 +155,6 @@ interface EventEngineDependencies {
   ) => ContextBudget
 }
 
-const eventRunId = (event: BackendEvent): RunId | null => {
-  if (!('runId' in event.payload) || typeof event.payload.runId !== 'string') {
-    return null
-  }
-
-  return asRunId(event.payload.runId)
-}
-
-const eventThreadId = (event: BackendEvent): ThreadId | null => {
-  if (!('threadId' in event.payload) || typeof event.payload.threadId !== 'string') {
-    return null
-  }
-
-  return asThreadId(event.payload.threadId)
-}
-
-const isChildTranscriptEvent = (event: BackendEvent): boolean => {
-  switch (event.type) {
-    case 'generation.completed':
-    case 'reasoning.summary.delta':
-    case 'reasoning.summary.done':
-    case 'stream.delta':
-    case 'stream.done':
-    case 'tool.called':
-    case 'tool.confirmation_requested':
-    case 'tool.confirmation_granted':
-    case 'tool.confirmation_rejected':
-    case 'tool.completed':
-    case 'tool.failed':
-    case 'tool.waiting':
-    case 'wait.timed_out':
-    case 'web_search.progress':
-    case 'run.cancelled':
-    case 'run.failed':
-      return true
-    default:
-      return false
-  }
-}
-
-const isDelegationParentBlock = (block: Block): block is Block & { childRunId: string } =>
-  block.type === 'tool_interaction' &&
-  block.name === 'delegate_to_agent' &&
-  typeof block.childRunId === 'string' &&
-  block.childRunId.trim().length > 0
-
-const doesEventSettleAssistantAttachments = (event: BackendEvent): boolean => {
-  switch (event.type) {
-    case 'generation.completed':
-    case 'stream.done':
-    case 'run.cancelled':
-    case 'run.completed':
-    case 'run.failed':
-    case 'run.waiting':
-      return true
-    default:
-      return false
-  }
-}
-
 export const createChatEventEngine = (dependencies: EventEngineDependencies) => {
   const isCurrentThreadEvent = (event: BackendEvent): boolean =>
     !dependencies.getThreadId() || eventThreadId(event) === dependencies.getThreadId()
@@ -331,45 +274,7 @@ export const createChatEventEngine = (dependencies: EventEngineDependencies) => 
       status: 'approved' | 'rejected'
     },
   ) => {
-    const baseEvent = {
-      aggregateId: String(wait.callId),
-      aggregateType: 'tool_execution',
-      createdAt: dependencies.nowIso(),
-      eventNo: -1,
-      id: asEventId(
-        `evt_local_confirmation_${input.status === 'approved' ? 'approved' : 'rejected'}_${wait.waitId}`,
-      ),
-    }
-
-    if (input.status === 'approved') {
-      applyLiveEvent({
-        ...baseEvent,
-        payload: {
-          callId: String(wait.callId),
-          remembered: input.remembered ?? false,
-          runId: input.runId,
-          sessionId: input.sessionId,
-          threadId: input.threadId,
-          tool: wait.tool,
-          waitId: wait.waitId,
-        },
-        type: 'tool.confirmation_granted',
-      })
-      return
-    }
-
-    applyLiveEvent({
-      ...baseEvent,
-      payload: {
-        callId: String(wait.callId),
-        runId: input.runId,
-        sessionId: input.sessionId,
-        threadId: input.threadId,
-        tool: wait.tool,
-        waitId: wait.waitId,
-      },
-      type: 'tool.confirmation_rejected',
-    })
+    applyLiveEvent(buildOptimisticConfirmationEvent(wait, input, dependencies.nowIso))
   }
 
   const getVisibleToolBlockStatus = (callId: string): ToolInteractionBlock['status'] | null => {
@@ -404,55 +309,21 @@ export const createChatEventEngine = (dependencies: EventEngineDependencies) => 
   }
 
   const syncForeignPendingWaitFromEvent = (event: BackendEvent) => {
-    switch (event.type) {
-      case 'tool.confirmation_requested':
-        dependencies.upsertPendingWait({
-          args: event.payload.args,
-          callId: event.payload.callId,
-          createdAt: event.createdAt,
-          description: event.payload.description,
-          ownerRunId: String(event.payload.runId),
-          requiresApproval: true,
-          targetKind: event.payload.waitTargetKind,
-          targetRef: event.payload.waitTargetRef,
-          tool: event.payload.tool,
-          type: event.payload.waitType,
-          waitId: event.payload.waitId,
-        })
+    const action = resolveForeignPendingWaitAction(event)
+
+    if (action == null) {
+      return
+    }
+
+    switch (action.kind) {
+      case 'upsert':
+        dependencies.upsertPendingWait(action.wait)
         break
-
-      case 'tool.waiting':
-        if (
-          event.payload.waitType !== 'human' ||
-          event.payload.waitTargetKind !== 'human_response'
-        ) {
-          break
-        }
-
-        dependencies.upsertPendingWait({
-          args: event.payload.args ?? null,
-          callId: event.payload.callId,
-          createdAt: event.createdAt,
-          description: event.payload.description,
-          ownerRunId: String(event.payload.runId),
-          requiresApproval: false,
-          targetKind: event.payload.waitTargetKind,
-          targetRef: event.payload.waitTargetRef,
-          tool: event.payload.tool,
-          type: event.payload.waitType,
-          waitId: event.payload.waitId,
-        })
+      case 'removeByWaitId':
+        dependencies.removePendingWaitByWaitId(action.waitId)
         break
-
-      case 'tool.confirmation_granted':
-      case 'tool.confirmation_rejected':
-      case 'wait.timed_out':
-        dependencies.removePendingWaitByWaitId(event.payload.waitId)
-        break
-
-      case 'tool.completed':
-      case 'tool.failed':
-        dependencies.removePendingWaitByCallId(String(event.payload.callId))
+      case 'removeByCallId':
+        dependencies.removePendingWaitByCallId(action.callId)
         break
     }
   }
