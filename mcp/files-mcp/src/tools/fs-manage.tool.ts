@@ -366,7 +366,10 @@ DELETE IS PERMANENT — non-empty directories are only deleted when recursive=tr
           }
 
           // Delete file, empty directory, or (when recursive=true) a directory and its contents
-          await fs.rm(absSource, { recursive: stat.isDirectory() && input.recursive, force: false });
+          await fs.rm(absSource, {
+            recursive: stat.isDirectory() && input.recursive,
+            force: false,
+          });
           const result: FsManageResult = {
             success: true,
             operation: input.operation,

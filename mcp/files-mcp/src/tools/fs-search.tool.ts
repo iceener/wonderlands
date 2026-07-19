@@ -14,9 +14,9 @@ import {
   getContextLines,
   getMounts,
   isTextFile,
+  type MatchResult,
   matchesGlob,
   matchesType,
-  type MatchResult,
   type PatternMode,
   resolvePath as resolveVirtualPath,
   searchFiles,
@@ -85,7 +85,9 @@ export const fsSearchInputSchema = z
       .max(20)
       .optional()
       .default(2)
-      .describe('Number of lines of context to include before/after each content match. Default 2.'),
+      .describe(
+        'Number of lines of context to include before/after each content match. Default 2.',
+      ),
 
     types: z
       .array(z.string())
@@ -317,7 +319,30 @@ async function searchContentInDirectory(
   const filesToSearch: FileToSearch[] = [];
   const MAX_FILES_TO_COLLECT = 10_000;
 
-  const ignoreMatcher = options.respectIgnore ? await createIgnoreMatcherForDir(absPath) : null;
+  // The search root may itself be a single file (e.g. path points directly at
+  // "vault/notes.md" rather than a directory). Handle that case directly
+  // instead of trying to fs.readdir() a file.
+  let rootIsFile = false;
+  try {
+    rootIsFile = (await fs.stat(absPath)).isFile();
+  } catch {
+    rootIsFile = false;
+  }
+
+  if (rootIsFile) {
+    if (isTextFile(absPath)) {
+      const fileName = path.basename(absPath);
+      const typeOk =
+        !options.types || options.types.length === 0 || matchesType(fileName, options.types);
+      const globOk = !options.glob || matchesGlob(fileName, options.glob);
+      if (typeOk && globOk) {
+        filesToSearch.push({ absPath, relPath: '' });
+      }
+    }
+  }
+
+  const ignoreMatcher =
+    !rootIsFile && options.respectIgnore ? await createIgnoreMatcherForDir(absPath) : null;
 
   async function collectFiles(dir: string, relDir: string, currentDepth: number): Promise<void> {
     if (currentDepth > options.depth || filesToSearch.length >= MAX_FILES_TO_COLLECT) {
@@ -361,7 +386,9 @@ async function searchContentInDirectory(
     }
   }
 
-  await collectFiles(absPath, '', 1);
+  if (!rootIsFile) {
+    await collectFiles(absPath, '', 1);
+  }
 
   // Phase 2: Search files concurrently
   const resultFiles: ContentFileEntry[] = [];

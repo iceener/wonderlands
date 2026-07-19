@@ -3,6 +3,8 @@
  */
 
 // IMPORTANT: Setup must be imported first to set env vars before config loads
+import '../setup.js';
+
 import { describe, expect, test } from 'bun:test';
 
 // Import the tool handler AFTER setup
