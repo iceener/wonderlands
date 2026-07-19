@@ -97,7 +97,6 @@ export const fsWriteInputSchema = z
       .optional()
       .default(true)
       .describe('For create: whether to create parent directories if missing. Default true.'),
-
   })
   .passthrough() // Allow extra keys from SDK context
   .refine(
@@ -582,7 +581,8 @@ DO NOT call fs_write without first calling fs_read on the same file.`,
           error: {
             code: 'INVALID_OPERATION',
             message: `Unknown operation: ${input.operation}`,
-            recoveryHint: 'Use operation="create" for new files or operation="update" for existing files.',
+            recoveryHint:
+              'Use operation="create" for new files or operation="update" for existing files.',
           },
           hint: 'Invalid operation. Use "create" for new files, "update" for existing files.',
         };

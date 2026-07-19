@@ -301,7 +301,11 @@ async function searchContentInDirectory(
   };
 
   // Process in concurrent batches
-  for (let i = 0; i < filesToSearch.length && allMatches.length < options.maxResults; i += SEARCH_CONCURRENCY) {
+  for (
+    let i = 0;
+    i < filesToSearch.length && allMatches.length < options.maxResults;
+    i += SEARCH_CONCURRENCY
+  ) {
     const batch = filesToSearch.slice(i, i + SEARCH_CONCURRENCY);
     const batchResults = await Promise.all(batch.map(processFile));
 
@@ -536,10 +540,13 @@ function buildHint(
   if (target === 'filename') {
     parts.push(fileCount > 0 ? `Found ${fileCount} file(s).` : 'No files found.');
   } else if (target === 'content') {
-    parts.push(contentCount > 0 ? `Found ${contentCount} content match(es).` : 'No content matches found.');
+    parts.push(
+      contentCount > 0 ? `Found ${contentCount} content match(es).` : 'No content matches found.',
+    );
   } else {
     const filePart = fileCount > 0 ? `${fileCount} file(s)` : 'no files';
-    const contentPart = contentCount > 0 ? `${contentCount} content match(es)` : 'no content matches';
+    const contentPart =
+      contentCount > 0 ? `${contentCount} content match(es)` : 'no content matches';
     parts.push(`Found ${filePart} and ${contentPart}.`);
   }
 
