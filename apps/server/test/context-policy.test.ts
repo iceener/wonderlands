@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
+import { buildContextArtifacts } from '../src/application/context/artifacts'
 import type {
   ContextArtifact,
   ContextArtifactPayload,
   ContextArtifactSensitivity,
+  ContextContributorInput,
 } from '../src/application/context/contracts'
 import {
   type ContextPolicyDecision,
@@ -12,6 +14,20 @@ import {
   evaluateContextArtifactPolicy,
   evaluateContextArtifactsPolicy,
 } from '../src/application/context/policy'
+import { contextContributors } from '../src/application/context/registry'
+import { buildRequestContextArtifacts } from '../src/application/context/request-artifacts'
+import { buildThreadInteractionRequestFields } from '../src/application/context/request-fields'
+import { registerKernelNativeTools } from '../src/application/kernel/register-kernel-native-tools'
+import { createToolRegistry } from '../src/application/tooling/tool-registry'
+import {
+  createContext,
+  createDelegatedItems,
+  createObservation,
+  createReflection,
+  gardenContextFixture,
+  summaryFixture,
+  textAndImageFilesFixture,
+} from './fixtures/context/context-assembly'
 
 const now = '2026-07-19T12:00:00.000Z'
 
@@ -114,6 +130,14 @@ describe('context artifact policy', () => {
       () => decide(createArtifact('bad_expiry', { expiresAt: 'not-a-time' })),
       /valid expiresAt/,
     )
+    assert.throws(
+      () => decide(createArtifact('date_only_expiry', { expiresAt: '2026-07-20' })),
+      /valid expiresAt/,
+    )
+    assert.throws(
+      () => decide(createArtifact('invalid_calendar_date', { capturedAt: '2026-02-30T00:00:00.000Z' })),
+      /valid capturedAt/,
+    )
   })
 
   test('validates dependencies against the complete candidate ID set, independent of order', () => {
@@ -131,6 +155,19 @@ describe('context artifact policy', () => {
     assert.throws(
       () => evaluateContextArtifactsPolicy([dependency, createArtifact('dependency')], { now }),
       /Duplicate context policy candidate id/,
+    )
+    assert.throws(
+      () => decide(createArtifact('bad_dependency', { dependencies: [' dependency'] })),
+      /invalid dependency id/,
+    )
+    assert.throws(
+      () =>
+        decide(
+          createArtifact('non_array_dependencies', {
+            dependencies: 'dependency' as unknown as readonly string[],
+          }),
+        ),
+      /dependencies must be an array/,
     )
   })
 
@@ -202,9 +239,9 @@ describe('context artifact policy', () => {
       visibility: 'request',
     })
     assert.deepEqual(reasonCodes(decide(metadata)), [
-      'unsafe_file_body',
-      'unsafe_file_body',
       'unsafe_data_url',
+      'unsafe_file_body',
+      'unsafe_file_body',
     ])
 
     const requestOptions = createArtifact('raw_request', {
@@ -224,8 +261,8 @@ describe('context artifact policy', () => {
       } as ContextArtifact['provenance'],
     })
     assert.deepEqual(reasonCodes(decide(unsafeProvenance)), [
-      'unsafe_encrypted_payload',
       'unsafe_credential_field',
+      'unsafe_encrypted_payload',
     ])
   })
 
@@ -315,6 +352,23 @@ describe('context artifact policy', () => {
     })
     assert.deepEqual(reasonCodes(decide(malformedText)), ['unsafe_encrypted_payload'])
 
+    const reasoningShapeOutsideContent = createArtifact('reasoning_shape_outside_content', {
+      payload: unsafePayload({
+        kind: 'messages',
+        messages: [
+          {
+            content: [],
+            encryptedContent: 'not-a-content-record',
+            role: 'assistant',
+            type: 'reasoning',
+          },
+        ],
+      }),
+    })
+    assert.deepEqual(reasonCodes(decide(reasoningShapeOutsideContent)), [
+      'unsafe_encrypted_payload',
+    ])
+
     const structuralCredential = createArtifact('message_structural_credential', {
       payload: unsafePayload({
         kind: 'messages',
@@ -328,5 +382,156 @@ describe('context artifact policy', () => {
       }),
     })
     assert.deepEqual(reasonCodes(decide(structuralCredential)), ['unsafe_account_field'])
+  })
+
+  test('evaluates the complete strict static registry and every generated request artifact family', () => {
+    const toolRegistry = createToolRegistry()
+    registerKernelNativeTools(toolRegistry, {
+      browser: null as never,
+      db: null as never,
+    })
+    const browseTool = toolRegistry.get('browse')
+    assert.ok(browseTool)
+
+    const context = createContext({
+      activeReflection: createReflection(),
+      gardenContext: gardenContextFixture,
+      items: createDelegatedItems(),
+      observations: [createObservation()],
+      summary: summaryFixture,
+      visibleFiles: textAndImageFilesFixture,
+    })
+    const input: ContextContributorInput = {
+      activeTools: [browseTool],
+      context,
+      mcpCatalog: null,
+      mcpMode: 'direct',
+      nativeTools: ['web_search'],
+      overrides: { model: 'policy-fixture-model', provider: 'openai' },
+    }
+    const messageArtifacts = buildContextArtifacts(contextContributors, input, {
+      validationMode: 'strict',
+    })
+    const requestFields = buildThreadInteractionRequestFields({
+      activeTools: [browseTool],
+      context,
+      nativeTools: ['web_search'],
+      overrides: input.overrides,
+    })
+    const requestArtifacts = buildRequestContextArtifacts(requestFields, input)
+    const artifacts = [...messageArtifacts, ...requestArtifacts]
+    const decisions = evaluateContextArtifactsPolicy(artifacts, { now })
+
+    assert.equal(messageArtifacts.length, contextContributors.length)
+    assert.deepEqual(
+      requestArtifacts.map((artifact) => artifact.payload.kind),
+      ['tools', 'native_tools', 'request_options', 'metadata'],
+    )
+    assert.deepEqual(
+      [...new Set(artifacts.map((artifact) => artifact.payload.kind))].sort(),
+      ['messages', 'metadata', 'native_tools', 'request_options', 'tools'],
+    )
+    assert.ok(decisions.every((decision) => decision.outcome === 'allow'))
+    assert.ok(decisions.every((decision) => Object.isFrozen(decision.reasons)))
+  })
+
+  test('does not mistake JSON Schema property names for credential values', () => {
+    const toolSchema = createArtifact('tool_schema', {
+      payload: {
+        kind: 'tools',
+        tools: [
+          {
+            kind: 'function',
+            name: 'credential_documentation',
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                accountId: { description: 'An account identifier supplied by the user.', type: 'string' },
+                body: { description: 'A request body supplied at call time.', type: 'string' },
+                cookies: { description: 'Whether browser cookies should be exported.', type: 'boolean' },
+                password: { description: 'A password supplied at call time.', type: 'string' },
+              },
+              type: 'object',
+            },
+          },
+        ],
+      },
+      visibility: 'request',
+    })
+
+    assert.equal(decide(toolSchema).outcome, 'allow')
+
+    const credentialOutsideSchema = createArtifact('tool_definition_secret', {
+      payload: unsafePayload({
+        kind: 'tools',
+        tools: [{ authorization: 'Bearer must-not-cross', kind: 'function', name: 'unsafe', parameters: {} }],
+      }),
+      visibility: 'request',
+    })
+    assert.deepEqual(reasonCodes(decide(credentialOutsideSchema)), [
+      'unsafe_credential_field',
+    ])
+  })
+
+  test('returns stable sorted and de-duplicated reasons for repeated aliases', () => {
+    const sharedUnsafeOptions = {
+      Authorization: 'Bearer must-not-cross',
+      storage_key: 'private/storage/must-not-cross',
+    }
+    const first = createArtifact('stable_reasons', {
+      dependencies: ['missing', 'missing'],
+      payload: unsafePayload({
+        kind: 'request_options',
+        options: { z: sharedUnsafeOptions, a: sharedUnsafeOptions },
+      }),
+      visibility: 'request',
+    })
+    const second = createArtifact('stable_reasons', {
+      dependencies: ['missing', 'missing'],
+      payload: unsafePayload({
+        kind: 'request_options',
+        options: {
+          a: { storage_key: 'private/storage/must-not-cross', Authorization: 'Bearer must-not-cross' },
+          z: { storage_key: 'private/storage/must-not-cross', Authorization: 'Bearer must-not-cross' },
+        },
+      }),
+      visibility: 'request',
+    })
+    const firstDecision = decide(first)
+    const secondDecision = decide(second)
+
+    assert.deepEqual(firstDecision.reasons, secondDecision.reasons)
+    assert.deepEqual(firstDecision.reasons, [
+      { code: 'missing_dependency', dependencyId: 'missing' },
+      { code: 'unsafe_credential_field', path: '$.payload.options.a.Authorization' },
+      { code: 'unsafe_credential_field', path: '$.payload.options.a.storage_key' },
+      { code: 'unsafe_credential_field', path: '$.payload.options.z.Authorization' },
+      { code: 'unsafe_credential_field', path: '$.payload.options.z.storage_key' },
+    ])
+  })
+
+  test('fails closed for unsupported payloads, malformed family shapes, and validation modes', () => {
+    assert.throws(
+      () => decide(createArtifact('unknown_payload', { payload: unsafePayload({ kind: 'future' }) })),
+      /unsupported payload kind/,
+    )
+    assert.throws(
+      () =>
+        decide(
+          createArtifact('bad_metadata_payload', {
+            payload: unsafePayload({ kind: 'metadata', metadata: { traceId: 42 } }),
+          }),
+        ),
+      /metadata must contain string values/,
+    )
+    assert.throws(
+      () =>
+        evaluateContextArtifactPolicy(createArtifact('bad_mode'), {
+          candidateIds: ['bad_mode'],
+          now,
+          validationMode: 'permissive' as never,
+        }),
+      /invalid validation mode/,
+    )
   })
 })
