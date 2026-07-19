@@ -26,7 +26,7 @@ import {
   appendThreadUpdatedEvent,
 } from '../../../../application/naming/thread-title-events'
 import { withTransaction } from '../../../../db/transaction'
-import { createRunRepository } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import {
   asFileId,

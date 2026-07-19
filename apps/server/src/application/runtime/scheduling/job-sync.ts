@@ -1,5 +1,5 @@
-import type { RepositoryDatabase } from '../../../domain/database-port'
-import { createJobRepository } from '../../../domain/runtime/job-repository'
+import type { RepositoryDatabase } from '../../../db/repository-database'
+import { createJobRepository } from '../../../adapters/persistence/sqlite/runtime/job-repository'
 import { reopenableJobStatuses } from '../../../domain/runtime/job-types'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../shared/errors'

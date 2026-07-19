@@ -8,7 +8,7 @@ import type {
   AgentScheduledTaskRunRecord,
   AgentScheduledTaskRunTrigger,
 } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
-import { createRunRepository } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import { asAgentScheduledTaskRunId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

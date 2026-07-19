@@ -4,12 +4,13 @@ import type {
   AiProviderName,
   AiWebReference,
 } from '../../../../domain/ai/types'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type { DomainEventEnvelope } from '../../../../domain/events/domain-event'
-import { createDomainEventRepository } from '../../../../domain/events/domain-event-repository'
-import { createItemRepository } from '../../../../domain/runtime/item-repository'
-import { createRunDependencyRepository } from '../../../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../../../domain/runtime/run-repository'
+import { createDomainEventRepository } from '../../../../adapters/persistence/sqlite/events/domain-event-repository'
+import { createItemRepository } from '../../../../adapters/persistence/sqlite/runtime/item-repository'
+import { createRunDependencyRepository } from '../../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
+import type { RunRecord } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../../adapters/persistence/sqlite/runtime/run-repository'
 import { type DomainError, DomainErrorException } from '../../../../shared/errors'
 import { asRunId } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'

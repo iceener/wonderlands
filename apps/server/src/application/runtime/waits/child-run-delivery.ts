@@ -3,9 +3,10 @@ import type {
   ChildRunResultEnvelope,
   ChildRunSuspendedWait,
 } from '../../../domain/agents/agent-types'
-import { createRunDependencyRepository } from '../../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../../domain/runtime/run-repository'
-import { createToolExecutionRepository } from '../../../domain/runtime/tool-execution-repository'
+import { createRunDependencyRepository } from '../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
+import type { RunRecord } from '../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../adapters/persistence/sqlite/runtime/run-repository'
+import { createToolExecutionRepository } from '../../../adapters/persistence/sqlite/runtime/tool-execution-repository'
 import { ok } from '../../../shared/result'
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import { toToolArgs } from '../tool-execution-persistence'

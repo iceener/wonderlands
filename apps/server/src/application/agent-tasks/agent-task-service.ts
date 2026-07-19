@@ -13,7 +13,8 @@ import type {
   AgentScheduledTaskStatus,
 } from '../../domain/agent-tasks/agent-scheduled-task-repository'
 import type { AgentScheduledTaskRunRecord } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
-import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
+import type { RunRecord } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import type { DomainError } from '../../shared/errors'
 import {
   type AgentScheduledTaskId,

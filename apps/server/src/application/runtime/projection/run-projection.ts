@@ -1,6 +1,7 @@
 import { createSessionMessageRepository } from '../../../adapters/persistence/sqlite/sessions/session-message-repository'
 import { withTransaction } from '../../../db/transaction'
-import { createItemRepository, type ItemRecord } from '../../../domain/runtime/item-repository'
+import type { ItemRecord } from '../../../domain/runtime/item-repository'
+import { createItemRepository } from '../../../adapters/persistence/sqlite/runtime/item-repository'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import type { SessionMessageRecord } from '../../../domain/sessions/session-message-repository'
 import type { DomainError } from '../../../shared/errors'

@@ -3,12 +3,10 @@ import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { BlobStore } from '../../domain/files/blob-store'
-import {
-  createSandboxExecutionFileRepository,
-  type SandboxExecutionFileRecord,
-} from '../../domain/sandbox/sandbox-execution-file-repository'
+import type { SandboxExecutionFileRecord } from '../../domain/sandbox/sandbox-execution-file-repository'
+import { createSandboxExecutionFileRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-execution-file-repository'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
-import { createSandboxExecutionPackageRepository } from '../../domain/sandbox/sandbox-package-repository'
+import { createSandboxExecutionPackageRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-package-repository'
 import type { PreparedSandboxExecution } from '../../domain/sandbox/sandbox-runner'
 import type { SandboxExecutionRequest, SandboxPolicy } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'

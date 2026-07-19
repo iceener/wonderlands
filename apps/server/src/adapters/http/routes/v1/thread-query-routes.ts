@@ -24,7 +24,7 @@ import {
 } from '../../../../application/runtime/projection/thread-activity-read-model'
 import { loadThreadRootJobReadModel } from '../../../../application/runtime/scheduling/job-read-model'
 import { resolveContextWindowForModel } from '../../../../application/system/models-catalog'
-import { createRunRepository } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asRunId, asSessionThreadId } from '../../../../shared/ids'
 import { createUsageLedgerRepository } from '../../../persistence/sqlite/ai/usage-ledger-repository'

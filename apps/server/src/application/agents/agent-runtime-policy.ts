@@ -4,7 +4,7 @@ import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sq
 import type { ToolSpec } from '../../application/tooling/tool-registry'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { RunRecord } from '../../domain/runtime/run-repository'
 import type { ToolProfileId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'

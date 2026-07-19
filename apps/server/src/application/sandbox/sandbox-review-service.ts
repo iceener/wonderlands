@@ -1,9 +1,7 @@
 import type { AppDatabase } from '../../db/client'
-import { createSandboxExecutionRepository } from '../../domain/sandbox/sandbox-execution-repository'
-import {
-  createSandboxWritebackRepository,
-  type SandboxWritebackOperationRecord,
-} from '../../domain/sandbox/sandbox-writeback-repository'
+import { createSandboxExecutionRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
+import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
+import { createSandboxWritebackRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
 import type { DomainError } from '../../shared/errors'
 import type { SandboxExecutionId, SandboxWritebackOperationId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'

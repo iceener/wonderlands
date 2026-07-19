@@ -1,5 +1,5 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createRunRepository } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../../adapters/persistence/sqlite/runtime/run-repository'
 import { ok } from '../../../../shared/result'
 import { createEventStore } from '../../../commands/event-store'
 import { queueLinkedJob } from '../job-sync'

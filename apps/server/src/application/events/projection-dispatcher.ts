@@ -1,6 +1,6 @@
 import { createSessionMessageRepository } from '../../adapters/persistence/sqlite/sessions/session-message-repository'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createRunRepository } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import type { DomainError } from '../../shared/errors'
 import { asRunId, asSessionThreadId, asWorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

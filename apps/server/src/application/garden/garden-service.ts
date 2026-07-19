@@ -8,7 +8,7 @@ import {
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { GardenBuildRecord } from '../../domain/garden/garden-build-repository'
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
 import type { DomainError } from '../../shared/errors'

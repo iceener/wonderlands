@@ -1,7 +1,7 @@
 import { createUsageLedgerRepository } from '../../../../adapters/persistence/sqlite/ai/usage-ledger-repository'
 import { withTransaction } from '../../../../db/transaction'
 import type { AiProviderName, AiUsage } from '../../../../domain/ai/types'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { ok, type Result } from '../../../../shared/result'

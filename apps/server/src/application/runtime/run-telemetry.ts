@@ -7,7 +7,7 @@ import type {
   AiToolDefinition,
   AiWebSearchActivity,
 } from '../../domain/ai/types'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { TelemetryCommittedEventType } from '../../domain/events/committed-event-contract'
 import type { RunRecord } from '../../domain/runtime/run-repository'
 import { estimateDataUrlBytes, parseDataUrl } from '../../shared/data-url'

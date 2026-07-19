@@ -1,4 +1,4 @@
-import type { RepositoryDatabase } from '../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../db/repository-database'
 import type { DomainError } from '../../../shared/errors'
 import { type AccountId, asTenantId, type TenantId } from '../../../shared/ids'
 import { err, ok, type Result } from '../../../shared/result'

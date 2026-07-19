@@ -1,12 +1,8 @@
-import type { AppDatabase } from '../../../db/client'
-
 /**
- * Narrow, adapter-owned view of {@link AppDatabase} used by concrete Drizzle
- * repository implementations. This lives under `adapters/persistence/sqlite`
- * (not `domain`) because it names Drizzle query-builder capabilities
- * (`select`/`insert`/`update`/`delete`) and the underlying `better-sqlite3`
- * handle; domain repository ports must stay persistence-neutral.
+ * Re-export of the shared repository database handle type. Concrete
+ * repository adapters under `adapters/persistence/sqlite/**` import from
+ * here (shorter relative path); the canonical definition lives in
+ * `db/repository-database.ts` so application-layer code can reference the
+ * same handle type without reaching into the adapters layer.
  */
-export type RepositoryDatabase = Pick<AppDatabase, 'delete' | 'insert' | 'select' | 'update'> & {
-  sqlite?: AppDatabase['sqlite']
-}
+export type { RepositoryDatabase } from '../../../db/repository-database'

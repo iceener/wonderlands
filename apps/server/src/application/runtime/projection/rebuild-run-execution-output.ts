@@ -1,5 +1,5 @@
 import type { AiProviderName, AiUsage } from '../../../domain/ai/types'
-import { createItemRepository } from '../../../domain/runtime/item-repository'
+import { createItemRepository } from '../../../adapters/persistence/sqlite/runtime/item-repository'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
 import { asSessionMessageId, type ItemId } from '../../../shared/ids'
 import { ok } from '../../../shared/result'

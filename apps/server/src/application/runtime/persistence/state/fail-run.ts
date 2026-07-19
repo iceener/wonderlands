@@ -1,5 +1,6 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createRunRepository, type RunRecord } from '../../../../domain/runtime/run-repository'
+import type { RunRecord } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../../adapters/persistence/sqlite/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { err, ok, type Result } from '../../../../shared/result'
 import type { CommandContext } from '../../../commands/command-context'

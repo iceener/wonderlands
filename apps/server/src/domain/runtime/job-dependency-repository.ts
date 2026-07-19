@@ -1,20 +1,12 @@
-import { and, asc, eq } from 'drizzle-orm'
-
-import { jobDependencies } from '../../db/schema'
 import type { DomainError } from '../../shared/errors'
-import {
-  asJobDependencyId,
-  asJobId,
-  asTenantId,
-  asWorkSessionId,
-  type JobDependencyId,
-  type JobId,
-  type TenantId,
-  type WorkSessionId,
+import type {
+  JobDependencyId,
+  JobId,
+  TenantId,
+  WorkSessionId,
 } from '../../shared/ids'
-import { err, ok, type Result } from '../../shared/result'
+import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
-import type { RepositoryDatabase } from '../database-port'
 import type { JobDependencyType } from './job-types'
 
 export interface JobDependencyRecord {
@@ -38,95 +30,18 @@ export interface CreateJobDependencyInput {
   type: JobDependencyType
 }
 
-const toJobDependencyRecord = (row: typeof jobDependencies.$inferSelect): JobDependencyRecord => ({
-  createdAt: row.createdAt,
-  fromJobId: asJobId(row.fromJobId),
-  id: asJobDependencyId(row.id),
-  metadataJson: row.metadataJson,
-  sessionId: asWorkSessionId(row.sessionId),
-  tenantId: asTenantId(row.tenantId),
-  toJobId: asJobId(row.toJobId),
-  type: row.type,
-})
-
-export const createJobDependencyRepository = (db: RepositoryDatabase) => ({
+/**
+ * Persistence-neutral port for job dependency storage. Concrete
+ * implementations (e.g. the Drizzle/SQLite adapter) live under
+ * `adapters/persistence/sqlite/`. This module must not import anything from
+ * `db`, `drizzle-orm`, `application`, or `adapters` -- see
+ * `test/architecture-guardrails.test.ts`.
+ */
+export interface JobDependencyRepository {
   create: (
     scope: TenantScope,
     input: CreateJobDependencyInput,
-  ): Result<JobDependencyRecord, DomainError> => {
-    try {
-      const record: JobDependencyRecord = {
-        createdAt: input.createdAt,
-        fromJobId: input.fromJobId,
-        id: input.id,
-        metadataJson: input.metadataJson ?? null,
-        sessionId: input.sessionId,
-        tenantId: scope.tenantId,
-        toJobId: input.toJobId,
-        type: input.type,
-      }
-
-      db.insert(jobDependencies)
-        .values({
-          ...record,
-        })
-        .run()
-
-      return ok(record)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown job dependency create failure'
-
-      return err({
-        message: `failed to create job dependency ${input.id}: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
-  listByFromJobId: (
-    scope: TenantScope,
-    jobId: JobId,
-  ): Result<JobDependencyRecord[], DomainError> => {
-    try {
-      const rows = db
-        .select()
-        .from(jobDependencies)
-        .where(
-          and(eq(jobDependencies.fromJobId, jobId), eq(jobDependencies.tenantId, scope.tenantId)),
-        )
-        .orderBy(asc(jobDependencies.createdAt), asc(jobDependencies.id))
-        .all()
-
-      return ok(rows.map(toJobDependencyRecord))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown job dependency list failure'
-
-      return err({
-        message: `failed to list dependencies from job ${jobId}: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
-  listByToJobId: (scope: TenantScope, jobId: JobId): Result<JobDependencyRecord[], DomainError> => {
-    try {
-      const rows = db
-        .select()
-        .from(jobDependencies)
-        .where(
-          and(eq(jobDependencies.toJobId, jobId), eq(jobDependencies.tenantId, scope.tenantId)),
-        )
-        .orderBy(asc(jobDependencies.createdAt), asc(jobDependencies.id))
-        .all()
-
-      return ok(rows.map(toJobDependencyRecord))
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown reverse job dependency list failure'
-
-      return err({
-        message: `failed to list dependencies to job ${jobId}: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
-})
+  ) => Result<JobDependencyRecord, DomainError>
+  listByFromJobId: (scope: TenantScope, jobId: JobId) => Result<JobDependencyRecord[], DomainError>
+  listByToJobId: (scope: TenantScope, jobId: JobId) => Result<JobDependencyRecord[], DomainError>
+}

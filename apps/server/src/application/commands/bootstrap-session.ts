@@ -5,8 +5,8 @@ import { createWorkSessionRepository } from '../../adapters/persistence/sqlite/s
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppTransaction } from '../../db/transaction'
 import { withTransaction } from '../../db/transaction'
-import { createJobRepository } from '../../domain/runtime/job-repository'
-import { createRunRepository } from '../../domain/runtime/run-repository'
+import { createJobRepository } from '../../adapters/persistence/sqlite/runtime/job-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   JobId,

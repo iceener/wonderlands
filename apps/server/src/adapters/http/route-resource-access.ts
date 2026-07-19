@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { requireTenantScope } from '../../app/require-tenant-scope'
 import type { AppEnv } from '../../app/types'
 import { createResourceAccessService } from '../../application/access/resource-access'
-import { createSandboxExecutionRepository } from '../../domain/sandbox/sandbox-execution-repository'
+import { createSandboxExecutionRepository } from '../persistence/sqlite/sandbox/sandbox-execution-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   FileId,

@@ -3,7 +3,7 @@ import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/
 import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import {
   mergeShortcutBindingOverrides,
   resetShortcutBindingOverrides,

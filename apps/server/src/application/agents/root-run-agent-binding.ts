@@ -3,7 +3,7 @@ import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite
 import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainError } from '../../shared/errors'
 import { type AgentId, type AgentRevisionId, asAgentId, type ToolProfileId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

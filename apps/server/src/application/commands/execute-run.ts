@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
-import { createRunRepository } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type { RunId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'

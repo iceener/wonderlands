@@ -23,7 +23,7 @@ import {
   usageLedger,
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
-import { createRunRepository } from '../src/domain/runtime/run-repository'
+import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
 import { asAccountId, asRunId, asTenantId } from '../src/shared/ids'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'

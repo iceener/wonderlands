@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
 import { createDrizzleSqliteDatabase, openSqliteDatabase } from '../../src/db/sqlite-adapter'
-import { createSandboxExecutionPackageRepository } from '../../src/domain/sandbox/sandbox-package-repository'
+import { createSandboxExecutionPackageRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-package-repository'
 import {
   asAccountId,
   asSandboxExecutionId,

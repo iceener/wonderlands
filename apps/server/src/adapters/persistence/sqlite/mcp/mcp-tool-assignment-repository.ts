@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { mcpToolAssignments } from '../../../../db/schema'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type {
   McpToolAssignmentRecord,
   McpToolAssignmentRepository,

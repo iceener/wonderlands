@@ -1,12 +1,10 @@
 import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
 import type { ToolOutcome, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
-import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
-import { createSandboxExecutionRepository } from '../../domain/sandbox/sandbox-execution-repository'
-import {
-  createSandboxWritebackRepository,
-  type SandboxWritebackOperationRecord,
-} from '../../domain/sandbox/sandbox-writeback-repository'
+import { createToolExecutionRepository } from '../../adapters/persistence/sqlite/runtime/tool-execution-repository'
+import { createSandboxExecutionRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
+import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
+import { createSandboxWritebackRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
 import type { SandboxPolicy } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'
 import {

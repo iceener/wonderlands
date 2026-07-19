@@ -1,15 +1,10 @@
 import { toChildRunReplayOutput } from '../../../../domain/agents/agent-types'
 import type { AiProviderName } from '../../../../domain/ai/types'
-import {
-  createRunDependencyRepository,
-  type RunDependencyRecord,
-  type RunDependencyStatus,
-} from '../../../../domain/runtime/run-dependency-repository'
+import type { RunDependencyRecord, RunDependencyStatus } from '../../../../domain/runtime/run-dependency-repository'
+import { createRunDependencyRepository } from '../../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import {
-  createToolExecutionRepository,
-  type ToolExecutionRecord,
-} from '../../../../domain/runtime/tool-execution-repository'
+import type { ToolExecutionRecord } from '../../../../domain/runtime/tool-execution-repository'
+import { createToolExecutionRepository } from '../../../../adapters/persistence/sqlite/runtime/tool-execution-repository'
 import { type DomainError, DomainErrorException } from '../../../../shared/errors'
 import type { RunId } from '../../../../shared/ids'
 import { ok, type Result } from '../../../../shared/result'

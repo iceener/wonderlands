@@ -1,6 +1,6 @@
-import type { createItemRepository } from '../../domain/runtime/item-repository'
+import type { createItemRepository } from '../../adapters/persistence/sqlite/runtime/item-repository'
+import type { createToolExecutionRepository } from '../../adapters/persistence/sqlite/runtime/tool-execution-repository'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import type { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
 import type { DomainError } from '../../shared/errors'
 import type { ItemId, RunId } from '../../shared/ids'
 import type { CommandContext } from '../commands/command-context'

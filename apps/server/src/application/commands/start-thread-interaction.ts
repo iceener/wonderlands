@@ -4,9 +4,10 @@ import { createSessionMessageRepository } from '../../adapters/persistence/sqlit
 import { createWorkSessionRepository } from '../../adapters/persistence/sqlite/sessions/work-session-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
-import { createJobRepository, type JobRecord } from '../../domain/runtime/job-repository'
+import type { JobRecord } from '../../domain/runtime/job-repository'
+import { createJobRepository } from '../../adapters/persistence/sqlite/runtime/job-repository'
 import { reopenableJobStatuses } from '../../domain/runtime/job-types'
-import { createRunRepository } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
 import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {

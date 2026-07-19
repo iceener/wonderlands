@@ -5,7 +5,7 @@ import { createFileLinkRepository } from '../../adapters/persistence/sqlite/file
 import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import type { BlobStore } from '../../domain/files/blob-store'
 import type { FileRecord } from '../../domain/files/file-repository'
-import { createSandboxExecutionFileRepository } from '../../domain/sandbox/sandbox-execution-file-repository'
+import { createSandboxExecutionFileRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-execution-file-repository'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
 import type { SandboxExecutionRequest } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'

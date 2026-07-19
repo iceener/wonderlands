@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 
 import { jobDependencies, jobs } from '../../../db/schema'
-import type { RepositoryDatabase } from '../../../domain/database-port'
-import { createRunDependencyRepository } from '../../../domain/runtime/run-dependency-repository'
-import { createRunRepository } from '../../../domain/runtime/run-repository'
+import type { RepositoryDatabase } from '../../../db/repository-database'
+import { createRunDependencyRepository } from '../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
+import { createRunRepository } from '../../../adapters/persistence/sqlite/runtime/run-repository'
 import type { DomainError } from '../../../shared/errors'
 import type { JobId } from '../../../shared/ids'
 import { asRunId } from '../../../shared/ids'

@@ -3,7 +3,7 @@ import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sq
 import { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-cache-repository'
 import type { ToolRegistry } from '../../application/tooling/tool-registry'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { McpToolCacheRecord } from '../../domain/mcp/mcp-tool-cache-repository'
 import type { DomainError } from '../../shared/errors'
 import { ok, type Result } from '../../shared/result'
