@@ -7,7 +7,46 @@ import {
 } from '../../interactions/attachment-ref-access'
 import { toTextContent } from '../../interactions/build-run-interaction-request'
 import type { ToolSpec } from '../../tooling/tool-registry'
-import type { ContextContributor } from '../contracts'
+import type {
+  ContextArtifactDescriptionInput,
+  ContextArtifactMetadata,
+  ContextContributor,
+} from '../contracts'
+
+const describeGardenContext = ({
+  contribution,
+  input,
+}: ContextArtifactDescriptionInput): ContextArtifactMetadata => {
+  const gardenContext = input.context.gardenContext
+  const sourceIds = Array.from(
+    new Set([
+      String(input.context.run.id),
+      ...(gardenContext?.gardens.flatMap((site) => [String(site.id), site.slug, site.sourceRoot]) ??
+        []),
+    ]),
+  ).sort()
+
+  return {
+    authority: 'agent_configuration',
+    capturedAt: input.context.run.createdAt,
+    conflictKey: null,
+    dedupeKey: 'garden-context',
+    dependencies: [],
+    expiresAt: null,
+    priority: 40,
+    provenance: {
+      createdByRunId: String(input.context.run.id),
+      sourceIds,
+      sourceType: 'garden',
+      sourceVersion: null,
+    },
+    requirement: contribution.messages.length > 0 ? 'preferred' : 'optional',
+    sensitivity: 'private',
+    supersedes: [],
+    transformation: { kind: 'none' },
+    visibility: 'model',
+  }
+}
 
 export const gardenContextContributor: ContextContributor = {
   id: 'garden-context',
@@ -45,4 +84,5 @@ export const gardenContextContributor: ContextContributor = {
       },
     ]
   },
+  describe: describeGardenContext,
 }
