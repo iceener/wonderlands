@@ -12,6 +12,7 @@ import { createContextSummaryRepository } from '../../adapters/persistence/sqlit
 import { createDomainEventRepository } from '../../adapters/persistence/sqlite/events/domain-event-repository'
 import { createEventOutboxRepository } from '../../adapters/persistence/sqlite/events/event-outbox-repository'
 import { createEventPayloadSidecarRepository } from '../../adapters/persistence/sqlite/events/event-payload-sidecar-repository'
+import { createFileDeletionPlanRepository } from '../../adapters/persistence/sqlite/files/file-deletion-plan-repository'
 import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
 import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 import { createGardenBuildRepository } from '../../adapters/persistence/sqlite/garden-build-repository.sqlite'
@@ -28,6 +29,7 @@ import { createMcpServerRepository } from '../../adapters/persistence/sqlite/mcp
 import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
 import { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-cache-repository'
 import { createMemoryRecordRepository } from '../../adapters/persistence/sqlite/memory/memory-record-repository'
+import { createMessageFileReplacementRepository } from '../../adapters/persistence/sqlite/files/message-file-replacement-repository'
 import { createPasswordCredentialRepository } from '../../adapters/persistence/sqlite/identity/password-credential-repository'
 import { createRunClaimRepository } from '../../adapters/persistence/sqlite/runtime/run-claim-repository'
 import { createRunDependencyRepository } from '../../adapters/persistence/sqlite/runtime/run-dependency-repository'
@@ -59,6 +61,7 @@ import type { ContextSummaryRepository } from '../../domain/runtime/context-summ
 import type { DomainEventRepository } from '../../domain/events/domain-event-repository'
 import type { EventOutboxRepository } from '../../domain/events/event-outbox-repository'
 import type { EventPayloadSidecarRepository } from '../../domain/events/event-payload-sidecar-repository'
+import type { FileDeletionPlanRepository } from '../../domain/files/file-deletion-plan-repository'
 import type { FileLinkRepository } from '../../domain/files/file-link-repository'
 import type { FileRepository } from '../../domain/files/file-repository'
 import type { GardenBuildRepository } from '../../domain/garden/garden-build-repository'
@@ -75,6 +78,7 @@ import type { McpServerRepository } from '../../domain/mcp/mcp-server-repository
 import type { McpToolAssignmentRepository } from '../../domain/mcp/mcp-tool-assignment-repository'
 import type { McpToolCacheRepository } from '../../domain/mcp/mcp-tool-cache-repository'
 import type { MemoryRecordRepository } from '../../domain/memory/memory-record-repository'
+import type { MessageFileReplacementRepository } from '../../domain/files/message-file-replacement-repository'
 import type { PasswordCredentialRepository } from '../../domain/identity/password-credential-repository'
 import type { RunClaimRepository } from '../../domain/runtime/run-claim-repository'
 import type { RunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
@@ -120,6 +124,7 @@ export interface Repositories {
   eventOutbox: EventOutboxRepository
   eventPayloadSidecar: EventPayloadSidecarRepository
   file: FileRepository
+  fileDeletionPlan: FileDeletionPlanRepository
   fileLink: FileLinkRepository
   gardenBuild: GardenBuildRepository
   gardenSite: GardenSiteRepository
@@ -135,6 +140,7 @@ export interface Repositories {
   mcpToolAssignment: McpToolAssignmentRepository
   mcpToolCache: McpToolCacheRepository
   memoryRecord: MemoryRecordRepository
+  messageFileReplacement: MessageFileReplacementRepository
   passwordCredential: PasswordCredentialRepository
   run: RunRepository
   runClaim: RunClaimRepository
@@ -169,6 +175,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   eventOutbox: createEventOutboxRepository(db),
   eventPayloadSidecar: createEventPayloadSidecarRepository(db),
   file: createFileRepository(db),
+  fileDeletionPlan: createFileDeletionPlanRepository(db),
   fileLink: createFileLinkRepository(db),
   gardenBuild: createGardenBuildRepository(db),
   gardenSite: createGardenSiteRepository(db),
@@ -184,6 +191,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   mcpToolAssignment: createMcpToolAssignmentRepository(db),
   mcpToolCache: createMcpToolCacheRepository(db),
   memoryRecord: createMemoryRecordRepository(db),
+  messageFileReplacement: createMessageFileReplacementRepository(db),
   passwordCredential: createPasswordCredentialRepository(db),
   run: createRunRepository(db),
   runClaim: createRunClaimRepository(db),
@@ -220,6 +228,7 @@ export { createContextSummaryRepository } from '../../adapters/persistence/sqlit
 export { createDomainEventRepository } from '../../adapters/persistence/sqlite/events/domain-event-repository'
 export { createEventOutboxRepository } from '../../adapters/persistence/sqlite/events/event-outbox-repository'
 export { createEventPayloadSidecarRepository } from '../../adapters/persistence/sqlite/events/event-payload-sidecar-repository'
+export { createFileDeletionPlanRepository } from '../../adapters/persistence/sqlite/files/file-deletion-plan-repository'
 export { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
 export { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
 export { createGardenBuildRepository } from '../../adapters/persistence/sqlite/garden-build-repository.sqlite'
@@ -236,6 +245,7 @@ export { createMcpServerRepository } from '../../adapters/persistence/sqlite/mcp
 export { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
 export { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-cache-repository'
 export { createMemoryRecordRepository } from '../../adapters/persistence/sqlite/memory/memory-record-repository'
+export { createMessageFileReplacementRepository } from '../../adapters/persistence/sqlite/files/message-file-replacement-repository'
 export { createPasswordCredentialRepository } from '../../adapters/persistence/sqlite/identity/password-credential-repository'
 export { createRunClaimRepository } from '../../adapters/persistence/sqlite/runtime/run-claim-repository'
 export { createRunDependencyRepository } from '../../adapters/persistence/sqlite/runtime/run-dependency-repository'

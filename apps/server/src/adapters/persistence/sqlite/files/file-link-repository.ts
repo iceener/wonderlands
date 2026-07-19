@@ -98,4 +98,31 @@ export const createFileLinkRepository = (db: RepositoryDatabase): FileLinkReposi
       })
     }
   },
+  listByTarget: (
+    scope: TenantScope,
+    input: Pick<CreateFileLinkInput, 'linkType' | 'targetId'>,
+  ): Result<FileLinkRecord[], DomainError> => {
+    try {
+      const rows = db
+        .select()
+        .from(fileLinks)
+        .where(
+          and(
+            eq(fileLinks.tenantId, scope.tenantId),
+            eq(fileLinks.linkType, input.linkType),
+            eq(fileLinks.targetId, input.targetId),
+          ),
+        )
+        .all()
+
+      return ok(rows.map(toFileLinkRecord))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown file link target list failure'
+
+      return err({
+        message: `failed to list file links for target ${input.targetId}: ${message}`,
+        type: 'conflict',
+      })
+    }
+  },
 })

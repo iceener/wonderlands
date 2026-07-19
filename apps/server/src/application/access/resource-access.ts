@@ -1,9 +1,8 @@
-import { and, eq } from 'drizzle-orm'
 import { createFileRepository } from '../persistence/repositories'
+import { createFileLinkRepository } from '../persistence/repositories'
 import { createSessionMessageRepository } from '../persistence/repositories'
 import { createSessionThreadRepository } from '../persistence/repositories'
 import { createWorkSessionRepository } from '../persistence/repositories'
-import { fileLinks } from '../../db/schema'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { FileRecord } from '../../domain/files/file-repository'
 import type { RunRecord } from '../../domain/runtime/run-repository'
@@ -69,6 +68,7 @@ export const hasTenantResourceOverride = (scope: TenantScope): boolean =>
   tenantResourceOverrideRoles.has(scope.role)
 
 export const createResourceAccessService = (db: RepositoryDatabase) => {
+  const fileLinkRepository = createFileLinkRepository(db)
   const fileRepository = createFileRepository(db)
   const runRepository = createRunRepository(db)
   const sessionMessageRepository = createSessionMessageRepository(db)
@@ -147,11 +147,13 @@ export const createResourceAccessService = (db: RepositoryDatabase) => {
     fileId: FileId,
   ): Result<boolean, DomainError> => {
     try {
-      const links = db
-        .select()
-        .from(fileLinks)
-        .where(and(eq(fileLinks.fileId, fileId), eq(fileLinks.tenantId, scope.tenantId)))
-        .all()
+      const linkedFiles = fileLinkRepository.listByFileId(scope, fileId)
+
+      if (!linkedFiles.ok) {
+        return linkedFiles
+      }
+
+      const links = linkedFiles.value
 
       for (const link of links) {
         switch (link.linkType) {

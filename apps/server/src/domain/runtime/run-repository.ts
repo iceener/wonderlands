@@ -177,6 +177,10 @@ export interface RunRepository {
     threadId: SessionThreadId,
   ) => Result<RunRecord[], DomainError>
   listByParentRunId: (scope: TenantScope, parentRunId: RunId) => Result<RunRecord[], DomainError>
+  listBySessionId: (
+    scope: TenantScope,
+    sessionId: WorkSessionId,
+  ) => Result<RunRecord[], DomainError>
   markRunning: (scope: TenantScope, input: UpdateRunStartInput) => Result<RunRecord, DomainError>
   markPending: (scope: TenantScope, input: RequeueRunInput) => Result<RunRecord, DomainError>
   markCancelling: (

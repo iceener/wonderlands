@@ -33,4 +33,8 @@ export interface FileLinkRepository {
     input: Pick<CreateFileLinkInput, 'fileId' | 'linkType' | 'targetId'>,
   ) => Result<boolean, DomainError>
   listByFileId: (scope: TenantScope, fileId: FileId) => Result<FileLinkRecord[], DomainError>
+  listByTarget: (
+    scope: TenantScope,
+    input: Pick<CreateFileLinkInput, 'linkType' | 'targetId'>,
+  ) => Result<FileLinkRecord[], DomainError>
 }

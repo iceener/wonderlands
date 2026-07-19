@@ -29,6 +29,7 @@ import {
   asWorkspaceId,
   type RunId,
   type SessionThreadId,
+  type WorkSessionId,
 } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
@@ -339,6 +340,28 @@ export const createRunRepository = (db: RepositoryDatabase): RunRepository => {
 
         return err({
           message: `failed to list child runs for parent ${parentRunId}: ${message}`,
+          type: 'conflict',
+        })
+      }
+    },
+    listBySessionId: (
+      scope: TenantScope,
+      sessionId: WorkSessionId,
+    ): Result<RunRecord[], DomainError> => {
+      try {
+        const runRows = db
+          .select()
+          .from(runs)
+          .where(and(eq(runs.sessionId, sessionId), eq(runs.tenantId, scope.tenantId)))
+          .orderBy(asc(runs.createdAt), asc(runs.id))
+          .all()
+
+        return ok(runRows.map(toRunRecord))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown session run list failure'
+
+        return err({
+          message: `failed to list runs for session ${sessionId}: ${message}`,
           type: 'conflict',
         })
       }
