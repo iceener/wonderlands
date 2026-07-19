@@ -51,12 +51,12 @@ export const contextManifests = sqliteTable(
       columns: [table.runId, table.tenantId],
       foreignColumns: [runs.id, runs.tenantId],
       name: 'context_manifests_run_tenant_fk',
-    }),
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.threadId, table.tenantId],
       foreignColumns: [sessionThreads.id, sessionThreads.tenantId],
       name: 'context_manifests_thread_tenant_fk',
-    }),
+    }).onDelete('cascade'),
     index('context_manifests_tenant_run_idx').on(
       table.tenantId,
       table.runId,

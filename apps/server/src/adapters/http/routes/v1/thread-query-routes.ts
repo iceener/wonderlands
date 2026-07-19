@@ -29,6 +29,7 @@ import { resolveContextWindowForModel } from '../../../../application/system/mod
 import { DomainErrorException } from '../../../../shared/errors'
 import { asRunId, asSessionThreadId } from '../../../../shared/ids'
 import { createUsageLedgerRepository } from '../../../persistence/sqlite/ai/usage-ledger-repository'
+import { createContextManifestRepository } from '../../../persistence/sqlite/context/context-manifest-repository'
 import { createFileRepository } from '../../../persistence/sqlite/files/file-repository'
 import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { createSessionMessageRepository } from '../../../persistence/sqlite/sessions/session-message-repository'
@@ -56,6 +57,17 @@ const listThreadsQuerySchema = z.object({
 const listThreadActivityQuerySchema = z.object({
   completed_within_minutes: z.coerce.number().int().min(0).max(10_080).optional(),
 })
+
+const listContextManifestsQuerySchema = z
+  .object({
+    before_created_at: z.string().datetime().optional(),
+    before_id: z.string().trim().min(1).max(200).optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+  })
+  .refine(
+    ({ before_created_at, before_id }) => Boolean(before_created_at) === Boolean(before_id),
+    'before_created_at and before_id must be supplied together',
+  )
 
 export const registerThreadQueryRoutes = (routes: Hono<AppEnv>): void => {
   routes.get('/', async (c) => {
@@ -337,6 +349,35 @@ export const registerThreadQueryRoutes = (routes: Hono<AppEnv>): void => {
     })
 
     return c.json(successEnvelope(c, enrichedMessages), 200)
+  })
+
+  routes.get('/:threadId/context-manifests', async (c) => {
+    const threadId = asSessionThreadId(c.req.param('threadId'))
+    const { tenantScope } = requireThreadAccess(c, threadId)
+    const parsed = parseQueryAs(c, listContextManifestsQuerySchema, {
+      before_created_at: c.req.query('before_created_at') ?? undefined,
+      before_id: c.req.query('before_id') ?? undefined,
+      limit: c.req.query('limit') ?? undefined,
+    })
+    const manifests = unwrapRouteResult(
+      createContextManifestRepository(c.get('db')).list(tenantScope, {
+        before:
+          parsed.before_created_at && parsed.before_id
+            ? { createdAt: parsed.before_created_at, id: parsed.before_id }
+            : undefined,
+        limit: parsed.limit,
+        threadId,
+      }),
+    )
+    const last = manifests.at(-1)
+
+    return c.json(
+      successEnvelope(c, {
+        manifests,
+        nextCursor: last ? { createdAt: last.createdAt, id: last.id } : null,
+      }),
+      200,
+    )
   })
 
   routes.get('/:threadId/budget', async (c) => {

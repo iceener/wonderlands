@@ -16,8 +16,8 @@ CREATE TABLE `context_manifests` (
 	CONSTRAINT `context_manifests_mode_valid` CHECK (`mode` in ('shadow', 'active')),
 	CONSTRAINT `context_manifests_manifest_json_valid` CHECK (json_valid(`manifest_json`)),
 	FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT `context_manifests_run_tenant_fk` FOREIGN KEY (`run_id`,`tenant_id`) REFERENCES `runs`(`id`,`tenant_id`) ON UPDATE no action ON DELETE no action,
-	CONSTRAINT `context_manifests_thread_tenant_fk` FOREIGN KEY (`thread_id`,`tenant_id`) REFERENCES `session_threads`(`id`,`tenant_id`) ON UPDATE no action ON DELETE no action
+	CONSTRAINT `context_manifests_run_tenant_fk` FOREIGN KEY (`run_id`,`tenant_id`) REFERENCES `runs`(`id`,`tenant_id`) ON UPDATE no action ON DELETE cascade,
+	CONSTRAINT `context_manifests_thread_tenant_fk` FOREIGN KEY (`thread_id`,`tenant_id`) REFERENCES `session_threads`(`id`,`tenant_id`) ON UPDATE no action ON DELETE cascade
 );--> statement-breakpoint
 CREATE UNIQUE INDEX `context_manifests_attempt_unique` ON `context_manifests` (`tenant_id`,`run_id`,`turn`,`mode`,`assembler_version`);--> statement-breakpoint
 CREATE INDEX `context_manifests_tenant_run_idx` ON `context_manifests` (`tenant_id`,`run_id`,`created_at`,`id`);--> statement-breakpoint
