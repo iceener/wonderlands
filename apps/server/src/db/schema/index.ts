@@ -1,6 +1,7 @@
 export * from './agent-tasks'
 export * from './agents'
 export * from './collaboration'
+export * from './context'
 export * from './events'
 export * from './files'
 export * from './garden'

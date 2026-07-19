@@ -5,6 +5,7 @@ import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite
 import { createAgentSubagentLinkRepository } from '../../adapters/persistence/sqlite/agents/agent-subagent-link-repository'
 import { createWorkspaceRepository } from '../../adapters/persistence/sqlite/agents/workspace-repository'
 import { createUsageLedgerRepository } from '../../adapters/persistence/sqlite/ai/usage-ledger-repository'
+import { createContextManifestRepository } from '../../adapters/persistence/sqlite/context/context-manifest-repository'
 import { createDomainEventRepository } from '../../adapters/persistence/sqlite/events/domain-event-repository'
 import { createEventOutboxRepository } from '../../adapters/persistence/sqlite/events/event-outbox-repository'
 import { createEventPayloadSidecarRepository } from '../../adapters/persistence/sqlite/events/event-payload-sidecar-repository'
@@ -57,6 +58,7 @@ import type { AgentRevisionRepository } from '../../domain/agents/agent-revision
 import type { AgentSubagentLinkRepository } from '../../domain/agents/agent-subagent-link-repository'
 import type { WorkspaceRepository } from '../../domain/agents/workspace-repository'
 import type { UsageLedgerRepository } from '../../domain/ai/usage-ledger-repository'
+import type { ContextManifestRepository } from '../../domain/context/context-manifest-repository'
 import type { DomainEventRepository } from '../../domain/events/domain-event-repository'
 import type { EventOutboxRepository } from '../../domain/events/event-outbox-repository'
 import type { EventPayloadSidecarRepository } from '../../domain/events/event-payload-sidecar-repository'
@@ -122,6 +124,7 @@ export interface Repositories {
   agentSubagentLink: AgentSubagentLinkRepository
   apiKey: ApiKeyRepository
   authSession: AuthSessionRepository
+  contextManifest: ContextManifestRepository
   contextSummary: ContextSummaryRepository
   domainEvent: DomainEventRepository
   eventOutbox: EventOutboxRepository
@@ -176,6 +179,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   agentSubagentLink: createAgentSubagentLinkRepository(db),
   apiKey: createApiKeyRepository(db),
   authSession: createAuthSessionRepository(db),
+  contextManifest: createContextManifestRepository(db),
   contextSummary: createContextSummaryRepository(db),
   domainEvent: createDomainEventRepository(db),
   eventOutbox: createEventOutboxRepository(db),
@@ -228,6 +232,7 @@ export { createAgentRevisionRepository } from '../../adapters/persistence/sqlite
 export { createAgentSubagentLinkRepository } from '../../adapters/persistence/sqlite/agents/agent-subagent-link-repository'
 export { createWorkspaceRepository } from '../../adapters/persistence/sqlite/agents/workspace-repository'
 export { createUsageLedgerRepository } from '../../adapters/persistence/sqlite/ai/usage-ledger-repository'
+export { createContextManifestRepository } from '../../adapters/persistence/sqlite/context/context-manifest-repository'
 export { createDomainEventRepository } from '../../adapters/persistence/sqlite/events/domain-event-repository'
 export { createEventOutboxRepository } from '../../adapters/persistence/sqlite/events/event-outbox-repository'
 export { createEventPayloadSidecarRepository } from '../../adapters/persistence/sqlite/events/event-payload-sidecar-repository'
