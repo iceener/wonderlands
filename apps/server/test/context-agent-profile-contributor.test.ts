@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
+import {
+  buildContextArtifacts,
+  projectContextArtifactMessages,
+} from '../src/application/context/artifacts'
 import type { ContextContributorInput } from '../src/application/context/contracts'
 import { agentProfileContributor } from '../src/application/context/contributors/agent-profile'
 import type { AgentProfileContext } from '../src/application/interactions/context-bundle'
@@ -43,6 +47,57 @@ describe('agent profile context contributor', () => {
           volatility: 'stable',
         },
       ],
+    )
+  })
+
+  test('declares deterministic restricted provenance for the active agent revision and run', () => {
+    const revisionId = asAgentRevisionId('agr_metadata_profile')
+    const input = createInput({
+      instructionsMd: 'Follow the configured profile.',
+      revisionId,
+      subagents: [],
+    })
+    const first = buildContextArtifacts([agentProfileContributor], input, {
+      validationMode: 'strict',
+    })
+    const second = buildContextArtifacts([agentProfileContributor], input, {
+      validationMode: 'strict',
+    })
+    const artifact = first[0]
+
+    assert.ok(artifact)
+    assert.equal(artifact.id, second[0]?.id)
+    assert.equal(artifact.metadataStatus, 'declared')
+    assert.equal(artifact.authority, 'agent_configuration')
+    assert.equal(artifact.capturedAt, input.context.run.createdAt)
+    assert.equal(artifact.conflictKey, null)
+    assert.equal(artifact.dedupeKey, 'agent-profile')
+    assert.equal(artifact.requirement, 'mandatory')
+    assert.equal(artifact.sensitivity, 'restricted')
+    assert.equal(artifact.visibility, 'model')
+    assert.equal(artifact.volatility, 'stable')
+    assert.deepEqual(artifact.provenance, {
+      createdByRunId: String(input.context.run.id),
+      sourceIds: [String(revisionId), String(input.context.run.id)],
+      sourceType: 'agent_revision',
+      sourceVersion: String(revisionId),
+    })
+    assert.deepEqual(projectContextArtifactMessages(first), agentProfileContributor.build(input))
+  })
+
+  test('declares valid runtime provenance for an empty profile layer', () => {
+    const input = createInput(null)
+    const [artifact] = buildContextArtifacts([agentProfileContributor], input, {
+      validationMode: 'strict',
+    })
+
+    assert.ok(artifact)
+    assert.equal(artifact.metadataStatus, 'declared')
+    assert.deepEqual(artifact.provenance.sourceIds, [String(input.context.run.id)])
+    assert.equal(artifact.provenance.sourceType, 'runtime')
+    assert.deepEqual(
+      projectContextArtifactMessages([artifact]),
+      agentProfileContributor.build(input),
     )
   })
 

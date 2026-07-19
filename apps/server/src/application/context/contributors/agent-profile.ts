@@ -1,6 +1,10 @@
 import type { AiMessage } from '../../../domain/ai/types'
 import { toTextContent } from '../../interactions/build-run-interaction-request'
-import type { ContextContributor, ContextContributorInput } from '../contracts'
+import type {
+  ContextArtifactMetadata,
+  ContextContributor,
+  ContextContributorInput,
+} from '../contracts'
 
 const toAgentProfileMessages = (input: ContextContributorInput): AiMessage[] => {
   const profile = input.context.agentProfile
@@ -52,6 +56,32 @@ const toAgentProfileMessages = (input: ContextContributorInput): AiMessage[] => 
   ]
 }
 
+const describeAgentProfile = (input: ContextContributorInput): ContextArtifactMetadata => {
+  const runId = String(input.context.run.id)
+  const revisionId = input.context.agentProfile?.revisionId ?? input.context.run.agentRevisionId
+
+  return {
+    authority: 'agent_configuration',
+    capturedAt: input.context.run.createdAt,
+    conflictKey: null,
+    dedupeKey: 'agent-profile',
+    dependencies: [],
+    expiresAt: null,
+    priority: 100,
+    provenance: {
+      createdByRunId: runId,
+      sourceIds: revisionId ? [String(revisionId), runId] : [runId],
+      sourceType: revisionId ? 'agent_revision' : 'runtime',
+      sourceVersion: revisionId ? String(revisionId) : null,
+    },
+    requirement: 'mandatory',
+    sensitivity: 'restricted',
+    supersedes: [],
+    transformation: { kind: 'none' },
+    visibility: 'model',
+  }
+}
+
 export const agentProfileContributor: ContextContributor = {
   build: (input) => [
     {
@@ -60,6 +90,7 @@ export const agentProfileContributor: ContextContributor = {
       volatility: 'stable',
     },
   ],
+  describe: ({ input }) => describeAgentProfile(input),
   id: 'agent-profile',
   order: 2,
 }

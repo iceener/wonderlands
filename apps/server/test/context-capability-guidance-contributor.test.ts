@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
+import {
+  buildContextArtifacts,
+  projectContextArtifactMessages,
+} from '../src/application/context/artifacts'
 import type { ContextContributorInput } from '../src/application/context/contracts'
 import { capabilityGuidanceContributor } from '../src/application/context/contributors/capability-guidance'
 import type { ToolSpec } from '../src/application/tooling/tool-registry'
@@ -38,6 +42,61 @@ describe('capability guidance context contributor', () => {
     assert.deepEqual(
       capabilityGuidanceContributor.build(createInput([createTool('execute')])),
       expectedContribution(),
+    )
+  })
+
+  test('declares deterministic runtime provenance independent of active tool order', () => {
+    const browse = createTool('browse')
+    const execute = createTool('execute')
+    const firstInput = createInput([execute, browse])
+    const shuffledInput = createInput([browse, execute])
+    const first = buildContextArtifacts([capabilityGuidanceContributor], firstInput, {
+      validationMode: 'strict',
+    })
+    const shuffled = buildContextArtifacts([capabilityGuidanceContributor], shuffledInput, {
+      validationMode: 'strict',
+    })
+    const artifact = first[0]
+
+    assert.ok(artifact)
+    assert.deepEqual(
+      capabilityGuidanceContributor.build(firstInput),
+      capabilityGuidanceContributor.build(shuffledInput),
+    )
+    assert.equal(artifact.id, shuffled[0]?.id)
+    assert.equal(artifact.metadataStatus, 'declared')
+    assert.equal(artifact.authority, 'agent_configuration')
+    assert.equal(artifact.capturedAt, firstInput.context.run.createdAt)
+    assert.equal(artifact.conflictKey, null)
+    assert.equal(artifact.dedupeKey, 'capability-guidance')
+    assert.equal(artifact.requirement, 'preferred')
+    assert.equal(artifact.sensitivity, 'private')
+    assert.equal(artifact.visibility, 'model')
+    assert.equal(artifact.volatility, 'stable')
+    assert.deepEqual(artifact.provenance, {
+      createdByRunId: String(firstInput.context.run.id),
+      sourceIds: ['tool:native:browse', 'tool:native:execute'],
+      sourceType: 'runtime',
+      sourceVersion: 'capability-guidance/v1',
+    })
+    assert.deepEqual(
+      projectContextArtifactMessages(first),
+      capabilityGuidanceContributor.build(firstInput),
+    )
+  })
+
+  test('declares valid metadata for an empty capability layer', () => {
+    const input = createInput([])
+    const [artifact] = buildContextArtifacts([capabilityGuidanceContributor], input, {
+      validationMode: 'strict',
+    })
+
+    assert.ok(artifact)
+    assert.equal(artifact.metadataStatus, 'declared')
+    assert.deepEqual(artifact.provenance.sourceIds, [])
+    assert.deepEqual(
+      projectContextArtifactMessages([artifact]),
+      capabilityGuidanceContributor.build(input),
     )
   })
 
