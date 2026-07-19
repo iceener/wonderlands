@@ -25,6 +25,9 @@ const logLevelSchema = z.enum(['debug', 'info', 'warn', 'error'])
 const authModeSchema = z.enum(['api_key', 'disabled'])
 const authMethodSchema = z.enum(authMethodValues)
 const authSessionSameSiteSchema = z.enum(['lax', 'strict', 'none'])
+export const contextAssemblyModeValues = ['legacy', 'v2_shadow'] as const
+export type ContextAssemblyMode = (typeof contextAssemblyModeValues)[number]
+const contextAssemblyModeSchema = z.enum(contextAssemblyModeValues)
 const aiProviderSchema = z.enum(['openai', 'google', 'openrouter'])
 const openAiServiceTierSchema = z.enum(['auto', 'default', 'flex', 'scale', 'priority'])
 const fileStorageKindSchema = z.enum(['local'])
@@ -50,6 +53,9 @@ const envSchema = z.object({
   CORS_ALLOW_ORIGINS: z.string().optional(),
   CORS_EXPOSE_HEADERS: z.string().optional(),
   CORS_MAX_AGE_SECONDS: z.string().optional(),
+  CONTEXT_ASSEMBLY_MODE: z.string().optional(),
+  CONTEXT_MANIFEST_PERSIST: z.string().optional(),
+  CONTEXT_V2_ACCOUNT_ALLOWLIST: z.string().optional(),
   DATABASE_PATH: z.string().optional(),
   GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_API_VERSION: z.string().optional(),
@@ -255,6 +261,11 @@ export interface AppConfig {
     env: z.infer<typeof nodeEnvSchema>
     name: string
   }
+  context: {
+    assemblyMode: ContextAssemblyMode
+    manifestPersist: boolean
+    v2AccountAllowlist: string[]
+  }
   database: {
     path: string
   }
@@ -354,6 +365,13 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
   const basePath = parseBasePath(raw.API_BASE_PATH)
   const allowOrigins = parseCsv(raw.CORS_ALLOW_ORIGINS, defaultCorsOrigins)
   const allowCredentials = parseBoolean(raw.CORS_ALLOW_CREDENTIALS, true, 'CORS_ALLOW_CREDENTIALS')
+  const contextAssemblyMode = contextAssemblyModeSchema.parse(raw.CONTEXT_ASSEMBLY_MODE ?? 'legacy')
+  const contextManifestPersist = parseBoolean(
+    raw.CONTEXT_MANIFEST_PERSIST,
+    false,
+    'CONTEXT_MANIFEST_PERSIST',
+  )
+  const contextV2AccountAllowlist = parseCsv(raw.CONTEXT_V2_ACCOUNT_ALLOWLIST, [])
   const openAiDefaultModel = raw.OPENAI_DEFAULT_MODEL?.trim() || 'gpt-5.4'
   const googleDefaultModel = raw.GOOGLE_DEFAULT_MODEL?.trim() || 'gemini-3.1-pro-preview'
   const openRouterDefaultModel = raw.OPENROUTER_DEFAULT_MODEL?.trim() || 'openai/gpt-5.4'
@@ -695,6 +713,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): AppConfig => {
     app: {
       env: nodeEnv,
       name: '05_04_api',
+    },
+    context: {
+      assemblyMode: contextAssemblyMode,
+      manifestPersist: contextManifestPersist,
+      v2AccountAllowlist: contextV2AccountAllowlist,
     },
     database: {
       path: resolve(process.cwd(), raw.DATABASE_PATH ?? './var/05_04_api.sqlite'),

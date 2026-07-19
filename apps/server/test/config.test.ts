@@ -16,6 +16,9 @@ test('loadConfig provides defaults without requiring .env', () => {
   assert.equal(config.ai.imageModelRegistry.defaultAliases.generate, null)
   assert.equal(config.ai.imageModelRegistry.defaultAliases.edit, null)
   assert.equal(config.ai.defaults.timeoutMs, 60_000)
+  assert.equal(config.context.assemblyMode, 'legacy')
+  assert.equal(config.context.manifestPersist, false)
+  assert.deepEqual(config.context.v2AccountAllowlist, [])
   assert.equal(config.memory.compaction.triggerRatio, 0.3)
   assert.equal(config.memory.compaction.tailRatio, 0.3)
   assert.equal(config.memory.reflection.triggerRatio, 0.6)
@@ -31,6 +34,41 @@ test('loadConfig provides defaults without requiring .env', () => {
   assert.equal(config.kernel.local.cdpUrl, 'http://127.0.0.1:9222/')
   assert.equal(config.kernel.cloud.apiUrl, 'https://api.kernel.sh/')
   assert.match(config.database.path, /05_04_api\.sqlite$/)
+})
+
+test('loadConfig parses context shadow rollout controls', () => {
+  const config = loadConfig({
+    CONTEXT_ASSEMBLY_MODE: 'v2_shadow',
+    CONTEXT_MANIFEST_PERSIST: 'true',
+    CONTEXT_V2_ACCOUNT_ALLOWLIST: 'acc_one, acc_two, acc_one',
+    NODE_ENV: 'test',
+  })
+
+  assert.equal(config.context.assemblyMode, 'v2_shadow')
+  assert.equal(config.context.manifestPersist, true)
+  assert.deepEqual(config.context.v2AccountAllowlist, ['acc_one', 'acc_two'])
+})
+
+test('loadConfig rejects active or unknown context assembly modes', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        CONTEXT_ASSEMBLY_MODE: 'v2',
+        NODE_ENV: 'test',
+      }),
+    /legacy|v2_shadow/,
+  )
+})
+
+test('loadConfig rejects invalid context manifest persistence values', () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        CONTEXT_MANIFEST_PERSIST: 'yes',
+        NODE_ENV: 'test',
+      }),
+    /CONTEXT_MANIFEST_PERSIST must be "true" or "false"/,
+  )
 })
 
 test('loadConfig enables Gemini image generation defaults when Google is configured', () => {

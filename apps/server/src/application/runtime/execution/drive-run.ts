@@ -10,6 +10,7 @@ import {
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import { collectContextFacts } from '../../context/collect-context-facts'
 import { projectContextFactsToThreadContextData } from '../../context/context-facts'
+import { resolveContextRollout } from '../../context/context-rollout'
 import {
   persistContextManifestAttempt,
   resolveNextContextManifestAttemptTurn,
@@ -77,6 +78,7 @@ export const executeRunTurnLoop = async (
   })
   let currentRun = run
   let turn = currentRun.turnCount + 1
+  const contextRollout = resolveContextRollout(context.config.context, run.actorAccountId)
   const finalizeCancelledRun = async (runId: RunId): Promise<CommandResult<RunExecutionOutput>> => {
     const finalized = finalizeRunCancellation(context, {
       cancelledAt: context.services.clock.nowIso(),
@@ -142,10 +144,15 @@ export const executeRunTurnLoop = async (
       )
         ? (['web_search'] as const)
         : []
-      const manifestAttemptTurn = resolveNextContextManifestAttemptTurn(context, currentRun)
+      let manifestAttemptTurn = turn
+      if (contextRollout.persistManifest) {
+        const nextManifestAttemptTurn = resolveNextContextManifestAttemptTurn(context, currentRun)
 
-      if (!manifestAttemptTurn.ok) {
-        return manifestAttemptTurn
+        if (!nextManifestAttemptTurn.ok) {
+          return nextManifestAttemptTurn
+        }
+
+        manifestAttemptTurn = nextManifestAttemptTurn.value
       }
 
       const assembledInteraction = assembleThreadInteractionRequest({
@@ -155,7 +162,7 @@ export const executeRunTurnLoop = async (
         mcpMode,
         nativeTools: [...nativeTools],
         overrides,
-        turn: manifestAttemptTurn.value,
+        turn: manifestAttemptTurn,
       })
       if (currentRun.threadId) {
         const latestBudgetSnapshot = createUsageLedgerRepository(
@@ -178,15 +185,17 @@ export const executeRunTurnLoop = async (
         )
       }
 
-      const persistedManifest = persistContextManifestAttempt(context, {
-        manifest: assembledInteraction.manifest,
-        mode: 'shadow',
-        run: currentRun,
-        turn: manifestAttemptTurn.value,
-      })
+      if (contextRollout.persistManifest) {
+        const persistedManifest = persistContextManifestAttempt(context, {
+          manifest: assembledInteraction.manifest,
+          mode: 'shadow',
+          run: currentRun,
+          turn: manifestAttemptTurn,
+        })
 
-      if (!persistedManifest.ok) {
-        return persistedManifest
+        if (!persistedManifest.ok) {
+          return persistedManifest
+        }
       }
 
       const interactionRequest = assembledInteraction.request
