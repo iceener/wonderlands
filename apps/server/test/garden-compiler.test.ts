@@ -325,7 +325,11 @@ Should stay private.
     title: 'Post B',
     visibility: 'public',
   })
-  assert.match(publicIndex.content, /class="garden-sidebar"/)
+  assert.match(publicIndex.content, /data-garden-layout="top-navigation"/)
+  assert.match(publicIndex.content, /class="garden-topnav"/)
+  assert.match(publicIndex.content, /class="garden-sitemap" hidden/)
+  assert.doesNotMatch(publicIndex.content, /garden-sidebar|sidebar-(?:brand|nav|list|item|link)/)
+  assert.doesNotMatch(publicIndex.content, /grid-template-columns:minmax\(220px,280px\)/)
   assert.match(publicIndex.content, /data-garden-search-root/)
   assert.match(publicIndex.content, /garden-search-filter-count/)
   assert.match(publicIndex.content, /const normalizeSearchResultHref = \(value\) =>/)

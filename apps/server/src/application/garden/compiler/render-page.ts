@@ -432,62 +432,24 @@ const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
 
 // --- Page Components ---
 
-const isSidebarItemActive = (item: GardenSidebarItem, currentRoutePath: string): boolean =>
-  (item.path
-    ? currentRoutePath === item.path ||
-      (item.path !== '/' && currentRoutePath.startsWith(item.path + '/'))
-    : false) || item.children.some((child) => isSidebarItemActive(child, currentRoutePath))
-
-const renderSidebarItems = (
+const renderSitemapItems = (
   items: readonly GardenSidebarItem[],
   currentRoutePath: string,
-): string => {
-  if (items.length === 0) {
-    return ''
-  }
+): string =>
+  items
+    .map((item) => {
+      const itemHref = item.path ? buildRelativeRouteHref(currentRoutePath, item.path) : null
+      const content = itemHref
+        ? `<a${renderHrefAttributes(itemHref)}>${escapeHtml(item.label)}</a>`
+        : `<span>${escapeHtml(item.label)}</span>`
+      const children =
+        item.children.length > 0
+          ? `<ul>${renderSitemapItems(item.children, currentRoutePath)}</ul>`
+          : ''
 
-  const renderedItems = items.map((item) => {
-    const active = isSidebarItemActive(item, currentRoutePath)
-    const activeClass = active ? ' is-active' : ''
-    const currentAttr = item.path === currentRoutePath ? ' aria-current="page"' : ''
-    const itemHref = item.path ? buildRelativeRouteHref(currentRoutePath, item.path) : null
-    const content = item.path
-      ? `<a${renderHrefAttributes(itemHref ?? item.path)} class="sidebar-link${activeClass}"${currentAttr}>${escapeHtml(item.label)}</a>`
-      : `<span class="sidebar-label${activeClass}">${escapeHtml(item.label)}</span>`
-    const description = item.description
-      ? `<p class="sidebar-description">${escapeHtml(item.description)}</p>`
-      : ''
-
-    if (item.children.length > 0) {
-      const openAttr = active ? ' open' : ''
-      const childrenHtml = `<ul class="sidebar-list sidebar-children">${renderSidebarItems(item.children, currentRoutePath)}</ul>`
-      return `<li class="sidebar-item sidebar-item-section${activeClass}"><details class="sidebar-details"${openAttr}><summary class="sidebar-summary">${content}${description}</summary>${childrenHtml}</details></li>`
-    }
-
-    return `<li class="sidebar-item sidebar-item-page${activeClass}">${content}${description}</li>`
-  })
-
-  return renderedItems.join('\n')
-}
-
-const renderSidebar = (
-  sidebarItems: readonly GardenSidebarItem[],
-  currentRoutePath: string,
-  hasProtectedSearch: boolean,
-  siteTitle?: string,
-): string => {
-  const homeHref = buildRelativeRouteHref(currentRoutePath, '/')
-  const brand = siteTitle
-    ? `<a${renderHrefAttributes(homeHref)} class="sidebar-brand">${escapeHtml(siteTitle)}</a>`
-    : ''
-  const search = renderSearchPanel(hasProtectedSearch)
-  const list =
-    sidebarItems.length > 0
-      ? `<nav aria-label="Site navigation" class="sidebar-nav"><ul class="sidebar-list">${renderSidebarItems(sidebarItems, currentRoutePath)}</ul></nav>`
-      : ''
-
-  return `<aside class="garden-sidebar" data-pagefind-ignore="all">${brand}${search}${list}</aside>`
-}
+      return `<li>${content}${children}</li>`
+    })
+    .join('\n')
 
 const resolvePageSection = (sourceSlug: string): string | undefined => {
   if (!sourceSlug || sourceSlug === 'index') {
@@ -771,7 +733,7 @@ const renderHiddenSitemap = (
   currentRoutePath: string,
 ): string =>
   sidebarItems.length > 0
-    ? `<nav class="garden-sidebar" hidden data-pagefind-ignore="all"><ul class="sidebar-list">${renderSidebarItems(sidebarItems, currentRoutePath)}</ul></nav>`
+    ? `<nav class="garden-sitemap" hidden data-pagefind-ignore="all" aria-label="Sitemap"><ul>${renderSitemapItems(sidebarItems, currentRoutePath)}</ul></nav>`
     : ''
 
 const renderTopNavigation = (input: {
@@ -889,9 +851,8 @@ font-optical-sizing:auto;
 }
 
 .garden-shell{
-display:grid;
-grid-template-columns:minmax(220px,280px) minmax(0,1fr);
-min-height:calc(100dvh - 3px);
+display:block;
+min-height:100dvh;
 }
 
 .skip-link{
@@ -917,36 +878,6 @@ top:1rem;
 width:auto;
 height:auto;
 overflow:visible;
-}
-
-.garden-sidebar{
-position:sticky;
-top:0;
-align-self:start;
-display:flex;
-flex-direction:column;
-gap:1rem;
-min-height:calc(100dvh - 3px);
-max-height:calc(100dvh - 3px);
-overflow:auto;
-padding:1.25rem 1rem 2rem;
-border-right:1px solid var(--border);
-background:color-mix(in srgb,var(--surface-0) 86%,var(--bg));
-view-transition-name:sidebar;
-}
-
-.sidebar-brand{
-display:block;
-font-family:var(--font-heading);
-font-size:1.125rem;
-font-weight:700;
-color:var(--text);
-letter-spacing:-0.04em;
-text-decoration:none;
-}
-
-.sidebar-nav{
-display:block;
 }
 
 .garden-search{
@@ -1185,91 +1116,6 @@ color:var(--text);
 .garden-search-subresult .garden-search-result-excerpt{
 font-size:0.6875rem;
 color:var(--text-tertiary);
-}
-
-.sidebar-list{
-list-style:none;
-padding:0;
-margin:0;
-}
-
-.sidebar-item{
-margin:0;
-}
-
-.sidebar-item+.sidebar-item{
-margin-top:0.2rem;
-}
-
-.sidebar-item-section{
-margin-top:1rem;
-}
-
-.sidebar-link,.sidebar-label{
-display:flex;
-align-items:center;
-min-height:2rem;
-padding:0.3rem 0.6rem;
-border-radius:8px;
-font-size:0.875rem;
-line-height:1.35;
-letter-spacing:0.01em;
-color:var(--text-secondary);
-text-decoration:none;
-transition:background-color 150ms ease,color 150ms ease;
-}
-
-.sidebar-link:hover{
-background:var(--surface-1);
-color:var(--text);
-text-decoration:none;
-}
-
-.sidebar-summary:hover>.sidebar-label{
-background:var(--surface-1);
-color:var(--text);
-}
-
-.sidebar-link.is-active,.sidebar-label.is-active{
-background:var(--accent-soft);
-color:var(--text);
-}
-
-.sidebar-description{
-margin:0.2rem 0.6rem 0;
-font-size:0.75rem;
-color:var(--text-tertiary);
-line-height:1.45;
-}
-
-.sidebar-details{margin:0}
-.sidebar-details>summary{list-style:none;cursor:pointer}
-.sidebar-details>summary::-webkit-details-marker{display:none}
-.sidebar-details>summary::marker{display:none}
-
-.sidebar-summary{position:relative}
-.sidebar-summary::after{
-content:'';
-position:absolute;
-right:0.6rem;
-top:50%;
-width:0;
-height:0;
-border-left:4px solid transparent;
-border-right:4px solid transparent;
-border-top:4px solid var(--text-tertiary);
-transform:translateY(-50%);
-transition:transform 150ms ease;
-}
-.sidebar-details[open]>.sidebar-summary::after{
-transform:translateY(-50%) rotate(180deg);
-}
-
-.sidebar-children{
-margin-top:0.35rem;
-margin-left:0.95rem;
-padding-left:0.8rem;
-border-left:1px solid var(--border);
 }
 
 .garden-content{
@@ -1630,7 +1476,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius
 
 @media print{
 body{border-top:none}
-.garden-sidebar,.skip-link,.toc,footer{display:none}
+.garden-topnav,.garden-sitemap,.skip-link,.toc,footer{display:none}
 main{max-width:100%;padding:0}
 main>article a[href^="http"]::after{content:" (" attr(href) ")";font-size:0.8em;color:#666}
 .code-block,blockquote{break-inside:avoid}
@@ -1639,19 +1485,6 @@ h1,h2,h3,h4{break-after:avoid}
 }
 
 @media(max-width:900px){
-.garden-shell{
-grid-template-columns:1fr;
-}
-
-.garden-sidebar{
-position:static;
-min-height:auto;
-max-height:none;
-padding:1rem 1rem 1.25rem;
-border-right:none;
-border-bottom:1px solid var(--border);
-}
-
 main{
 max-width:none;
 padding:1.5rem 1rem 3rem;
@@ -1672,10 +1505,9 @@ html{scroll-behavior:smooth}
 }
 
 @view-transition{navigation:auto}
-::view-transition-old(sidebar),::view-transition-new(sidebar){animation:none}
 `
 
-const OVERMENT_GARDEN_CSS = `
+const GARDEN_LAYOUT_CSS = `
 @view-transition{navigation:auto}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:180ms;animation-timing-function:cubic-bezier(.4,0,.2,1)}
 
@@ -1743,7 +1575,6 @@ html{color-scheme:dark}
 html{background:var(--bg);scroll-behavior:smooth;scrollbar-gutter:stable;overflow-y:scroll}
 body{border-top:0;background:var(--bg);color:var(--fg);font-family:var(--font-sans);font-weight:350;font-size:16px;line-height:1.7;letter-spacing:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 body.no-scroll{overflow:hidden}
-.garden-shell{display:block;min-height:100dvh}
 .skip-link{background:var(--surface);color:var(--accent);border-color:var(--border)}
 
 .garden-topnav{max-width:var(--content-width);margin:0 auto;padding:2.25rem 1.5rem 1.25rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:1rem 1.5rem;border-bottom:1px solid var(--border);position:relative;z-index:20}
@@ -2823,9 +2654,9 @@ export const renderGardenPage = (input: {
     }),
     searchMetaHtml,
     searchConfigHtml,
-    `<style>${GARDEN_CSS}\n${OVERMENT_GARDEN_CSS}</style>`,
+    `<style>${GARDEN_CSS}\n${GARDEN_LAYOUT_CSS}</style>`,
     '</head>',
-    `<body data-garden-has-protected-search="${input.hasProtectedSearch ? 'true' : 'false'}" data-garden-route-path="${escapeHtml(input.currentRoutePath)}" data-garden-visibility="${input.visibility}">`,
+    `<body data-garden-layout="top-navigation" data-garden-has-protected-search="${input.hasProtectedSearch ? 'true' : 'false'}" data-garden-route-path="${escapeHtml(input.currentRoutePath)}" data-garden-visibility="${input.visibility}">`,
     '<a href="#content" class="skip-link">Skip to content</a>',
     '<div class="garden-shell">',
     topNavigationHtml,
