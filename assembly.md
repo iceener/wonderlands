@@ -921,3 +921,31 @@ Each agent must hand back its commit SHA, changed files, exact test results, ass
 - **R7:** default v2 while retaining legacy for one release.
 
 During implementation, update this section with completed waves, baseline commit SHAs, accepted deviations, and exact rollback configuration.
+
+### Execution status — 2026-07-19
+
+Completed and integrated:
+
+- **Wave 0:** legacy request, lifecycle, and privacy characterization.
+- **Wave 1:** all 15 ordered layers extracted into pure statically registered contributors with exact request/budget/hash parity.
+- **Wave 2:** strict typed artifacts, provenance metadata, policy evaluation, request-control artifacts, and deterministic redacted shadow manifests.
+- **Wave 3:** explicit state preparation, immutable read-only fact collection, and a write-free thread budget route.
+- **Wave 4:** deterministic privacy/freshness/dependency policy, conflict/deduplication engine, and mandatory-first token planner running in shadow mode.
+- **Wave 5:** tenant-scoped manifest repository, migration `0035_context_manifests.sql`, pre-provider persistence, and authenticated thread manifest inspection.
+- **Wave 6 (safe rollout controls):** `CONTEXT_ASSEMBLY_MODE=legacy|v2_shadow`, `CONTEXT_MANIFEST_PERSIST`, and `CONTEXT_V2_ACCOUNT_ALLOWLIST`. Defaults are `legacy` and persistence disabled. Unknown/active modes fail closed.
+
+Current rollback configuration:
+
+```text
+CONTEXT_ASSEMBLY_MODE=legacy
+CONTEXT_MANIFEST_PERSIST=false
+CONTEXT_V2_ACCOUNT_ALLOWLIST=
+```
+
+Validated baseline after Wave 6: 105 server test files / 661 tests passed in the implementing agent; coordinator verification covered 69 rollout/config/execution/provider tests plus full server/client typechecks.
+
+Intentionally not activated yet:
+
+- Active `v2` request selection. The planner is shadow-only until selected artifacts can be projected into an active request with granular mandatory current-turn/tool-state guarantees.
+- New personal/integration sources such as device state, location, calendar, and email.
+- Legacy removal, which requires production shadow evidence and one release with tested rollback.
