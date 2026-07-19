@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
-
+import type { ToolContext } from '../../application/tooling/tool-registry'
 import { createFileLinkRepository } from '../../domain/files/file-link-repository'
 import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
-import type { ToolContext } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import { asFileId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'

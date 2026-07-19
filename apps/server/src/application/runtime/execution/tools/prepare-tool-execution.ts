@@ -1,6 +1,6 @@
+import type { ToolContext } from '../../../../application/tooling/tool-registry'
 import type { AiToolCall } from '../../../../domain/ai/types'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import type { ToolContext } from '../../../../domain/tooling/tool-registry'
 import type { CommandContext } from '../../../commands/command-context'
 import type { ToolExecutionResult } from './tool-execution-types'
 

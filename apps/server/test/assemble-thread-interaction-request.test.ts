@@ -3,7 +3,7 @@ import { test } from 'vitest'
 
 import { assembleThreadInteractionRequest } from '../src/application/interactions/assemble-thread-interaction-request'
 import type { ThreadContextData } from '../src/application/interactions/context-bundle'
-import type { ToolSpec } from '../src/domain/tooling/tool-registry'
+import type { ToolSpec } from '../src/application/tooling/tool-registry'
 import {
   asAgentRevisionId,
   asFileId,

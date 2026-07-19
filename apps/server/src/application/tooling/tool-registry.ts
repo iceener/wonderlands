@@ -1,30 +1,14 @@
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
+import type { RunRecord } from '../../domain/runtime/run-repository'
+import type { ToolDomain, ToolWaitDescriptor } from '../../domain/tooling/tool-vocabulary'
 import type { DomainError } from '../../shared/errors'
 import type { RequestId, TraceId } from '../../shared/ids'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
-import type { RunRecord } from '../runtime/run-repository'
 
-export type ToolDomain = 'native' | 'mcp' | 'provider' | 'system'
-export type WaitType = 'agent' | 'tool' | 'mcp' | 'human' | 'upload'
-export type WaitTargetKind =
-  | 'run'
-  | 'tool_execution'
-  | 'mcp_operation'
-  | 'human_response'
-  | 'upload'
-  | 'external'
-
-export interface ToolWaitDescriptor {
-  description?: string | null
-  targetKind: WaitTargetKind
-  targetRef?: string | null
-  targetRunId?: RunRecord['id'] | null
-  timeoutAt?: string | null
-  type: WaitType
-}
+export type { ToolDomain } from '../../domain/tooling/tool-vocabulary'
 
 export type AttachmentRefResolutionPolicy =
   | 'file_id_only'

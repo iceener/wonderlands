@@ -5,6 +5,7 @@ import { test } from 'vitest'
 import { createCancelRunCommand } from '../src/application/commands/cancel-run'
 import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
 import { executeRunTurnLoop } from '../src/application/runtime/execution/drive-run'
+import type { ToolContext } from '../src/application/tooling/tool-registry'
 import {
   contextSummaries,
   domainEvents,
@@ -23,7 +24,6 @@ import {
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
 import { createRunRepository } from '../src/domain/runtime/run-repository'
-import type { ToolContext } from '../src/domain/tooling/tool-registry'
 import { asAccountId, asRunId, asTenantId } from '../src/shared/ids'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'

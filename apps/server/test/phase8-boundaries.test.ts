@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'vitest'
 import { createExecuteRunCommand } from '../src/application/commands/execute-run'
 import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
+import type { ToolSpec } from '../src/application/tooling/tool-registry'
 import {
   agentRevisions,
   agentSubagentLinks,
@@ -16,7 +17,6 @@ import {
   toolProfiles,
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
-import type { ToolSpec } from '../src/domain/tooling/tool-registry'
 import { ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'

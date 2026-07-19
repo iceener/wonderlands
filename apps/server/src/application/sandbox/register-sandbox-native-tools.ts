@@ -1,3 +1,4 @@
+import type { ToolOutcome, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
 import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
@@ -7,7 +8,6 @@ import {
   type SandboxWritebackOperationRecord,
 } from '../../domain/sandbox/sandbox-writeback-repository'
 import type { SandboxPolicy } from '../../domain/sandbox/types'
-import type { ToolOutcome, ToolRegistry, ToolSpec } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import {
   type AgentRevisionId,

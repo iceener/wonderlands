@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 
-import type { ToolSpec } from '../../domain/tooling/tool-registry'
+import type { ToolSpec } from '../../application/tooling/tool-registry'
 
 export type AttachmentRefAccessMode = 'none' | 'sandbox' | 'workspace_files'
 export interface InteractionCapabilities {

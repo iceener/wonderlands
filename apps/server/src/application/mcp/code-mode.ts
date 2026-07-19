@@ -1,7 +1,7 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
 import { createMcpServerRepository } from '../../adapters/persistence/sqlite/mcp/mcp-server-repository'
 import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
-import type { ToolContext, ToolSpec } from '../../domain/tooling/tool-registry'
+import type { ToolContext, ToolSpec } from '../../application/tooling/tool-registry'
 
 const MCP_RUNTIME_SEPARATOR = '__'
 const regexQueryPattern = /^\/(.+)\/([a-z]*)$/

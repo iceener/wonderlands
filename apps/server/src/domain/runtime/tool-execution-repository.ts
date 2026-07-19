@@ -6,7 +6,7 @@ import { asRunId, asTenantId, type RunId, type TenantId } from '../../shared/ids
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 import type { RepositoryDatabase } from '../database-port'
-import type { ToolDomain } from '../tooling/tool-registry'
+import type { ToolDomain } from '../tooling/tool-vocabulary'
 
 export interface ToolExecutionRecord {
   argsJson: unknown | null

@@ -1,3 +1,4 @@
+import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
 import { type AgentRecord, createAgentRepository } from '../../domain/agents/agent-repository'
@@ -17,7 +18,6 @@ import { createJobDependencyRepository } from '../../domain/runtime/job-dependen
 import { createJobRepository } from '../../domain/runtime/job-repository'
 import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
 import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
-import type { ToolContext } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import {
   asFileId,

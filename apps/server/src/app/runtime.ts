@@ -73,11 +73,11 @@ import {
   createSandboxWritebackService,
   type SandboxWritebackService,
 } from '../application/sandbox/sandbox-writeback'
+import { createToolRegistry, type ToolRegistry } from '../application/tooling/tool-registry'
 import { type AppDatabase, createDatabaseClient } from '../db/client'
 import type { AiImageModelRegistry } from '../domain/ai/image-types'
 import type { AiModelRegistry } from '../domain/ai/types'
 import type { BlobStore } from '../domain/files/blob-store'
-import { createToolRegistry, type ToolRegistry } from '../domain/tooling/tool-registry'
 import { createPrefixedId } from '../shared/ids'
 import { type AppLogger, createLogger } from '../shared/logger'
 import { type Clock, createSystemClock } from '../shared/time'
