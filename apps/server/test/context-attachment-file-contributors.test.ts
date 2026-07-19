@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
-import type { ContextContributorInput } from '../src/application/context/contracts'
+import {
+  buildContextArtifacts,
+  projectContextArtifactMessages,
+} from '../src/application/context/artifacts'
+import type {
+  ContextArtifact,
+  ContextArtifactMetadata,
+  ContextContributor,
+  ContextContributorInput,
+} from '../src/application/context/contracts'
 import { attachmentContextContributor } from '../src/application/context/contributors/attachment-context'
 import { attachmentRulesContributor } from '../src/application/context/contributors/attachment-rules'
 import { fileContextContributor } from '../src/application/context/contributors/file-context'
@@ -77,6 +86,33 @@ const createInput = (
   nativeTools: [],
   overrides: options.overrides ?? {},
 })
+
+const toArtifactMetadata = (artifact: ContextArtifact): ContextArtifactMetadata => ({
+  authority: artifact.authority,
+  capturedAt: artifact.capturedAt,
+  conflictKey: artifact.conflictKey,
+  dedupeKey: artifact.dedupeKey,
+  dependencies: artifact.dependencies,
+  expiresAt: artifact.expiresAt,
+  priority: artifact.priority,
+  provenance: artifact.provenance,
+  requirement: artifact.requirement,
+  sensitivity: artifact.sensitivity,
+  supersedes: artifact.supersedes,
+  transformation: artifact.transformation,
+  visibility: artifact.visibility,
+})
+
+const buildStrictArtifact = (
+  contributor: ContextContributor,
+  input: ContextContributorInput,
+): ContextArtifact => {
+  const [artifact] = buildContextArtifacts([contributor], input, { validationMode: 'strict' })
+
+  assert.ok(artifact)
+
+  return artifact
+}
 
 const legacyContribution = (input: ContextContributorInput, kind: ContextLayerKind) => {
   const result = assembleThreadInteractionRequest({
@@ -183,6 +219,103 @@ describe('attachment context contributors', () => {
     )
   })
 
+  test('declares complete strict metadata for empty attachment layers', () => {
+    const input = createInput()
+    const rulesArtifact = buildStrictArtifact(attachmentRulesContributor, input)
+    const contextArtifact = buildStrictArtifact(attachmentContextContributor, input)
+
+    assert.deepEqual(toArtifactMetadata(rulesArtifact), {
+      authority: 'user_input',
+      capturedAt: input.context.run.createdAt,
+      conflictKey: null,
+      dedupeKey: 'attachment-ref-rules',
+      dependencies: [],
+      expiresAt: null,
+      priority: 100,
+      provenance: {
+        createdByRunId: String(input.context.run.id),
+        sourceIds: [],
+        sourceType: 'user_message',
+        sourceVersion: null,
+      },
+      requirement: 'mandatory',
+      sensitivity: 'private',
+      supersedes: [],
+      transformation: { kind: 'none' },
+      visibility: 'model',
+    })
+    assert.deepEqual(toArtifactMetadata(contextArtifact), {
+      authority: 'conversation',
+      capturedAt: input.context.run.createdAt,
+      conflictKey: null,
+      dedupeKey: 'attachment-ref-context',
+      dependencies: [],
+      expiresAt: null,
+      priority: 90,
+      provenance: {
+        createdByRunId: String(input.context.run.id),
+        sourceIds: [],
+        sourceType: 'user_message',
+        sourceVersion: null,
+      },
+      requirement: 'optional',
+      sensitivity: 'restricted',
+      supersedes: [],
+      transformation: { kind: 'none' },
+      visibility: 'model',
+    })
+    assert.equal(rulesArtifact.metadataStatus, 'declared')
+    assert.equal(contextArtifact.metadataStatus, 'declared')
+  })
+
+  test('uses sorted durable attachment identities without leaking paths into provenance', () => {
+    const earlierAttachment: AttachmentRefDescriptor = {
+      ...attachmentFixture,
+      fileId: asFileId('fil_attachment_earlier'),
+      internalPath: '/vault/attachments/oauth=credential-must-not-leak/earlier.txt',
+      messageCreatedAt: '2026-03-31T11:00:00.000Z',
+      messageId: asSessionMessageId('msg_attachment_earlier'),
+      messageSequence: 2,
+      name: 'credential-must-not-leak.txt',
+      ref: '{{attachment:msg_msg_attachment_earlier:kind:file:index:1}}',
+      renderUrl: '/api/files/fil_attachment_earlier/content?token=credential-must-not-leak',
+    }
+    const input = createInput({
+      context: createContext({ attachmentRefs: [attachmentFixture, earlierAttachment] }),
+    })
+    const reversedInput = createInput({
+      context: createContext({ attachmentRefs: [earlierAttachment, attachmentFixture] }),
+    })
+    const rulesArtifact = buildStrictArtifact(attachmentRulesContributor, input)
+    const contextArtifact = buildStrictArtifact(attachmentContextContributor, input)
+    const reversedRulesArtifact = buildStrictArtifact(attachmentRulesContributor, reversedInput)
+    const reversedContextArtifact = buildStrictArtifact(attachmentContextContributor, reversedInput)
+    const expectedSourceIds = [
+      'fil_attachment_context',
+      'fil_attachment_earlier',
+      'msg_attachment_context',
+      'msg_attachment_earlier',
+    ]
+
+    assert.deepEqual(rulesArtifact.provenance.sourceIds, expectedSourceIds)
+    assert.deepEqual(contextArtifact.provenance.sourceIds, expectedSourceIds)
+    assert.equal(rulesArtifact.capturedAt, attachmentFixture.messageCreatedAt)
+    assert.equal(contextArtifact.capturedAt, attachmentFixture.messageCreatedAt)
+    assert.equal(contextArtifact.requirement, 'preferred')
+    assert.equal(rulesArtifact.id, reversedRulesArtifact.id)
+    assert.equal(contextArtifact.id, reversedContextArtifact.id)
+    assert.match(rulesArtifact.id, /^ctxa_[a-f0-9]{64}$/)
+
+    const metadataJson = JSON.stringify([
+      toArtifactMetadata(rulesArtifact),
+      toArtifactMetadata(contextArtifact),
+    ])
+    assert.equal(metadataJson.includes('/vault/'), false)
+    assert.equal(metadataJson.includes('token='), false)
+    assert.equal(metadataJson.includes('credential-must-not-leak'), false)
+    assert.equal(metadataJson.includes('{{attachment:'), false)
+  })
+
   test('is deterministic and does not mutate immutable attachment inputs', () => {
     const activeTools = Object.freeze([
       Object.freeze(createTool('execute')),
@@ -277,6 +410,84 @@ describe('file context contributor', () => {
         role: 'user',
       },
     ])
+  })
+
+  test('declares restricted file metadata using only sorted durable identities', () => {
+    const input = createFileInput('openai')
+    const artifact = buildStrictArtifact(fileContextContributor, input)
+
+    assert.deepEqual(toArtifactMetadata(artifact), {
+      authority: 'user_input',
+      capturedAt: input.context.run.createdAt,
+      conflictKey: null,
+      dedupeKey: 'file-context',
+      dependencies: [],
+      expiresAt: null,
+      priority: 80,
+      provenance: {
+        createdByRunId: String(input.context.run.id),
+        sourceIds: [
+          'fil_context_notes',
+          'fil_exposed_image',
+          'fil_inline_image',
+          'msg_file_context',
+        ],
+        sourceType: 'file',
+        sourceVersion: null,
+      },
+      requirement: 'preferred',
+      sensitivity: 'restricted',
+      supersedes: [],
+      transformation: { kind: 'none' },
+      visibility: 'model',
+    })
+    assert.equal(artifact.metadataStatus, 'declared')
+    assert.match(artifact.id, /^ctxa_[a-f0-9]{64}$/)
+
+    const metadataJson = JSON.stringify(toArtifactMetadata(artifact))
+    assert.equal(metadataJson.includes('Keep this exact.'), false)
+    assert.equal(metadataJson.includes('data:image/'), false)
+    assert.equal(metadataJson.includes('notes.txt'), false)
+  })
+
+  test('keeps unreferenced run files optional and does not infer truncation byte counts', () => {
+    const truncatedBodySentinel = 'complete-private-file-body [truncated]'
+    const input = createInput({
+      context: createContext({
+        visibleFiles: [
+          {
+            dataUrl: null,
+            fileId: asFileId('fil_unreferenced_truncated'),
+            messageId: null,
+            mimeType: 'text/plain',
+            originalFilename: 'private.txt',
+            textContent: truncatedBodySentinel,
+          },
+        ],
+      }),
+    })
+    const artifact = buildStrictArtifact(fileContextContributor, input)
+    const metadataJson = JSON.stringify(toArtifactMetadata(artifact))
+
+    assert.equal(artifact.authority, 'conversation')
+    assert.equal(artifact.requirement, 'optional')
+    assert.deepEqual(artifact.transformation, { kind: 'none' })
+    assert.deepEqual(artifact.provenance.sourceIds, ['fil_unreferenced_truncated'])
+    assert.equal(metadataJson.includes(truncatedBodySentinel), false)
+    assert.equal(metadataJson.includes('private.txt'), false)
+  })
+
+  test('strict artifacts project to the exact legacy attachment and file contributions', () => {
+    const input = createFileInput('openai')
+    const contributors = [
+      attachmentRulesContributor,
+      attachmentContextContributor,
+      fileContextContributor,
+    ]
+    const artifacts = buildContextArtifacts(contributors, input, { validationMode: 'strict' })
+    const contributions = contributors.flatMap((contributor) => contributor.build(input))
+
+    assert.deepEqual(projectContextArtifactMessages(artifacts), contributions)
   })
 
   test('is deterministic and leaves the input snapshot unchanged', () => {

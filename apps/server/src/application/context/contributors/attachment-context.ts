@@ -7,7 +7,7 @@ import {
 import { formatAttachmentRefContextDeveloperMessage } from '../../interactions/attachment-ref-prompt'
 import { toTextContent } from '../../interactions/build-run-interaction-request'
 import type { ToolSpec } from '../../tooling/tool-registry'
-import type { ContextContributor, ReadonlyDeep } from '../contracts'
+import type { ContextArtifactMetadata, ContextContributor, ReadonlyDeep } from '../contracts'
 
 const copyTool = (tool: ReadonlyDeep<ToolSpec>): ToolSpec => ({
   ...tool,
@@ -16,6 +16,43 @@ const copyTool = (tool: ReadonlyDeep<ToolSpec>): ToolSpec => ({
     : undefined,
   inputSchema: { ...tool.inputSchema },
 })
+
+const describeAttachmentContext: NonNullable<ContextContributor['describe']> = ({ input }) => {
+  const attachmentSourceIds = [
+    ...new Set(
+      input.context.attachmentRefs.flatMap((descriptor) => [
+        String(descriptor.fileId),
+        String(descriptor.messageId),
+      ]),
+    ),
+  ].sort()
+  const capturedAt =
+    input.context.attachmentRefs
+      .map((descriptor) => descriptor.messageCreatedAt)
+      .sort()
+      .at(-1) ?? input.context.run.createdAt
+
+  return {
+    authority: 'conversation',
+    capturedAt,
+    conflictKey: null,
+    dedupeKey: 'attachment-ref-context',
+    dependencies: [],
+    expiresAt: null,
+    priority: 90,
+    provenance: {
+      createdByRunId: String(input.context.run.id),
+      sourceIds: attachmentSourceIds,
+      sourceType: 'user_message',
+      sourceVersion: null,
+    },
+    requirement: attachmentSourceIds.length > 0 ? 'preferred' : 'optional',
+    sensitivity: 'restricted',
+    supersedes: [],
+    transformation: { kind: 'none' },
+    visibility: 'model',
+  } satisfies ContextArtifactMetadata
+}
 
 export const attachmentContextContributor: ContextContributor = {
   build: (input) => {
@@ -48,6 +85,7 @@ export const attachmentContextContributor: ContextContributor = {
       },
     ]
   },
+  describe: describeAttachmentContext,
   id: 'attachment-context',
   order: 13,
 }

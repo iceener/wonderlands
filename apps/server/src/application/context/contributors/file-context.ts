@@ -7,7 +7,12 @@ import {
 } from '../../interactions/attachment-ref-access'
 import { collectInlineReferencedUploadedFileIds } from '../../interactions/model-visible-user-content'
 import type { ToolSpec } from '../../tooling/tool-registry'
-import type { ContextContributor, ContextContributorInput, ReadonlyDeep } from '../contracts'
+import type {
+  ContextArtifactMetadata,
+  ContextContributor,
+  ContextContributorInput,
+  ReadonlyDeep,
+} from '../contracts'
 
 const copyTool = (tool: ReadonlyDeep<ToolSpec>): ToolSpec => ({
   ...tool,
@@ -27,6 +32,65 @@ const resolveRequestedProvider = (input: ContextContributorInput): AiProviderNam
   return provider === 'openai' || provider === 'google' || provider === 'openrouter'
     ? provider
     : null
+}
+
+const describeFileContext: NonNullable<ContextContributor['describe']> = ({ input }) => {
+  // These helpers and branded IDs are read-only in practice; their mutable parameter types predate
+  // the contributor contract's deep-readonly compatibility boundary.
+  const visibleMessages = input.context.visibleMessages as SessionMessageRecord[]
+  const visibleFiles = input.context.visibleFiles as VisibleFileContextEntry[]
+  const inlineReferencedFileIds = collectInlineReferencedUploadedFileIds(visibleMessages)
+  const sourceIds = [
+    ...new Set(
+      visibleFiles.flatMap((entry) => [
+        String(entry.fileId),
+        ...(entry.messageId ? [String(entry.messageId)] : []),
+      ]),
+    ),
+  ].sort()
+  const messagesById = new Map(visibleMessages.map((message) => [String(message.id), message]))
+  const capturedAt =
+    visibleFiles
+      .map((entry) =>
+        entry.messageId
+          ? (messagesById.get(String(entry.messageId))?.createdAt ?? input.context.run.createdAt)
+          : input.context.run.createdAt,
+      )
+      .sort()
+      .at(-1) ?? input.context.run.createdAt
+  const hasUserInput = visibleFiles.some((entry) => {
+    if (!entry.messageId) {
+      return false
+    }
+
+    return messagesById.get(String(entry.messageId))?.authorKind === 'user'
+  })
+  const hasExplicitReference = visibleFiles.some(
+    (entry) => entry.messageId !== null || inlineReferencedFileIds.has(entry.fileId),
+  )
+
+  return {
+    authority: hasUserInput ? 'user_input' : 'conversation',
+    capturedAt,
+    conflictKey: null,
+    dedupeKey: 'file-context',
+    dependencies: [],
+    expiresAt: null,
+    priority: 80,
+    provenance: {
+      createdByRunId: String(input.context.run.id),
+      sourceIds,
+      sourceType: 'file',
+      sourceVersion: null,
+    },
+    requirement: hasExplicitReference ? 'preferred' : 'optional',
+    sensitivity: 'restricted',
+    supersedes: [],
+    // VisibleFileContextEntry does not retain original/included byte counts. Even when its text
+    // carries the legacy "[truncated]" marker, exact truncation metadata is not reliably known.
+    transformation: { kind: 'none' },
+    visibility: 'model',
+  } satisfies ContextArtifactMetadata
 }
 
 export const fileContextContributor: ContextContributor = {
@@ -54,6 +118,7 @@ export const fileContextContributor: ContextContributor = {
       },
     ]
   },
+  describe: describeFileContext,
   id: 'file-context',
   order: 14,
 }
