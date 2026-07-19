@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events'
 import { existsSync } from 'node:fs'
 import { chmod, lstat, mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { homedir, tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
@@ -607,8 +608,21 @@ describe('local dev sandbox runner', () => {
     expect(result.value.stderrText).toContain('ignored reserved sandbox env key NODE_OPTIONS')
   })
 
-  test('makes built-in just-bash available without requesting packages', async () => {
-    const execution = await createPreparedExecution()
+  test('makes built-in just-bash resolvable from an inline entry with a different cwd', async () => {
+    const execution = await createPreparedExecution({
+      requestJson: {
+        cwdVaultPath: '/vault/deep/workspace',
+        runtime: 'node',
+        source: {
+          filename: 'execute-bash.mjs',
+          kind: 'inline_script',
+          script: 'import { Bash } from "just-bash"; console.log(typeof Bash);',
+        },
+        task: 'Run bash from a mounted workspace',
+        vaultAccess: 'read_only',
+      },
+    })
+    await mkdir(join(execution.hostRootRef, 'vault', 'deep', 'workspace'), { recursive: true })
 
     spawnMock.mockImplementation(
       (command: string, args: string[], options: { cwd: string; env: Record<string, string> }) => {
@@ -621,11 +635,23 @@ describe('local dev sandbox runner', () => {
               return
             }
 
-            const statResult = await lstat(join(options.cwd, 'node_modules', 'just-bash'))
+            const requireIndex = args.indexOf('--require')
+            const entryHostPath = args[requireIndex + 2]
+            if (!entryHostPath) {
+              child.emit('error', new Error('missing sandbox entry path'))
+              return
+            }
+
+            const statResult = await lstat(
+              join(dirname(entryHostPath), 'node_modules', 'just-bash'),
+            )
+            const resolvedPackagePath = createRequire(entryHostPath).resolve('just-bash')
             child.stdout.write(
               JSON.stringify({
                 allowFsReadArgs: args.filter((arg) => arg.startsWith('--allow-fs-read=')),
+                cwdDiffersFromEntry: options.cwd !== dirname(entryHostPath),
                 hasBuiltInPackageLink: statResult.isSymbolicLink(),
+                resolvedBuiltInPackage: resolvedPackagePath.includes('just-bash'),
               }),
             )
             child.stdout.end()
@@ -650,7 +676,9 @@ describe('local dev sandbox runner', () => {
 
     expect(spawnMock).toHaveBeenCalledTimes(1)
     expect(result.value.status).toBe('completed')
+    expect(result.value.stdoutText).toContain('"cwdDiffersFromEntry":true')
     expect(result.value.stdoutText).toContain('"hasBuiltInPackageLink":true')
+    expect(result.value.stdoutText).toContain('"resolvedBuiltInPackage":true')
     expect(result.value.stdoutText).toContain('--allow-fs-read=')
   })
 

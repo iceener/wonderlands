@@ -351,12 +351,12 @@ const ensurePackageManifest = async (cwdHostPath: string, executionId: string): 
 }
 
 const ensureBuiltInSandboxPackages = async (
-  cwdHostPath: string,
+  moduleResolutionRoot: string,
 ): Promise<{
   additionalReadRoots: string[]
 }> => {
   const additionalReadRoots = new Set<string>()
-  const nodeModulesDir = join(cwdHostPath, 'node_modules')
+  const nodeModulesDir = join(moduleResolutionRoot, 'node_modules')
   await mkdir(nodeModulesDir, { recursive: true })
 
   for (const packageName of builtInSandboxPackageNames) {
@@ -1173,7 +1173,8 @@ export const createLocalDevNodeEngine = (input: { logger: AppLogger }): LocalDev
       }
     }
 
-    const builtInPackages = await ensureBuiltInSandboxPackages(cwdHostPath)
+    // Bare ESM imports resolve from the entry module's directory, not the process cwd.
+    const builtInPackages = await ensureBuiltInSandboxPackages(dirname(entryHostPath))
     const needsAddonAccess = requestedPackages.length > 0 || execution.packages.length > 0
 
     const nodeArgs = [
