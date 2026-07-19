@@ -424,6 +424,15 @@ const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
       paragraphLines.push((lines[index] ?? '').trim())
       index += 1
     }
+    if (paragraphLines.length === 0) {
+      // Always consume unsupported block-like input. In particular, a pipe-prefixed
+      // line without a Markdown table delimiter is plain text, not a table. Leaving
+      // the cursor unchanged here would loop forever and exhaust process memory.
+      html.push(`<p>${renderInlineMarkdown(line.trim())}</p>`)
+      index += 1
+      continue
+    }
+
     html.push(`<p>${renderInlineMarkdown(paragraphLines.join(' '))}</p>`)
   }
 
@@ -526,7 +535,9 @@ const renderSeoMeta = (input: {
   const documentTitle =
     input.siteTitle && input.routePath !== '/' ? `${seoTitle} | ${input.siteTitle}` : seoTitle
 
-  meta.push(`<title>${escapeHtml(input.routePath === '/' && input.siteTitle ? input.siteTitle : documentTitle)}</title>`)
+  meta.push(
+    `<title>${escapeHtml(input.routePath === '/' && input.siteTitle ? input.siteTitle : documentTitle)}</title>`,
+  )
 
   if (seoDescription) {
     meta.push(`<meta name="description" content="${escapeHtml(seoDescription)}">`)

@@ -19,6 +19,7 @@ jobs:
       BASE_DIR: /home/alice/wonderlands
       SHARED_DIR: /home/alice/wonderlands/shared
       PROCESS_NAME: wonderlands-app
+      NODE_OPTIONS: --max-old-space-size=1024
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

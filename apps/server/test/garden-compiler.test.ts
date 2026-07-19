@@ -545,6 +545,50 @@ Notes.
   )
 })
 
+test('compileGardenBuildOutput treats a standalone pipe row as text without stalling', async () => {
+  const fixture = createVaultFixture()
+  const sourceScopeRef = join(fixture.vaultRootRef, 'site')
+  const outputRootRef = join(fixture.dir, 'compiled')
+
+  onTestFinished(() => {
+    rmSync(fixture.dir, { force: true, recursive: true })
+  })
+
+  writeTextFile(
+    join(sourceScopeRef, '_garden.yml'),
+    `schema: garden/v1
+public:
+  roots:
+    - index.md
+`,
+  )
+  writeTextFile(
+    join(sourceScopeRef, 'index.md'),
+    `| Log | Summary |
+| --- | --- |
+| Existing | Valid row |
+
+| [session-2026-07-19.md](./session-2026-07-19.md) | Standalone row |
+`,
+  )
+
+  const compiled = await compileGardenBuildOutput({
+    outputRootRef,
+    sourceScopePath: 'site',
+    vaultRootRef: fixture.vaultRootRef,
+  })
+
+  assert.equal(compiled.ok, true)
+
+  if (!compiled.ok) {
+    return
+  }
+
+  const html = readFileSync(join(compiled.value.publicRootRef, 'index.html'), 'utf8')
+  assert.match(html, /Standalone row/)
+  assert.match(html, /<p>\| session-2026-07-19\.md \| Standalone row \|<\/p>/)
+})
+
 test('compileGardenBuildOutput writes artifacts directly and returns a completed manifest', async () => {
   const fixture = createVaultFixture()
   const sourceScopeRef = join(fixture.vaultRootRef, 'site')
