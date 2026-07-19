@@ -3,12 +3,10 @@ import { createHash } from 'node:crypto'
 import type { Context } from 'hono'
 
 import type { AppEnv } from '../../app/types'
-import {
-  createHttpIdempotencyKeyRepository,
-  type HttpIdempotencyKeyRecord,
-} from '../../domain/operations/http-idempotency-key-repository'
+import type { HttpIdempotencyKeyRecord } from '../../domain/operations/http-idempotency-key-repository'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import type { Result } from '../../shared/result'
+import { createHttpIdempotencyKeyRepository } from '../persistence/sqlite/operations/http-idempotency-key-repository'
 import { successEnvelope } from './api-envelope'
 
 const IN_PROGRESS_TTL_MS = 5 * 60 * 1000

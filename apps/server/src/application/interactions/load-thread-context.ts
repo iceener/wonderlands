@@ -1,11 +1,9 @@
 import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
 import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
 import { createAgentSubagentLinkRepository } from '../../adapters/persistence/sqlite/agents/agent-subagent-link-repository'
+import { createMemoryRecordRepository } from '../../adapters/persistence/sqlite/memory/memory-record-repository'
 import { withTransaction } from '../../db/transaction'
-import {
-  createMemoryRecordRepository,
-  type MemoryRecordRecord,
-} from '../../domain/memory/memory-record-repository'
+import type { MemoryRecordRecord } from '../../domain/memory/memory-record-repository'
 import { createContextSummaryRepository } from '../../domain/runtime/context-summary-repository'
 import { createRunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
 import type { RunRecord } from '../../domain/runtime/run-repository'

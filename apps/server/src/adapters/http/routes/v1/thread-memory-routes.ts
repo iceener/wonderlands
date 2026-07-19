@@ -4,14 +4,14 @@ import { z } from 'zod'
 import type { AppEnv } from '../../../../app/types'
 import { estimateObservationTokenCount } from '../../../../application/memory/observe-summary'
 import { estimateReflectionTokenCount } from '../../../../application/memory/reflect-run-local-memory'
-import {
-  createMemoryRecordRepository,
-  type MemoryRecordRecord,
-  type ObservationMemoryContent,
-  type ReflectionMemoryContent,
+import type {
+  MemoryRecordRecord,
+  ObservationMemoryContent,
+  ReflectionMemoryContent,
 } from '../../../../domain/memory/memory-record-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asSessionThreadId } from '../../../../shared/ids'
+import { createMemoryRecordRepository } from '../../../persistence/sqlite/memory/memory-record-repository'
 import { successEnvelope } from '../../api-envelope'
 import { authorizeThreadWrite, requireThreadAccess } from '../../route-resource-access'
 import { parseJsonBodyAs, unwrapRouteResult } from '../../route-support'
