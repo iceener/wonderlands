@@ -1,9 +1,7 @@
 import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
+import { createKernelSessionRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-repository'
 import type { ToolContext } from '../../application/tooling/tool-registry'
-import {
-  createKernelSessionRepository,
-  type KernelSessionRecord,
-} from '../../domain/kernel/kernel-session-repository'
+import type { KernelSessionRecord } from '../../domain/kernel/kernel-session-repository'
 import type { KernelArtifactKind, KernelPolicy } from '../../domain/kernel/types'
 import type { DomainError } from '../../shared/errors'
 import { asKernelSessionId } from '../../shared/ids'
