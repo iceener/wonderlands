@@ -42,6 +42,7 @@ import { createSessionMessageRepository } from '../../adapters/persistence/sqlit
 import { createSessionThreadRepository } from '../../adapters/persistence/sqlite/sessions/session-thread-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { createThreadActivitySeenRepository } from '../../adapters/persistence/sqlite/sessions/thread-activity-seen-repository'
+import { createThreadHistoryPruningRepository } from '../../adapters/persistence/sqlite/sessions/thread-history-pruning-repository'
 import { createToolExecutionRepository } from '../../adapters/persistence/sqlite/runtime/tool-execution-repository'
 import { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
 import { createUploadRepository } from '../../adapters/persistence/sqlite/files/upload-repository'
@@ -91,6 +92,7 @@ import type { SessionMessageRepository } from '../../domain/sessions/session-mes
 import type { SessionThreadRepository } from '../../domain/sessions/session-thread-repository'
 import type { TenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import type { ThreadActivitySeenRepository } from '../../domain/sessions/thread-activity-seen-repository'
+import type { ThreadHistoryPruningRepository } from '../../domain/sessions/thread-history-pruning-repository'
 import type { ToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
 import type { ToolProfileRepository } from '../../domain/tool-access/tool-profile-repository'
 import type { UploadRepository } from '../../domain/files/upload-repository'
@@ -153,6 +155,7 @@ export interface Repositories {
   sessionThread: SessionThreadRepository
   tenantMembership: TenantMembershipRepository
   threadActivitySeen: ThreadActivitySeenRepository
+  threadHistoryPruning: ThreadHistoryPruningRepository
   toolExecution: ToolExecutionRepository
   toolProfile: ToolProfileRepository
   upload: UploadRepository
@@ -204,6 +207,7 @@ export const createRepositories = (db: RepositoryDatabase): Repositories => ({
   sessionThread: createSessionThreadRepository(db),
   tenantMembership: createTenantMembershipRepository(db),
   threadActivitySeen: createThreadActivitySeenRepository(db),
+  threadHistoryPruning: createThreadHistoryPruningRepository(db),
   toolExecution: createToolExecutionRepository(db),
   toolProfile: createToolProfileRepository(db),
   upload: createUploadRepository(db),
@@ -258,6 +262,7 @@ export { createSessionMessageRepository } from '../../adapters/persistence/sqlit
 export { createSessionThreadRepository } from '../../adapters/persistence/sqlite/sessions/session-thread-repository'
 export { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 export { createThreadActivitySeenRepository } from '../../adapters/persistence/sqlite/sessions/thread-activity-seen-repository'
+export { createThreadHistoryPruningRepository } from '../../adapters/persistence/sqlite/sessions/thread-history-pruning-repository'
 export { createToolExecutionRepository } from '../../adapters/persistence/sqlite/runtime/tool-execution-repository'
 export { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
 export { createUploadRepository } from '../../adapters/persistence/sqlite/files/upload-repository'
