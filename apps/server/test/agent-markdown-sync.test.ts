@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'vitest'
+import { createAgentRepository } from '../src/adapters/persistence/sqlite/agents/agent-repository'
 import {
   parseAgentMarkdown,
   serializeAgentMarkdown,
 } from '../src/application/agents/agent-markdown'
 import { createAgentSyncService } from '../src/application/agents/agent-sync-service'
 import { accounts, agents, domainEvents, tenants } from '../src/db/schema'
-import { createAgentRepository } from '../src/domain/agents/agent-repository'
 import { asAccountId, asAgentId, asTenantId } from '../src/shared/ids'
 import type { TenantScope } from '../src/shared/scope'
 import { createTestHarness } from './helpers/create-test-app'

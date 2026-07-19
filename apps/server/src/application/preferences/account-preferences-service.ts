@@ -1,8 +1,8 @@
 import { z } from 'zod'
+import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
 import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
-import { createAgentRepository } from '../../domain/agents/agent-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
 import {
   mergeShortcutBindingOverrides,

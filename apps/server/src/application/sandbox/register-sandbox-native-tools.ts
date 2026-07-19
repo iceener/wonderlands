@@ -1,6 +1,6 @@
+import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
 import type { ToolOutcome, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
-import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
 import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
 import { createSandboxExecutionRepository } from '../../domain/sandbox/sandbox-execution-repository'
 import {

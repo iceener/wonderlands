@@ -1,9 +1,7 @@
+import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
+import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
 import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
-import { createAgentRepository } from '../../domain/agents/agent-repository'
-import {
-  type AgentRevisionRecord,
-  createAgentRevisionRepository,
-} from '../../domain/agents/agent-revision-repository'
+import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'
 import type { RepositoryDatabase } from '../../domain/database-port'
 import type { DomainError } from '../../shared/errors'

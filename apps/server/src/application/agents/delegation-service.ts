@@ -1,15 +1,12 @@
+import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
+import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
+import { createAgentSubagentLinkRepository } from '../../adapters/persistence/sqlite/agents/agent-subagent-link-repository'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
-import { type AgentRecord, createAgentRepository } from '../../domain/agents/agent-repository'
-import {
-  type AgentRevisionRecord,
-  createAgentRevisionRepository,
-} from '../../domain/agents/agent-revision-repository'
-import {
-  type AgentSubagentLinkRecord,
-  createAgentSubagentLinkRepository,
-} from '../../domain/agents/agent-subagent-link-repository'
+import type { AgentRecord } from '../../domain/agents/agent-repository'
+import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
+import type { AgentSubagentLinkRecord } from '../../domain/agents/agent-subagent-link-repository'
 import type { DomainCommittedEventType } from '../../domain/events/committed-event-contract'
 import { createFileLinkRepository } from '../../domain/files/file-link-repository'
 import { createFileRepository } from '../../domain/files/file-repository'

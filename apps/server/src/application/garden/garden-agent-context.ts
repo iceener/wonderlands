@@ -1,5 +1,5 @@
 import { createGardenSiteRepository } from '../../adapters/persistence/sqlite'
-import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
+import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
 import type {
   GardenProtectedAccessMode,

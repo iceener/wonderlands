@@ -5,7 +5,7 @@ import type {
   RunAgentScheduledTaskNowOutput,
 } from '@wonderlands/contracts'
 import { z } from 'zod'
-
+import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
 import {
   type AgentScheduledTaskRecord,
   type AgentScheduledTaskStatus,
@@ -15,7 +15,6 @@ import {
   type AgentScheduledTaskRunRecord,
   createAgentScheduledTaskRunRepository,
 } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
-import { createAgentRepository } from '../../domain/agents/agent-repository'
 import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
 import type { DomainError } from '../../shared/errors'
 import {
