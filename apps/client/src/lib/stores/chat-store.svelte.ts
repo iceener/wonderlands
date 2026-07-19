@@ -1,5 +1,4 @@
 import type {
-  BackendModelsCatalog,
   BackendPendingWait,
   BackendRun,
   BackendSession,
@@ -12,7 +11,6 @@ import type {
   MessageAttachment,
   MessageFinishReason,
   MessageId,
-  ReasoningEffort,
   RunId,
   SessionId,
   ThreadId,
@@ -23,6 +21,11 @@ import {
   BACKEND_DEFAULT_MODEL,
   BACKEND_DEFAULT_REASONING,
 } from '@wonderlands/contracts/chat'
+import {
+  cloneAttachments,
+  extractAttachmentsFromMetadata,
+  mergeAttachments,
+} from '../chat/attachments/normalize'
 import { createMessageEditCommands } from '../chat/commands/message-edit-commands'
 import { createPendingWaitCommands } from '../chat/commands/pending-wait-commands'
 import { createRunControlCommands } from '../chat/commands/run-control'
@@ -69,6 +72,12 @@ import { createThreadMessageSyncCoordinator } from '../chat/session/thread-messa
 import { createThreadSessionCommands } from '../chat/session/thread-session-commands'
 import { createThreadSessionLoader } from '../chat/session/thread-session-loader'
 import { createLocalMessageStateCoordinator } from '../chat/state/local-message-state'
+import {
+  deriveAvailableModels,
+  deriveAvailableReasoningModes,
+  pickPreferredModel,
+  pickPreferredReasoningMode,
+} from '../chat/state/model-catalog'
 import { createChatPreferencesState } from '../chat/state/preferences.svelte'
 import { createRunTranscriptShell } from '../chat/state/run-transcript-shell'
 import { createRunTranscriptStore } from '../chat/state/run-transcripts'
@@ -122,8 +131,6 @@ const STORAGE_KEY = '05_04_ui.active-thread'
 const STORAGE_KEY_SCOPE_SEPARATOR = ':'
 const BACKEND_DEFAULT_MODEL_VALUE = BACKEND_DEFAULT_MODEL
 const BACKEND_DEFAULT_REASONING_VALUE = BACKEND_DEFAULT_REASONING
-const PREFERRED_DEFAULT_MODEL = 'gpt-5.4' as const
-const PREFERRED_DEFAULT_REASONING = 'medium' as const
 
 type MemoryActivity = 'idle' | 'observing' | 'reflecting'
 
@@ -186,32 +193,6 @@ interface ChatStoreDependencies {
   streamThreadEvents?: typeof streamThreadEvents
 }
 
-const cloneAttachments = (attachments: MessageAttachment[]): MessageAttachment[] =>
-  attachments.map((attachment) => ({ ...attachment }))
-
-const mergeAttachments = (
-  existing: MessageAttachment[],
-  incoming: MessageAttachment[],
-): MessageAttachment[] => {
-  if (incoming.length === 0) {
-    return cloneAttachments(existing)
-  }
-
-  const merged = cloneAttachments(existing)
-  const seen = new Set(merged.map((attachment) => attachment.id))
-
-  for (const attachment of incoming) {
-    if (seen.has(attachment.id)) {
-      continue
-    }
-
-    seen.add(attachment.id)
-    merged.push({ ...attachment })
-  }
-
-  return merged
-}
-
 const cloneBlocks = (blocks: Block[]): Block[] => $state.snapshot(blocks) as Block[]
 
 const cloneUiMessage = (message: UiMessage): UiMessage => $state.snapshot(message) as UiMessage
@@ -236,136 +217,8 @@ const terminalRunStatusForFinishReason = (
   }
 }
 
-const isMessageAttachment = (value: unknown): value is MessageAttachment => {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-
-  const attachment = value as Partial<MessageAttachment>
-  return (
-    typeof attachment.id === 'string' &&
-    typeof attachment.name === 'string' &&
-    typeof attachment.size === 'number' &&
-    typeof attachment.mime === 'string' &&
-    (attachment.kind === 'image' || attachment.kind === 'file') &&
-    typeof attachment.url === 'string' &&
-    (attachment.thumbnailUrl === undefined || typeof attachment.thumbnailUrl === 'string')
-  )
-}
-
-const extractAttachmentsFromMetadata = (metadata: unknown): MessageAttachment[] => {
-  if (typeof metadata !== 'object' || metadata === null) {
-    return []
-  }
-
-  const raw = (metadata as Record<string, unknown>).attachments
-  if (!Array.isArray(raw)) {
-    return []
-  }
-
-  return raw.filter(isMessageAttachment).map((attachment) => ({ ...attachment }))
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
-
-const deriveAvailableModels = (catalog: BackendModelsCatalog): ChatModel[] => {
-  const availableModels: ChatModel[] = [BACKEND_DEFAULT_MODEL_VALUE]
-  const seenModels = new Set<string>([BACKEND_DEFAULT_MODEL_VALUE])
-
-  for (const alias of catalog.aliases) {
-    if (!alias.configured || seenModels.has(alias.model)) {
-      continue
-    }
-
-    seenModels.add(alias.model)
-    availableModels.push(alias.model as ChatModel)
-  }
-
-  return availableModels
-}
-
-const pickPreferredModel = (
-  availableModels: readonly ChatModel[],
-  catalog: BackendModelsCatalog | null,
-): ChatModel => {
-  if (availableModels.includes(PREFERRED_DEFAULT_MODEL as ChatModel)) {
-    return PREFERRED_DEFAULT_MODEL as ChatModel
-  }
-
-  const catalogDefaultModel = catalog?.defaultModel as ChatModel | undefined
-  if (catalogDefaultModel && availableModels.includes(catalogDefaultModel)) {
-    return catalogDefaultModel
-  }
-
-  return (
-    availableModels.find((model) => model !== BACKEND_DEFAULT_MODEL_VALUE) ??
-    (BACKEND_DEFAULT_MODEL_VALUE as ChatModel)
-  )
-}
-
-const getSelectedModelAliases = (catalog: BackendModelsCatalog | null, model: ChatModel) => {
-  if (!catalog) {
-    return []
-  }
-
-  if (model === BACKEND_DEFAULT_MODEL_VALUE) {
-    return catalog.aliases.filter((alias) => alias.isDefault)
-  }
-
-  return catalog.aliases.filter((alias) => alias.configured && alias.model === model)
-}
-
-const deriveAvailableReasoningModes = (
-  catalog: BackendModelsCatalog | null,
-  model: ChatModel,
-): ChatReasoningModeOption[] => {
-  const reasoningModes = new Set<ReasoningEffort>()
-
-  for (const alias of getSelectedModelAliases(catalog, model)) {
-    for (const effort of alias.reasoningModes) {
-      reasoningModes.add(effort)
-    }
-  }
-
-  const options: ChatReasoningModeOption[] = [
-    {
-      id: BACKEND_DEFAULT_REASONING_VALUE,
-      label: 'default',
-    },
-  ]
-
-  if (!catalog) {
-    return options
-  }
-
-  for (const mode of catalog.reasoningModes) {
-    if (reasoningModes.has(mode.effort)) {
-      options.push({
-        id: mode.effort,
-        label: mode.label,
-      })
-    }
-  }
-
-  return options
-}
-
-const pickPreferredReasoningMode = (
-  availableReasoningModes: readonly ChatReasoningModeOption[],
-): ChatReasoningMode => {
-  const explicitModes = availableReasoningModes.filter(
-    (mode) => mode.id !== BACKEND_DEFAULT_REASONING_VALUE,
-  )
-
-  if (explicitModes.length === 1 && explicitModes[0]?.id === 'none') {
-    return BACKEND_DEFAULT_REASONING_VALUE as ChatReasoningMode
-  }
-
-  return (availableReasoningModes.find((mode) => mode.id === PREFERRED_DEFAULT_REASONING)?.id ??
-    explicitModes[0]?.id ??
-    BACKEND_DEFAULT_REASONING_VALUE) as ChatReasoningMode
-}
 
 export const createChatStore = (dependencies: ChatStoreDependencies = {}) => {
   const branchThreadImpl = dependencies.branchThread ?? branchThread
