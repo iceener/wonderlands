@@ -17,6 +17,12 @@ import { runTranscriptContributor } from './contributors/run-transcript'
 import { summaryMemoryContributor } from './contributors/summary-memory'
 import { visibleHistoryFallbackContributor } from './contributors/visible-history-fallback'
 
+export {
+  buildContextArtifacts,
+  createDeterministicContextArtifactId,
+  projectContextArtifactMessages,
+} from './artifacts'
+
 const assertValidContributor = (
   contributor: ContextContributor,
   ids: Set<string>,
