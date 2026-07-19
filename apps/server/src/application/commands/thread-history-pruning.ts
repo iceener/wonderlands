@@ -4,6 +4,7 @@ import {
   contextSummaries,
   domainEvents,
   eventOutbox,
+  eventPayloadSidecars,
   fileLinks,
   files,
   items,
@@ -398,6 +399,10 @@ export const pruneThreadHistoryInTransaction = (
         .where(
           and(eq(eventOutbox.tenantId, input.tenantId), inArray(eventOutbox.eventId, eventIds)),
         )
+        .run()
+
+      tx.delete(eventPayloadSidecars)
+        .where(inArray(eventPayloadSidecars.eventId, eventIds))
         .run()
 
       tx.delete(domainEvents)

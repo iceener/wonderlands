@@ -124,6 +124,7 @@ export interface GardenBuiltPage {
   routePath: string
   sourcePath: string
   sourceSlug: string
+  synthetic?: boolean
   tags: string[]
   title: string
   visibility: Exclude<GardenPageExposure, 'hidden'>

@@ -1197,6 +1197,7 @@ const emitPageArtifacts = (input: {
             routePath: input.page.routePath,
             sourcePath: input.page.sourcePath,
             sourceSlug: input.page.slug,
+            ...(input.page.synthetic ? { synthetic: true } : {}),
             tags: input.page.tags,
             title: input.page.title,
             visibility,
@@ -1265,6 +1266,7 @@ const emitPageArtifacts = (input: {
           routePath,
           sourcePath: input.page.sourcePath,
           sourceSlug: input.page.slug,
+          ...(input.page.synthetic ? { synthetic: true } : {}),
           tags: input.page.tags,
           title: input.page.title,
           visibility,
@@ -1461,9 +1463,9 @@ export const buildGardenSite = async (input: {
     config: prepared.value.config,
     manifest: buildManifest({
       pages: manifestPages,
-      protectedPageCount: protectedPages.length,
+      protectedPageCount: protectedPages.filter((page) => !page.synthetic).length,
       publicAssets: prepared.value.publicAssets,
-      publicPageCount: publicPages.length,
+      publicPageCount: publicPages.filter((page) => !page.synthetic).length,
       sourceFingerprintSha256: sourceFingerprint.value,
       warnings: warnings.all(),
     }),
@@ -1575,6 +1577,10 @@ export const compileGardenBuildOutput = async (input: {
 
         manifestPages.push(toManifestPage(artifact))
 
+        if (artifact.synthetic) {
+          continue
+        }
+
         if (artifact.visibility === 'protected') {
           protectedPageCount += 1
           continue
@@ -1683,9 +1689,9 @@ export const writeGardenBuildOutput = async (input: {
     }
 
     const search = await writeGardenSearchArtifacts({
-      protectedPageCount: input.build.protectedPages.length,
+      protectedPageCount: input.build.protectedPages.filter((page) => !page.synthetic).length,
       protectedRootRef,
-      publicPageCount: input.build.publicPages.length,
+      publicPageCount: input.build.publicPages.filter((page) => !page.synthetic).length,
       publicRootRef,
     })
 
