@@ -35,6 +35,8 @@ export interface AssembleThreadInteractionRequestInput {
   mcpMode?: AgentMcpMode
   nativeTools: AiProviderNativeToolName[]
   overrides: RunInteractionOverrides
+  /** Explicit execution-loop turn; defaults to the next persisted run turn for read-only callers. */
+  turn?: number
 }
 
 export interface AssembleThreadInteractionRequestResult {
@@ -67,7 +69,9 @@ export const assembleThreadInteractionRequest = ({
   mcpMode = 'direct',
   nativeTools,
   overrides,
+  turn,
 }: AssembleThreadInteractionRequestInput): AssembleThreadInteractionRequestResult => {
+  const interactionTurn = turn ?? context.run.turnCount + 1
   const contributorInput: ContextContributorInput = Object.freeze({
     activeTools,
     context,
@@ -163,7 +167,7 @@ export const assembleThreadInteractionRequest = ({
     threadId: context.run.threadId
       ? String(context.run.threadId)
       : UNTHREADED_CONTEXT_MANIFEST_THREAD_ID,
-    turn: context.run.turnCount + 1,
+    turn: interactionTurn,
   })
 
   return {

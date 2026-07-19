@@ -10,6 +10,10 @@ import {
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import { collectContextFacts } from '../../context/collect-context-facts'
 import { projectContextFactsToThreadContextData } from '../../context/context-facts'
+import {
+  persistContextManifestAttempt,
+  resolveNextContextManifestAttemptTurn,
+} from '../../context/persist-context-manifest'
 import { prepareContextState } from '../../context/prepare-context-state'
 import { assembleThreadInteractionRequest } from '../../interactions/assemble-thread-interaction-request'
 import type { RunInteractionOverrides } from '../../interactions/build-run-interaction-request'
@@ -138,6 +142,12 @@ export const executeRunTurnLoop = async (
       )
         ? (['web_search'] as const)
         : []
+      const manifestAttemptTurn = resolveNextContextManifestAttemptTurn(context, currentRun)
+
+      if (!manifestAttemptTurn.ok) {
+        return manifestAttemptTurn
+      }
+
       const assembledInteraction = assembleThreadInteractionRequest({
         activeTools: toolSpecs,
         context: threadContext,
@@ -145,6 +155,7 @@ export const executeRunTurnLoop = async (
         mcpMode,
         nativeTools: [...nativeTools],
         overrides,
+        turn: manifestAttemptTurn.value,
       })
       if (currentRun.threadId) {
         const latestBudgetSnapshot = createUsageLedgerRepository(
@@ -165,6 +176,17 @@ export const executeRunTurnLoop = async (
               }
             : null,
         )
+      }
+
+      const persistedManifest = persistContextManifestAttempt(context, {
+        manifest: assembledInteraction.manifest,
+        mode: 'shadow',
+        run: currentRun,
+        turn: manifestAttemptTurn.value,
+      })
+
+      if (!persistedManifest.ok) {
+        return persistedManifest
       }
 
       const interactionRequest = assembledInteraction.request
