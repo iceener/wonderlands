@@ -29,6 +29,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Stop previous application process
+        run: |
+          pm2 stop "$PROCESS_NAME" || true
+          pkill -x pagefind || true
+
       - name: Install dependencies
         run: npm ci --include=dev
 
