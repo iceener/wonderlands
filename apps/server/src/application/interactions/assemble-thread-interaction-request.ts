@@ -6,8 +6,11 @@ import type {
 } from '../../domain/ai/types'
 import type { AgentMcpMode } from '../agents/agent-runtime-policy'
 import { buildContextArtifacts, projectContextArtifactMessages } from '../context/artifacts'
+import { createContextPlanningBudget } from '../context/budget'
+import { type ContextResolutionResult, resolveContextArtifactConflicts } from '../context/conflicts'
 import type { ContextArtifact, ContextContributorInput } from '../context/contracts'
 import { buildContextManifest, type ContextManifest } from '../context/manifest'
+import { type ContextPlanResult, planContextArtifacts } from '../context/planner'
 import { type ContextPolicyDecision, evaluateContextArtifactsPolicy } from '../context/policy'
 import { contextContributors } from '../context/registry'
 import { buildRequestContextArtifacts } from '../context/request-artifacts'
@@ -16,6 +19,7 @@ import {
   toFallbackTaskMessages,
 } from '../context/request-fields'
 import type { McpCodeModeCatalog } from '../mcp/code-mode'
+import { resolveContextWindowForModel } from '../system/models-catalog'
 import type { RunInteractionOverrides } from './build-run-interaction-request'
 import {
   createContextBudgetReport,
@@ -37,8 +41,10 @@ export interface AssembleThreadInteractionRequestResult {
   readonly artifacts: readonly ContextArtifact[]
   bundle: ThreadContextBundle
   readonly manifest: ContextManifest
+  readonly plan: ContextPlanResult
   readonly policyDecisions: readonly ContextPolicyDecision[]
   request: AiInteractionRequest
+  readonly resolution: ContextResolutionResult
 }
 
 const CONTEXT_ASSEMBLER_VERSION = 'context-assembly/v2-shadow-1'
@@ -104,7 +110,7 @@ export const assembleThreadInteractionRequest = ({
     now: context.run.updatedAt,
     validationMode: 'strict',
   })
-  const selectedArtifacts = artifacts.filter(
+  const policyAllowedArtifacts = artifacts.filter(
     (_artifact, index) => policyDecisions[index]?.outcome === 'allow',
   )
   const rejectedArtifacts = artifacts.flatMap((artifact, index) =>
@@ -112,18 +118,42 @@ export const assembleThreadInteractionRequest = ({
       ? [{ artifact, reasonCodes: ['policy_rejected' as const] }]
       : [],
   )
+  const resolution = resolveContextArtifactConflicts(policyAllowedArtifacts)
+  const inputTokenLimit = resolveContextWindowForModel(
+    request.model?.trim() || request.modelAlias?.trim() || UNSPECIFIED_CONTEXT_MODEL,
+  )
+  const planningBudget = createContextPlanningBudget({
+    inputTokenLimit,
+    reservedOutputTokens: bundle.budget.reservedOutputTokens ?? 0,
+  })
+  const plan = planContextArtifacts(resolution.selected, planningBudget, {
+    now: context.run.updatedAt,
+  })
+  // Planning remains shadow-only. A capacity outcome or proposed drop never changes `request`.
+  const selectedArtifacts = plan.outcome === 'planned' ? plan.selected : resolution.selected
+  const planningDrops = plan.outcome === 'planned' ? plan.dropped : []
+  const droppedArtifacts = [
+    ...resolution.dropped.map(({ artifact, reasonCodes }) => ({ artifact, reasonCodes })),
+    ...planningDrops,
+  ]
   const selectedArtifactTokens = sumArtifactTokens(selectedArtifacts)
   const consideredArtifactTokens = sumArtifactTokens(artifacts)
   const manifest = buildContextManifest({
     assemblerVersion: CONTEXT_ASSEMBLER_VERSION,
     budget: {
-      availableInputTokens: null,
+      availableInputTokens: planningBudget.availableInputTokens,
       consideredArtifactTokens,
-      droppedArtifactTokens: consideredArtifactTokens - selectedArtifactTokens,
-      inputTokenLimit: null,
+      droppedArtifactTokens: Math.max(0, consideredArtifactTokens - selectedArtifactTokens),
+      inputTokenLimit: planningBudget.inputTokenLimit,
       reservedOutputTokens: bundle.budget.reservedOutputTokens,
       selectedArtifactTokens,
     },
+    conflicts: resolution.conflicts.map(({ losers, reasonCodes, winners }) => ({
+      losers,
+      reasonCodes,
+      winner: winners[0]!,
+    })),
+    dropped: droppedArtifacts,
     generatedAt: context.run.updatedAt,
     model: request.model?.trim() || UNSPECIFIED_CONTEXT_MODEL,
     provider: request.provider ?? UNSPECIFIED_CONTEXT_PROVIDER,
@@ -140,7 +170,9 @@ export const assembleThreadInteractionRequest = ({
     artifacts,
     bundle,
     manifest,
+    plan,
     policyDecisions,
     request,
+    resolution,
   }
 }

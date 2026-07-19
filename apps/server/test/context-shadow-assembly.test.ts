@@ -183,10 +183,10 @@ describe('context v2 shadow assembly integration', () => {
     assert.equal(first.manifest.provider, 'openai')
     assert.equal(first.manifest.model, 'shadow-characterization-model')
     assert.deepEqual(first.manifest.budget, {
-      availableInputTokens: null,
+      availableInputTokens: 128_000 - (first.bundle.budget.reservedOutputTokens ?? 0),
       consideredArtifactTokens: artifactTokens,
       droppedArtifactTokens: 0,
-      inputTokenLimit: null,
+      inputTokenLimit: 128_000,
       reservedOutputTokens: first.bundle.budget.reservedOutputTokens,
       selectedArtifactTokens: artifactTokens,
     })
@@ -208,10 +208,11 @@ describe('context v2 shadow assembly integration', () => {
       ...createTool('credential_probe'),
       inputSchema: {
         additionalProperties: false,
+        authorization: 'Bearer must-not-cross',
         properties: { password: { type: 'string' } },
         required: ['password'],
         type: 'object',
-      },
+      } as ToolSpec['inputSchema'],
     }
     const input = fixture(createContext(), { activeTools: [unsafeTool] })
     const expected = assembleLegacyShape(input)
