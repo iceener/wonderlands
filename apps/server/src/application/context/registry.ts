@@ -1,4 +1,21 @@
 import type { ContextContribution, ContextContributor, ContextContributorInput } from './contracts'
+import { agentProfileContributor } from './contributors/agent-profile'
+import { attachmentContextContributor } from './contributors/attachment-context'
+import { attachmentRulesContributor } from './contributors/attachment-rules'
+import { capabilityGuidanceContributor } from './contributors/capability-guidance'
+import { fileContextContributor } from './contributors/file-context'
+import { gardenContextContributor } from './contributors/garden-context'
+import { mcpToolContextContributor } from './contributors/mcp-tool-context'
+import { observationMemoryContributor } from './contributors/observation-memory'
+import { reflectionMemoryContributor } from './contributors/reflection-memory'
+import {
+  pendingWaitsContributor,
+  sessionMetadataContributor,
+  systemPromptContributor,
+} from './contributors/reserved-layers'
+import { runTranscriptContributor } from './contributors/run-transcript'
+import { summaryMemoryContributor } from './contributors/summary-memory'
+import { visibleHistoryFallbackContributor } from './contributors/visible-history-fallback'
 
 const assertValidContributor = (
   contributor: ContextContributor,
@@ -55,6 +72,20 @@ export const buildContextContributions = (
 ): readonly ContextContribution[] =>
   Object.freeze(contributors.flatMap((contributor) => contributor.build(input)))
 
-// Cora will add explicit imports here as contributor modules land. An empty registry is a valid
-// behavior-neutral foundation and cannot affect the legacy assembler before final wiring.
-export const contextContributors = defineContextContributors([])
+export const contextContributors = defineContextContributors([
+  systemPromptContributor,
+  agentProfileContributor,
+  capabilityGuidanceContributor,
+  gardenContextContributor,
+  attachmentRulesContributor,
+  mcpToolContextContributor,
+  sessionMetadataContributor,
+  summaryMemoryContributor,
+  reflectionMemoryContributor,
+  observationMemoryContributor,
+  runTranscriptContributor,
+  visibleHistoryFallbackContributor,
+  attachmentContextContributor,
+  fileContextContributor,
+  pendingWaitsContributor,
+])

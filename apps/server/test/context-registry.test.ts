@@ -113,8 +113,49 @@ describe('static context contributor registry', () => {
     assert.equal(JSON.stringify(input), before)
   })
 
-  test('keeps the initial explicit registry empty and behavior-neutral', () => {
-    assert.deepEqual(contextContributors, [])
-    assert.deepEqual(buildContextContributions(contextContributors, createInput()), [])
+  test('registers all 15 legacy layers in exact explicit order', () => {
+    assert.deepEqual(
+      contextContributors.map(({ id }) => id),
+      [
+        'system-prompt',
+        'agent-profile',
+        'capability-guidance',
+        'garden-context',
+        'attachment-rules',
+        'mcp-tool-context',
+        'session-metadata',
+        'summary-memory',
+        'reflection-memory',
+        'observation-memory',
+        'run-transcript',
+        'visible-history-fallback',
+        'attachment-context',
+        'file-context',
+        'pending-waits',
+      ],
+    )
+    assert.deepEqual(
+      buildContextContributions(contextContributors, createInput()).map(({ kind, volatility }) => [
+        kind,
+        volatility,
+      ]),
+      [
+        ['system_prompt', 'stable'],
+        ['agent_profile', 'stable'],
+        ['capability_guidance', 'stable'],
+        ['garden_context', 'stable'],
+        ['attachment_ref_rules', 'stable'],
+        ['tool_context', 'stable'],
+        ['session_metadata', 'stable'],
+        ['summary_memory', 'stable'],
+        ['run_local_memory', 'stable'],
+        ['run_local_memory', 'stable'],
+        ['run_transcript', 'volatile'],
+        ['visible_message_history', 'volatile'],
+        ['attachment_ref_context', 'volatile'],
+        ['file_context', 'volatile'],
+        ['pending_waits', 'volatile'],
+      ],
+    )
   })
 })
