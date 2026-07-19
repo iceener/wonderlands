@@ -1,3 +1,8 @@
+// @vitest-environment jsdom
+// tiptap's Markdown extension falls back to DOMParser.parse('') for empty
+// content (see @tiptap/markdown's Extension.ts onBeforeCreate), which needs a
+// real `window`/DOM implementation. Scoped to this file only so the rest of
+// the suite keeps running in the faster default `node` environment.
 import { Editor } from '@tiptap/core'
 import { Link } from '@tiptap/extension-link'
 import { Markdown } from '@tiptap/markdown'

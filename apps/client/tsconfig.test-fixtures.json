@@ -1,0 +1,8 @@
+{
+  "//": "svelte-check (tsconfig.app.json) excludes all *.test.ts files because a large part of the existing test suite has pre-existing, unrelated type drift that hasn't been cleaned up yet. That blanket exclusion also hides real interface drift in test fixtures/stubs (e.g. a mock object silently going out of sync with the interface it stands in for). This config opts a curated allowlist of test files back into typechecking so that class of regression is caught by `npm run typecheck`. Add a test file here once it is verified to typecheck cleanly.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client"]
+  },
+  "include": ["src/lib/command-palette/command-registry.test.ts"]
+}

@@ -249,8 +249,84 @@ export const listMarkdownImageReferences = (markdown: string): MarkdownImageRefe
   return references
 }
 
+// Bare image markdown (`![alt](url)`) that the assistant emits as plain text
+// can get mangled once the prompt editor's `Link` extension autolinks the raw
+// URL inside it: the literal `![` / `]` delimiters are no longer adjacent to
+// an actual image node, so the markdown serializer backslash-escapes them as
+// ordinary text while the autolinked URL is re-serialized as a nested
+// `[url](url)` link. The result parses as escaped text followed by a link
+// rather than as an image, so `listMarkdownImageReferences` never sees it.
+// This repairs that specific corruption by unescaping the `!\[ ... \](` image
+// delimiters whenever doing so reveals a well-formed image reference.
+const ESCAPED_IMAGE_OPEN_PATTERN = /!\\\[((?:\\.|[^\]\\])*?)\\\]\(/g
+
+const findMatchingParenEnd = (value: string, openParenIndex: number): number => {
+  let depth = 0
+
+  for (let index = openParenIndex; index < value.length; index += 1) {
+    const character = value[index]
+
+    if (character === '\\') {
+      index += 1
+      continue
+    }
+
+    if (character === '(') {
+      depth += 1
+    } else if (character === ')') {
+      depth -= 1
+      if (depth === 0) {
+        return index
+      }
+    }
+  }
+
+  return -1
+}
+
+const repairAutolinkCorruptedImageMarkdown = (markdown: string): string => {
+  let result = ''
+  let cursor = 0
+
+  ESCAPED_IMAGE_OPEN_PATTERN.lastIndex = 0
+  let match = ESCAPED_IMAGE_OPEN_PATTERN.exec(markdown)
+
+  while (match) {
+    const matchStart = match.index
+    const openParenIndex = matchStart + match[0].length - 1
+    const closeParenIndex = findMatchingParenEnd(markdown, openParenIndex)
+
+    if (closeParenIndex < 0) {
+      ESCAPED_IMAGE_OPEN_PATTERN.lastIndex = matchStart + match[0].length
+      match = ESCAPED_IMAGE_OPEN_PATTERN.exec(markdown)
+      continue
+    }
+
+    const alt = match[1] ?? ''
+    const destination = markdown.slice(openParenIndex + 1, closeParenIndex)
+    const candidateImage = `![${alt}](${destination})`
+    const candidateReferences = listMarkdownImageReferences(candidateImage)
+    const isWellFormedImage =
+      candidateReferences.length === 1 && candidateReferences[0]?.raw === candidateImage
+
+    if (!isWellFormedImage) {
+      ESCAPED_IMAGE_OPEN_PATTERN.lastIndex = matchStart + match[0].length
+      match = ESCAPED_IMAGE_OPEN_PATTERN.exec(markdown)
+      continue
+    }
+
+    result += markdown.slice(cursor, matchStart) + candidateImage
+    cursor = closeParenIndex + 1
+    ESCAPED_IMAGE_OPEN_PATTERN.lastIndex = cursor
+    match = ESCAPED_IMAGE_OPEN_PATTERN.exec(markdown)
+  }
+
+  result += markdown.slice(cursor)
+  return result
+}
+
 export const normalizeModelVisibleImageMarkdown = (markdown: string): string => {
-  let normalized = markdown ?? ''
+  let normalized = repairAutolinkCorruptedImageMarkdown(markdown ?? '')
   let searchStart = 0
 
   for (const reference of listMarkdownImageReferences(normalized)) {
