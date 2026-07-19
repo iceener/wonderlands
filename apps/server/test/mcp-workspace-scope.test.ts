@@ -237,12 +237,13 @@ test('workspace-scoped files MCP writes into the account vault instead of run or
   }
 
   const parsedOutput = parseImmediateToolOutput<{
+    applied?: boolean
     hint?: string
     path?: string
     result?: {
       diff?: string
     }
-    status?: string
+    success?: boolean
   }>(result.value)
   const expectedWorkspaceRoot = resolve(
     runtime.config.files.storage.root,
@@ -266,7 +267,8 @@ test('workspace-scoped files MCP writes into the account vault instead of run or
   ).replace(/\\/g, '/')
 
   assert.equal(parsedOutput.path, 'nicolas-cage.txt')
-  assert.equal(parsedOutput.status, 'applied')
+  assert.equal(parsedOutput.success, true)
+  assert.equal(parsedOutput.applied, true)
   assert.match(parsedOutput.hint ?? '', /File created at "nicolas-cage\.txt"/)
   assert.doesNotMatch(parsedOutput.hint ?? '', new RegExp(run.value.id))
   assert.match(parsedOutput.result?.diff ?? '', /--- a\/nicolas-cage\.txt\t/)
@@ -368,9 +370,10 @@ test('workspace-scoped files MCP accepts /vault aliases for search without rewri
   }
 
   const parsedOutput = parseImmediateToolOutput<{
-    content?: Array<{ path?: string }>
-    files?: Array<{ name?: string; path?: string }>
     hint?: string
+    results?: {
+      byFilename?: Array<{ path?: string }>
+    }
     success?: boolean
   }>(searchResult.value)
   const expectedWorkspaceRoot = resolve(
@@ -387,7 +390,7 @@ test('workspace-scoped files MCP accepts /vault aliases for search without rewri
   ).replace(/\\/g, '/')
 
   assert.equal(parsedOutput.success, true)
-  assert.deepEqual(parsedOutput.files, [{ name: 'index.md', path: 'notes/index.md' }])
+  assert.deepEqual(parsedOutput.results?.byFilename?.map((entry) => entry.path), ['notes/index.md'])
   assert.match(parsedOutput.hint ?? '', /Found 1 file\(s\)\./)
   assert.doesNotMatch(JSON.stringify(parsedOutput), new RegExp(scopedPrefix))
 })

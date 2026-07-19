@@ -358,6 +358,14 @@ export const renderMarkdownToHtml = (markdown: string): MarkdownResult => {
       paragraphLines.push((lines[index] ?? '').trim())
       index += 1
     }
+    if (paragraphLines.length === 0) {
+      // Pipe-prefixed text without a valid table delimiter is a paragraph.
+      // Always advance the cursor so malformed table-like input cannot stall compilation.
+      html.push(`<p>${renderInlineMarkdown(line.trim())}</p>`)
+      index += 1
+      continue
+    }
+
     html.push(`<p>${renderInlineMarkdown(paragraphLines.join(' '))}</p>`)
   }
 

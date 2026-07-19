@@ -5,7 +5,7 @@ import type { TracerProvider } from '@opentelemetry/api'
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import type { SpanExporter } from '@opentelemetry/sdk-trace-base'
 
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../persistence/sqlite/repository-database'
 import type { EventOutboxRecord } from '../../../../domain/events/event-outbox-repository'
 import type { DomainError } from '../../../../shared/errors'
 import type { AppLogger } from '../../../../shared/logger'
