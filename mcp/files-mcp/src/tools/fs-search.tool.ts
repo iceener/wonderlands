@@ -11,10 +11,12 @@ import { z } from 'zod';
 import {
   createIgnoreMatcherForDir,
   findMatches,
+  getContextLines,
   getMounts,
   isTextFile,
   matchesGlob,
   matchesType,
+  type MatchResult,
   type PatternMode,
   resolvePath as resolveVirtualPath,
   searchFiles,
@@ -76,6 +78,15 @@ export const fsSearchInputSchema = z
       .default(false)
       .describe('Allow content matches to span multiple lines. Default false.'),
 
+    context: z
+      .number()
+      .int()
+      .min(0)
+      .max(20)
+      .optional()
+      .default(2)
+      .describe('Number of lines of context to include before/after each content match. Default 2.'),
+
     types: z
       .array(z.string())
       .optional()
@@ -120,29 +131,57 @@ export type FsSearchInput = z.infer<typeof fsSearchInputSchema>;
 // Types
 // ─────────────────────────────────────────────────────────────
 
-interface FileMatch {
-  name: string;
+interface FilenameMatch {
   path: string;
+  score: number;
+  matchIndices: number[];
 }
 
-interface ContentMatch {
-  path: string;
+interface ContentMatchCluster {
   line: number;
+  endLine: number;
+  matchCount: number;
   text: string;
+  context: {
+    before: string[];
+    match: string[];
+    after: string[];
+  };
+}
+
+interface ContentFileEntry {
+  path: string;
+  matches: ContentMatchCluster[];
 }
 
 interface FsSearchResult {
   success: boolean;
   query: string;
-  files: FileMatch[];
-  content?: ContentMatch[];
-  totalCount: number;
+  target: 'all' | 'filename' | 'content';
+  results: {
+    byFilename: FilenameMatch[];
+    byContent: ContentFileEntry[];
+  };
+  stats: {
+    filenameMatches: number;
+    contentMatches: number;
+    filesSearched: number;
+  };
   truncated: boolean;
   error?: {
     code: string;
     message: string;
+    recoveryHint?: string;
   };
   hint: string;
+}
+
+function emptyResults(): FsSearchResult['results'] {
+  return { byFilename: [], byContent: [] };
+}
+
+function emptyStats(): FsSearchResult['stats'] {
+  return { filenameMatches: 0, contentMatches: 0, filesSearched: 0 };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -160,8 +199,58 @@ function joinVirtualPath(base: string, relative: string): string {
   return path.join(base, relative);
 }
 
+/**
+ * Group raw regex matches by line and build display clusters with context.
+ * The raw match count (before grouping) is preserved separately so callers
+ * can report an accurate total number of matches found.
+ */
+function clusterMatches(
+  content: string,
+  rawMatches: MatchResult[],
+  contextLines: number,
+): ContentMatchCluster[] {
+  const lines = content.split('\n');
+  const byLine = new Map<number, MatchResult[]>();
+
+  for (const match of rawMatches) {
+    const group = byLine.get(match.line);
+    if (group) {
+      group.push(match);
+    } else {
+      byLine.set(match.line, [match]);
+    }
+  }
+
+  const sortedLines = Array.from(byLine.keys()).sort((a, b) => a - b);
+  const clusters: ContentMatchCluster[] = [];
+
+  for (const line of sortedLines) {
+    const group = byLine.get(line);
+    if (!group) continue;
+
+    // A single match may span multiple lines (e.g. multiline mode).
+    let endLine = line;
+    for (const match of group) {
+      const newlineCount = (match.text.match(/\n/g) ?? []).length;
+      endLine = Math.max(endLine, line + newlineCount);
+    }
+
+    const { before, after } = getContextLines(content, line, contextLines, contextLines);
+    const matchLines = lines.slice(line - 1, endLine);
+
+    clusters.push({
+      line,
+      endLine,
+      matchCount: group.length,
+      text: (lines[line - 1] ?? '').trim(),
+      context: { before, match: matchLines, after },
+    });
+  }
+
+  return clusters;
+}
+
 async function searchContentInFile(
-  filePath: string,
   content: string,
   query: string,
   options: {
@@ -169,39 +258,25 @@ async function searchContentInFile(
     multiline: boolean;
     wholeWord: boolean;
     caseInsensitive: boolean;
-    maxResults: number;
+    maxMatches: number;
+    contextLines: number;
   },
-): Promise<ContentMatch[]> {
+): Promise<{ clusters: ContentMatchCluster[]; rawCount: number }> {
   try {
     const rawMatches = findMatches(content, query, options.patternMode, {
       multiline: options.multiline,
       wholeWord: options.wholeWord,
       caseInsensitive: options.caseInsensitive,
-      maxMatches: options.maxResults,
+      maxMatches: options.maxMatches,
     });
 
-    // Dedupe by line (keep first match per line)
-    const seenLines = new Set<number>();
-    const matches: ContentMatch[] = [];
-    const lines = content.split('\n');
-
-    for (const match of rawMatches) {
-      if (seenLines.has(match.line)) continue;
-      seenLines.add(match.line);
-
-      matches.push({
-        path: filePath,
-        line: match.line,
-        text: lines[match.line - 1]?.trim() ?? match.text,
-      });
-
-      if (matches.length >= options.maxResults) break;
-    }
-
-    return matches;
+    return {
+      clusters: clusterMatches(content, rawMatches, options.contextLines),
+      rawCount: rawMatches.length,
+    };
   } catch (err) {
     if (err instanceof UnsafeRegexError) {
-      return [];
+      return { clusters: [], rawCount: 0 };
     }
     throw err;
   }
@@ -212,6 +287,12 @@ const SEARCH_CONCURRENCY = 10;
 interface FileToSearch {
   absPath: string;
   relPath: string;
+}
+
+interface DirectoryContentSearchResult {
+  files: ContentFileEntry[];
+  totalMatches: number;
+  filesSearched: number;
 }
 
 async function searchContentInDirectory(
@@ -229,8 +310,9 @@ async function searchContentInDirectory(
     exclude?: string[];
     respectIgnore: boolean;
     maxResults: number;
+    contextLines: number;
   },
-): Promise<ContentMatch[]> {
+): Promise<DirectoryContentSearchResult> {
   // Phase 1: Collect all files to search
   const filesToSearch: FileToSearch[] = [];
   const MAX_FILES_TO_COLLECT = 10_000;
@@ -282,43 +364,55 @@ async function searchContentInDirectory(
   await collectFiles(absPath, '', 1);
 
   // Phase 2: Search files concurrently
-  const allMatches: ContentMatch[] = [];
+  const resultFiles: ContentFileEntry[] = [];
+  let totalMatches = 0;
+  let filesSearched = 0;
 
-  const processFile = async (file: FileToSearch): Promise<ContentMatch[]> => {
+  const processFile = async (
+    file: FileToSearch,
+  ): Promise<{ entry: ContentFileEntry | null; rawCount: number }> => {
     try {
       const content = await fs.readFile(file.absPath, 'utf8');
       const filePath = joinVirtualPath(virtualPath, file.relPath);
-      return await searchContentInFile(filePath, content, options.query, {
+      const { clusters, rawCount } = await searchContentInFile(content, options.query, {
         patternMode: options.patternMode,
         multiline: options.multiline,
         wholeWord: options.wholeWord,
         caseInsensitive: options.caseInsensitive,
-        maxResults: options.maxResults,
+        maxMatches: options.maxResults,
+        contextLines: options.contextLines,
       });
+
+      if (clusters.length === 0) {
+        return { entry: null, rawCount: 0 };
+      }
+
+      return { entry: { path: filePath, matches: clusters }, rawCount };
     } catch {
-      return [];
+      return { entry: null, rawCount: 0 };
     }
   };
 
   // Process in concurrent batches
   for (
     let i = 0;
-    i < filesToSearch.length && allMatches.length < options.maxResults;
+    i < filesToSearch.length && totalMatches < options.maxResults;
     i += SEARCH_CONCURRENCY
   ) {
     const batch = filesToSearch.slice(i, i + SEARCH_CONCURRENCY);
     const batchResults = await Promise.all(batch.map(processFile));
 
-    for (const matches of batchResults) {
-      for (const match of matches) {
-        if (allMatches.length >= options.maxResults) break;
-        allMatches.push(match);
+    for (const { entry, rawCount } of batchResults) {
+      filesSearched++;
+      if (entry) {
+        resultFiles.push(entry);
+        totalMatches += rawCount;
       }
-      if (allMatches.length >= options.maxResults) break;
+      if (totalMatches >= options.maxResults) break;
     }
   }
 
-  return allMatches;
+  return { files: resultFiles, totalMatches, filesSearched };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -377,8 +471,9 @@ WORKFLOW:
         const result: FsSearchResult = {
           success: false,
           query: input.query,
-          files: [],
-          totalCount: 0,
+          target,
+          results: emptyResults(),
+          stats: emptyStats(),
           truncated: false,
           error: {
             code: 'UNSAFE_REGEX',
@@ -390,8 +485,10 @@ WORKFLOW:
       }
     }
 
-    const files: FileMatch[] = [];
-    const content: ContentMatch[] = [];
+    const files: FilenameMatch[] = [];
+    const contentFiles: ContentFileEntry[] = [];
+    let contentMatchCount = 0;
+    let filesSearchedCount = 0;
 
     // Determine search paths
     let searchPaths: { absPath: string; virtualPath: string }[] = [];
@@ -407,8 +504,9 @@ WORKFLOW:
         const result: FsSearchResult = {
           success: false,
           query: input.query,
-          files: [],
-          totalCount: 0,
+          target,
+          results: emptyResults(),
+          stats: emptyStats(),
           truncated: false,
           error: { code: 'OUT_OF_SCOPE', message: resolved.error },
           hint: `Path must be within a mount. Example: "${mountExample}/". Use fs_read(".") to see mounts.`,
@@ -424,8 +522,9 @@ WORKFLOW:
         const result: FsSearchResult = {
           success: false,
           query: input.query,
-          files: [],
-          totalCount: 0,
+          target,
+          results: emptyResults(),
+          stats: emptyStats(),
           truncated: false,
           error: { code: 'SYMLINK_ESCAPE', message: symlinkCheck.error },
           hint: 'Symlinks pointing outside the mounted directory are not allowed.',
@@ -439,8 +538,9 @@ WORKFLOW:
         const result: FsSearchResult = {
           success: false,
           query: input.query,
-          files: [],
-          totalCount: 0,
+          target,
+          results: emptyResults(),
+          stats: emptyStats(),
           truncated: false,
           error: { code: 'NOT_FOUND', message: `Path does not exist: ${virtualPath}` },
           hint: 'Use fs_read on the parent directory to see what exists.',
@@ -472,8 +572,9 @@ WORKFLOW:
 
           const fullPath = joinVirtualPath(virtualPath, item.relativePath);
           files.push({
-            name: path.basename(item.relativePath),
             path: fullPath,
+            score: item.score,
+            matchIndices: item.matchIndices,
           });
         }
       }
@@ -482,9 +583,9 @@ WORKFLOW:
     // Content search
     if (target === 'all' || target === 'content') {
       for (const { absPath, virtualPath } of searchPaths) {
-        if (content.length >= maxResults) break;
+        if (contentMatchCount >= maxResults) break;
 
-        const matches = await searchContentInDirectory(absPath, virtualPath, {
+        const dirResult = await searchContentInDirectory(absPath, virtualPath, {
           query: input.query,
           patternMode: input.patternMode as PatternMode,
           multiline: input.multiline,
@@ -495,33 +596,36 @@ WORKFLOW:
           glob: input.glob,
           exclude: input.exclude,
           respectIgnore: input.respectIgnore,
-          maxResults: maxResults - content.length,
+          maxResults: maxResults - contentMatchCount,
+          contextLines: input.context,
         });
 
-        for (const match of matches) {
-          if (content.length >= maxResults) break;
-          content.push(match);
-        }
+        contentFiles.push(...dirResult.files);
+        contentMatchCount += dirResult.totalMatches;
+        filesSearchedCount += dirResult.filesSearched;
       }
     }
 
     // Check if results were truncated
-    const truncated = files.length >= maxResults || content.length >= maxResults;
-    const totalCount = files.length + content.length;
+    const truncated = files.length >= maxResults || contentMatchCount >= maxResults;
 
     // Build result
     const result: FsSearchResult = {
       success: true,
       query: input.query,
-      files,
-      totalCount,
+      target,
+      results: {
+        byFilename: files,
+        byContent: contentFiles,
+      },
+      stats: {
+        filenameMatches: files.length,
+        contentMatches: contentMatchCount,
+        filesSearched: filesSearchedCount,
+      },
       truncated,
-      hint: buildHint(target, files.length, content.length, truncated, maxResults),
+      hint: buildHint(target, files.length, contentMatchCount, truncated, maxResults),
     };
-
-    if (target === 'all' || target === 'content') {
-      result.content = content;
-    }
 
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   },

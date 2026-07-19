@@ -39,7 +39,7 @@ export const fsManageInputSchema = z
       .default(false)
       .describe(
         'For mkdir: create parent directories. For copy/move: include subdirectories. ' +
-          'NOT supported for delete (safety). Default false.',
+          'For delete: required (recursive=true) to remove non-empty directories. Default false.',
       ),
 
     force: z
@@ -145,7 +145,7 @@ SANDBOXED FILESYSTEM — Only mounted directories are accessible.
 Use fs_read(".") to see available mounts.
 
 OPERATIONS:
-- delete: Remove single file or empty directory (no recursive delete for safety)
+- delete: Remove a file or an empty directory. Non-empty directories require recursive=true.
 - rename: Rename within same mount
 - move: Move to different location (can cross mounts)
 - copy: Duplicate file or directory
@@ -155,13 +155,14 @@ OPERATIONS:
 EXAMPLES:
 - Delete file: { operation: "delete", path: "vault/old.md" }
 - Delete empty folder: { operation: "delete", path: "vault/empty-folder/" }
+- Delete folder and contents: { operation: "delete", path: "vault/old-folder", recursive: true }
 - Rename: { operation: "rename", path: "vault/old.md", target: "vault/new.md" }
 - Move: { operation: "move", path: "vault/file.md", target: "archive/file.md" }
 - Copy: { operation: "copy", path: "vault/template.md", target: "vault/new.md" }
 - Create dir: { operation: "mkdir", path: "vault/new-folder", recursive: true }
 - Get stats: { operation: "stat", path: "vault/file.md" }
 
-DELETE IS PERMANENT — only single files or empty directories can be deleted (no recursive delete).`,
+DELETE IS PERMANENT — non-empty directories are only deleted when recursive=true is explicitly passed.`,
 
   inputSchema: fsManageInputSchema,
 
@@ -345,8 +346,8 @@ DELETE IS PERMANENT — only single files or empty directories can be deleted (n
             return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
           }
 
-          // Safety: Only allow deleting files or empty directories
-          if (stat.isDirectory()) {
+          // Safety: Only allow deleting non-empty directories when recursive=true is explicitly set
+          if (stat.isDirectory() && !input.recursive) {
             // Check if directory is empty
             const entries = await fs.readdir(absSource);
             if (entries.length > 0) {
@@ -358,19 +359,23 @@ DELETE IS PERMANENT — only single files or empty directories can be deleted (n
                   code: 'DIRECTORY_NOT_EMPTY',
                   message: `Directory contains ${entries.length} item(s) and cannot be deleted`,
                 },
-                hint: 'Delete all files inside first, or use fs_read to inspect contents. Recursive delete is disabled for safety.',
+                hint: 'Delete all files inside first, use fs_manage with recursive=true, or use fs_read to inspect contents.',
               };
               return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
             }
           }
 
-          // Delete single file or empty directory
-          await fs.rm(absSource, { recursive: false, force: false });
+          // Delete file, empty directory, or (when recursive=true) a directory and its contents
+          await fs.rm(absSource, { recursive: stat.isDirectory() && input.recursive, force: false });
           const result: FsManageResult = {
             success: true,
             operation: input.operation,
             path: virtualSource,
-            hint: stat.isDirectory() ? 'Empty directory deleted.' : 'File deleted.',
+            hint: stat.isDirectory()
+              ? input.recursive
+                ? 'Directory and its contents deleted recursively.'
+                : 'Empty directory deleted.'
+              : 'File deleted.',
           };
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }

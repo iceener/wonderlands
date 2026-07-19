@@ -150,8 +150,6 @@ export type FsWriteInput = z.infer<typeof fsWriteInputSchema>;
 // Types
 // ─────────────────────────────────────────────────────────────
 
-type FsWriteStatus = 'applied' | 'preview' | 'error';
-
 interface FsWriteResultCreate {
   action: 'created' | 'would_create';
   newChecksum?: string;
@@ -166,9 +164,10 @@ interface FsWriteResultUpdate {
 }
 
 interface FsWriteResult {
-  status: FsWriteStatus;
+  success: boolean;
   path: string;
   operation: 'create' | 'update';
+  applied: boolean;
   result?: FsWriteResultCreate | FsWriteResultUpdate;
   error?: {
     code: string;
@@ -209,9 +208,10 @@ async function createFile(
   // Check if exists
   if (await fileExists(absPath)) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'create',
+      applied: false,
       error: {
         code: 'ALREADY_EXISTS',
         message: `File already exists: ${relativePath}`,
@@ -228,9 +228,10 @@ async function createFile(
 
   if (options.dryRun) {
     return {
-      status: 'preview',
+      success: true,
       path: relativePath,
       operation: 'create',
+      applied: false,
       result: {
         action: 'would_create',
         diff,
@@ -248,9 +249,10 @@ async function createFile(
   const newChecksum = generateChecksum(finalContent);
 
   return {
-    status: 'applied',
+    success: true,
     path: relativePath,
     operation: 'create',
+    applied: true,
     result: {
       action: 'created',
       newChecksum,
@@ -268,9 +270,10 @@ async function updateFile(
   // Check exists
   if (!(await fileExists(absPath))) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'NOT_FOUND',
         message: `File does not exist: ${relativePath}`,
@@ -284,9 +287,10 @@ async function updateFile(
   // Check text file
   if (!isTextFile(absPath)) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'NOT_TEXT',
         message: 'Cannot modify binary files',
@@ -303,9 +307,10 @@ async function updateFile(
   // Verify checksum if provided
   if (input.checksum && input.checksum !== currentChecksum) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'CHECKSUM_MISMATCH',
         message: `File has changed since last read. Expected checksum: ${input.checksum}, current: ${currentChecksum}`,
@@ -317,9 +322,10 @@ async function updateFile(
 
   if (!input.lines) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'NO_TARGET',
         message: '"lines" parameter is required for update operations',
@@ -334,9 +340,10 @@ async function updateFile(
   const range = parseLineRange(input.lines);
   if (!range) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'INVALID_RANGE',
         message: `Invalid line range format: "${input.lines}"`,
@@ -349,9 +356,10 @@ async function updateFile(
   const lines = currentContent.split('\n');
   if (range.start > lines.length) {
     return {
-      status: 'error',
+      success: false,
       path: relativePath,
       operation: 'update',
+      applied: false,
       error: {
         code: 'OUT_OF_RANGE',
         message: `Line ${range.start} is beyond file end (file has ${lines.length} lines)`,
@@ -394,9 +402,10 @@ async function updateFile(
 
     default:
       return {
-        status: 'error',
+        success: false,
         path: relativePath,
         operation: 'update',
+        applied: false,
         error: {
           code: 'INVALID_ACTION',
           message: `Unknown action: ${input.action}`,
@@ -415,9 +424,10 @@ async function updateFile(
 
   if (input.dryRun) {
     return {
-      status: 'preview',
+      success: true,
       path: relativePath,
       operation: 'update',
+      applied: false,
       result: {
         action: `would_${actionDescription}`,
         targetRange: { start: targetStart, end: targetEnd },
@@ -432,9 +442,10 @@ async function updateFile(
   const newChecksum = generateChecksum(finalContent);
 
   return {
-    status: 'applied',
+    success: true,
     path: relativePath,
     operation: 'update',
+    applied: true,
     result: {
       action: actionDescription,
       targetRange: { start: targetStart, end: targetEnd },
@@ -524,9 +535,10 @@ DO NOT call fs_write without first calling fs_read on the same file.`,
       const isAbsolute = input.path.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(input.path);
 
       const result: FsWriteResult = {
-        status: 'error',
+        success: false,
         path: input.path,
         operation: input.operation,
+        applied: false,
         error: {
           code: 'OUT_OF_SCOPE',
           message: resolved.error,
@@ -545,9 +557,10 @@ DO NOT call fs_write without first calling fs_read on the same file.`,
     const symlinkCheck = await validatePathChain(absolutePath, mount);
     if (!symlinkCheck.ok) {
       const result: FsWriteResult = {
-        status: 'error',
+        success: false,
         path: virtualPath,
         operation: input.operation,
+        applied: false,
         error: {
           code: 'SYMLINK_ESCAPE',
           message: symlinkCheck.error,
@@ -575,9 +588,10 @@ DO NOT call fs_write without first calling fs_read on the same file.`,
 
       default:
         result = {
-          status: 'error',
+          success: false,
           path: virtualPath,
           operation: input.operation,
+          applied: false,
           error: {
             code: 'INVALID_OPERATION',
             message: `Unknown operation: ${input.operation}`,
