@@ -6,6 +6,7 @@ import type {
   CreateGardenBuildInput,
   GardenBuildRecord,
   GardenBuildRepository,
+  RecoverInterruptedGardenBuildsInput,
   UpdateGardenBuildInput,
 } from '../../../domain/garden/garden-build-repository'
 import type { DomainError } from '../../../shared/errors'
@@ -168,6 +169,28 @@ export const createGardenBuildRepository = (db: RepositoryDatabase): GardenBuild
       } catch (error) {
         return err({
           message: `failed to list garden builds for site ${gardenSiteId}: ${error instanceof Error ? error.message : 'Unknown garden build list failure'}`,
+          type: 'conflict',
+        })
+      }
+    },
+    recoverInterruptedBuilds: (
+      input: RecoverInterruptedGardenBuildsInput,
+    ): Result<number, DomainError> => {
+      try {
+        const recovered = db
+          .update(gardenBuilds)
+          .set({
+            completedAt: input.completedAt,
+            errorMessage: input.errorMessage,
+            status: 'failed',
+          })
+          .where(or(eq(gardenBuilds.status, 'queued'), eq(gardenBuilds.status, 'running')))
+          .run()
+
+        return ok(recovered.changes)
+      } catch (error) {
+        return err({
+          message: `failed to recover interrupted garden builds: ${error instanceof Error ? error.message : 'Unknown garden build recovery failure'}`,
           type: 'conflict',
         })
       }

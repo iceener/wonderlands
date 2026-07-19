@@ -36,15 +36,15 @@ import type {
 } from './garden-inputs'
 import { ensureGardenSourceMetaFiles } from './meta-files'
 
-export {
-  parseCreateGardenSiteInput,
-  parseRequestGardenBuildInput,
-  parseUpdateGardenSiteInput,
-} from './garden-inputs'
 export type {
   CreateGardenSiteInput,
   RequestGardenBuildInput,
   UpdateGardenSiteInput,
+} from './garden-inputs'
+export {
+  parseCreateGardenSiteInput,
+  parseRequestGardenBuildInput,
+  parseUpdateGardenSiteInput,
 } from './garden-inputs'
 
 const gardenAdminRoles = new Set<TenantScope['role']>(['admin', 'owner'])
@@ -450,87 +450,86 @@ export const createGardenService = (dependencies: GardenServiceDependencies): Ga
       return running
     }
 
-    const workspace = workspaceService.ensureAccountWorkspace(scope, {
-      accountId: input.site.createdByAccountId,
-      nowIso: createdAt,
-    })
-
-    if (!workspace.ok) {
-      return buildRepository.update(scope, buildId, {
+    const failBuild = (errorMessage: string): Result<GardenBuildRecord, DomainError> =>
+      buildRepository.update(scope, buildId, {
         completedAt: now(),
-        errorMessage: workspace.error.message,
+        errorMessage,
         status: 'failed',
       })
-    }
-
-    const vaultRootRef = workspaceService.ensureVaultRef(workspace.value)
-    const resolvedSourceScope = await resolveGardenSourceScope({
-      sourceScopePath: input.site.sourceScopePath,
-      vaultRootRef,
-    })
-
-    if (!resolvedSourceScope.ok) {
-      return buildRepository.update(scope, buildId, {
-        completedAt: now(),
-        errorMessage: resolvedSourceScope.error.message,
-        status: 'failed',
-      })
-    }
 
     try {
-      await ensureGardenSourceMetaFiles(resolvedSourceScope.value.sourceScopeRef)
-    } catch {
-      // The helper reference is best-effort and should not block builds.
-    }
-
-    const compiledOutput = await compileGardenBuildOutput({
-      outputRootRef: toArtifactBuildRoot(fileStorageRoot, input.site.id, buildId),
-      sourceScopePath: input.site.sourceScopePath,
-      vaultRootRef,
-    })
-
-    if (!compiledOutput.ok) {
-      const failedBuild = buildRepository.update(scope, buildId, {
-        completedAt: now(),
-        errorMessage: compiledOutput.error.message,
-        status: 'failed',
+      const workspace = workspaceService.ensureAccountWorkspace(scope, {
+        accountId: input.site.createdByAccountId,
+        nowIso: createdAt,
       })
 
-      return failedBuild.ok ? failedBuild : build
-    }
+      if (!workspace.ok) {
+        return failBuild(workspace.error.message)
+      }
 
-    const completedAt = now()
-    const configFingerprintSha256 = await hashFileIfPresent(compiledOutput.value.source.configRef)
-    const manifestJson = compiledOutput.value.manifest
-    const completedBuild = buildRepository.update(scope, buildId, {
-      completedAt,
-      configFingerprintSha256,
-      errorMessage: null,
-      manifestJson,
-      protectedArtifactRoot: compiledOutput.value.protectedRootRef,
-      protectedPageCount: manifestJson.protectedPageCount,
-      publicArtifactRoot: compiledOutput.value.publicRootRef,
-      publicPageCount: manifestJson.publicPageCount,
-      sourceFingerprintSha256: manifestJson.sourceFingerprintSha256,
-      status: 'completed',
-      warningCount: manifestJson.warnings.length,
-    })
+      const vaultRootRef = workspaceService.ensureVaultRef(workspace.value)
+      const resolvedSourceScope = await resolveGardenSourceScope({
+        sourceScopePath: input.site.sourceScopePath,
+        vaultRootRef,
+      })
 
-    if (!completedBuild.ok) {
+      if (!resolvedSourceScope.ok) {
+        return failBuild(resolvedSourceScope.error.message)
+      }
+
+      try {
+        await ensureGardenSourceMetaFiles(resolvedSourceScope.value.sourceScopeRef)
+      } catch {
+        // The helper reference is best-effort and should not block builds.
+      }
+
+      const compiledOutput = await compileGardenBuildOutput({
+        outputRootRef: toArtifactBuildRoot(fileStorageRoot, input.site.id, buildId),
+        sourceScopePath: input.site.sourceScopePath,
+        vaultRootRef,
+      })
+
+      if (!compiledOutput.ok) {
+        return failBuild(compiledOutput.error.message)
+      }
+
+      const completedAt = now()
+      const configFingerprintSha256 = await hashFileIfPresent(compiledOutput.value.source.configRef)
+      const manifestJson = compiledOutput.value.manifest
+      const completedBuild = buildRepository.update(scope, buildId, {
+        completedAt,
+        configFingerprintSha256,
+        errorMessage: null,
+        manifestJson,
+        protectedArtifactRoot: compiledOutput.value.protectedRootRef,
+        protectedPageCount: manifestJson.protectedPageCount,
+        publicArtifactRoot: compiledOutput.value.publicRootRef,
+        publicPageCount: manifestJson.publicPageCount,
+        sourceFingerprintSha256: manifestJson.sourceFingerprintSha256,
+        status: 'completed',
+        warningCount: manifestJson.warnings.length,
+      })
+
+      if (!completedBuild.ok) {
+        return completedBuild
+      }
+
+      const updatedSite = siteRepository.update(scope, input.site.id, {
+        currentBuildId: completedBuild.value.id,
+        updatedAt: completedAt,
+        updatedByAccountId: input.requestedByAccountId,
+      })
+
+      if (!updatedSite.ok) {
+        return updatedSite
+      }
+
       return completedBuild
+    } catch (error) {
+      return failBuild(
+        `Unexpected Garden build failure: ${error instanceof Error ? error.message : 'Unknown Garden build failure'}`,
+      )
     }
-
-    const updatedSite = siteRepository.update(scope, input.site.id, {
-      currentBuildId: completedBuild.value.id,
-      updatedAt: completedAt,
-      updatedByAccountId: input.requestedByAccountId,
-    })
-
-    if (!updatedSite.ok) {
-      return updatedSite
-    }
-
-    return completedBuild
   }
 
   return {

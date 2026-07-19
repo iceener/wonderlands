@@ -48,6 +48,11 @@ export interface CreateGardenBuildInput {
   warningCount?: number
 }
 
+export interface RecoverInterruptedGardenBuildsInput {
+  completedAt: string
+  errorMessage: string
+}
+
 export interface UpdateGardenBuildInput {
   completedAt?: string | null
   configFingerprintSha256?: string | null
@@ -91,6 +96,13 @@ export interface GardenBuildRepository {
     scope: TenantScope,
     gardenSiteId: GardenSiteId,
   ) => Result<GardenBuildRecord[], DomainError>
+  /**
+   * Atomically terminalizes builds left active by a process interruption.
+   * This is a process-wide startup maintenance operation, not a scan-time operation.
+   */
+  recoverInterruptedBuilds: (
+    input: RecoverInterruptedGardenBuildsInput,
+  ) => Result<number, DomainError>
   update: (
     scope: TenantScope,
     gardenBuildId: GardenBuildId,
