@@ -1,11 +1,17 @@
 import { asSessionId } from '@wonderlands/contracts/chat'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { uploadAttachment } from './attachment-api'
+import { setApiTenantId } from './backend'
 
 const originalFetch = globalThis.fetch
 
+beforeEach(() => {
+  setApiTenantId('ten_overment')
+})
+
 afterEach(() => {
   globalThis.fetch = originalFetch
+  setApiTenantId(null)
 })
 
 describe('uploadAttachment', () => {

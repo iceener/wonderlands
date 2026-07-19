@@ -72,8 +72,9 @@ describe('createCommandsProvider', () => {
     const provider = createCommandsProvider(createAppCommandsStub(), () => defaultBindings)
     const results = provider.getItems('new')
 
-    expect(results.length).toBe(3)
+    expect(results.length).toBe(4)
     expect(results.map((result) => result.item.id).sort()).toEqual([
+      'agent-tasks.new',
       'agents.new',
       'chat.new-conversation',
       'garden.new',

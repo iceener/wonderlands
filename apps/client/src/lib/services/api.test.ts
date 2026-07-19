@@ -23,7 +23,7 @@ import {
   type ResumeRunOutput,
   type StartThreadInteractionOutput,
 } from '@wonderlands/contracts/chat'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
   assignMcpTool,
   bootstrapGardenSource,
@@ -75,6 +75,7 @@ import {
   updateThreadMemory,
   updateToolProfile,
 } from './api'
+import { setApiTenantId } from './backend'
 
 const originalFetch = globalThis.fetch
 const encoder = new TextEncoder()
@@ -95,8 +96,13 @@ const createPendingSseResponse = (): Response =>
 const parseJsonRequestBody = (init?: RequestInit): unknown =>
   typeof init?.body === 'string' ? JSON.parse(init.body) : null
 
+beforeEach(() => {
+  setApiTenantId('ten_overment')
+})
+
 afterEach(() => {
   globalThis.fetch = originalFetch
+  setApiTenantId(null)
 })
 
 describe('api service', () => {
@@ -151,7 +157,7 @@ describe('api service', () => {
       }),
     })
     expect(new Headers(requests[0]?.init?.headers).get('content-type')).toBe('application/json')
-    expect(new Headers(requests[0]?.init?.headers).get('x-tenant-id')).not.toBeNull()
+    expect(new Headers(requests[0]?.init?.headers).get('x-tenant-id')).toBe('ten_overment')
   })
 
   test('reads durable thread messages from the backend route', async () => {
