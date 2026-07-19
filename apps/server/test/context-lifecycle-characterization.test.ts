@@ -10,12 +10,7 @@ import type { AiInteractionResponse } from '../src/domain/ai/types'
 import type { ItemRecord } from '../src/domain/runtime/item-repository'
 import type { RunDependencyRecord } from '../src/domain/runtime/run-dependency-repository'
 import type { RunRecord } from '../src/domain/runtime/run-repository'
-import {
-  asAccountId,
-  asItemId,
-  asRunId,
-  asTenantId,
-} from '../src/shared/ids'
+import { asAccountId, asItemId, asRunId, asTenantId } from '../src/shared/ids'
 import { ok } from '../src/shared/result'
 import type { TenantScope } from '../src/shared/scope'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
@@ -220,12 +215,9 @@ test('a pending wait keeps its function call on the live side of the compaction 
     type: 'agent',
   }
 
-  const result = maybeCompactMainThreadContext(
-    compactionDeps(runtime, scope),
-    run,
-    items,
-    [pendingWait],
-  )
+  const result = maybeCompactMainThreadContext(compactionDeps(runtime, scope), run, items, [
+    pendingWait,
+  ])
 
   assert.equal(result.ok, true)
   assert.ok(result.ok && result.value)
@@ -319,7 +311,7 @@ test('loadThreadContext gates observer and reflector work, and observes before r
   assert.equal(enabled.ok ? enabled.value.activeReflection?.kind : null, 'reflection')
 })
 
-test('budget reads currently compact while observation and reflection remain disabled', async () => {
+test('budget reads a deterministic durable snapshot without lifecycle side effects', async () => {
   const { app, runtime } = createTestHarness(compactionEnv)
   const auth = seedApiKeyAuth(runtime)
   const bootstrap = await bootstrapRun(app, auth.headers)
@@ -354,13 +346,56 @@ test('budget reads currently compact while observation and reflection remain dis
 
   assert.equal(runtime.db.select().from(contextSummaries).all().length, 0)
 
-  const response = await app.request(
+  const tableCounts = (): Record<string, number> => {
+    const tables = runtime.db.sqlite
+      .prepare<{ name: string }>(
+        "select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name",
+      )
+      .all()
+
+    return Object.fromEntries(
+      tables.map(({ name }) => {
+        const escapedName = name.replaceAll('"', '""')
+        const row = runtime.db.sqlite
+          .prepare<{ count: number }>(`select count(*) as count from "${escapedName}"`)
+          .get()
+
+        return [name, row?.count ?? 0]
+      }),
+    )
+  }
+  let clockCalls = 0
+  const originalNowIso = runtime.services.clock.nowIso
+  runtime.services.clock.nowIso = () => {
+    clockCalls += 1
+    return originalNowIso()
+  }
+  let idCalls = 0
+  const originalCreateId = runtime.services.ids.create
+  runtime.services.ids.create = <TPrefix extends string>(prefix: TPrefix) => {
+    idCalls += 1
+    return originalCreateId(prefix)
+  }
+  const beforeCounts = tableCounts()
+  const firstResponse = await app.request(
     `http://local/v1/threads/${bootstrap.data.threadId}/budget`,
     { headers: auth.headers },
   )
+  const secondResponse = await app.request(
+    `http://local/v1/threads/${bootstrap.data.threadId}/budget`,
+    { headers: auth.headers },
+  )
+  const firstBody = await firstResponse.json()
+  const secondBody = await secondResponse.json()
 
-  assert.equal(response.status, 200)
-  assert.equal(runtime.db.select().from(contextSummaries).all().length, 1)
+  assert.equal(firstResponse.status, 200)
+  assert.equal(secondResponse.status, 200)
+  assert.deepEqual(secondBody.data.budget, firstBody.data.budget)
+  assert.deepEqual(tableCounts(), beforeCounts)
+  assert.equal(runtime.db.select().from(contextSummaries).all().length, 0)
   assert.equal(runtime.db.select().from(memoryRecords).all().length, 0)
+  // API-key authentication checks expiry once per request; budget assembly itself adds no calls.
+  assert.equal(clockCalls, 2)
+  assert.equal(idCalls, 0)
   assert.deepEqual(generatedStages, [])
 })

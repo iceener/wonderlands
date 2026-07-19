@@ -8,12 +8,14 @@ import {
   isToolAllowedForRun,
   resolveMcpModeForRun,
 } from '../../../../application/agents/agent-runtime-policy'
+import { collectContextFacts } from '../../../../application/context/collect-context-facts'
+import { projectContextFactsToThreadContextData } from '../../../../application/context/context-facts'
+import { readContextState } from '../../../../application/context/read-context-state'
 import { readMessageAttachmentFileIds } from '../../../../application/files/attachment-metadata'
 import { buildAttachmentRefDescriptors } from '../../../../application/files/attachment-ref-context'
 import { resolveAttachmentRefsInText } from '../../../../application/files/ref-resolution'
 import { assembleThreadInteractionRequest } from '../../../../application/interactions/assemble-thread-interaction-request'
 import { applyLatestBudgetCalibration } from '../../../../application/interactions/context-bundle'
-import { loadThreadContext } from '../../../../application/interactions/load-thread-context'
 import { buildMcpCodeModeCatalog } from '../../../../application/mcp/code-mode'
 import { toToolContext } from '../../../../application/runtime/execution/run-tool-execution'
 import { rebuildRunExecutionOutput } from '../../../../application/runtime/projection/rebuild-run-execution-output'
@@ -358,13 +360,9 @@ export const registerThreadQueryRoutes = (routes: Hono<AppEnv>): void => {
     }
 
     const commandContext = toCommandContext(c)
-    const loadedContext = unwrapRouteResult(
-      await loadThreadContext(commandContext, latestRootRun, {
-        compact: true,
-        observe: false,
-        reflect: false,
-      }),
-    )
+    const contextState = unwrapRouteResult(readContextState(commandContext, latestRootRun))
+    const contextFacts = unwrapRouteResult(await collectContextFacts(commandContext, contextState))
+    const threadContext = projectContextFactsToThreadContextData(contextFacts)
 
     const activeTools = c
       .get('services')
@@ -385,7 +383,7 @@ export const registerThreadQueryRoutes = (routes: Hono<AppEnv>): void => {
       : []
     const assembled = assembleThreadInteractionRequest({
       activeTools,
-      context: loadedContext,
+      context: threadContext,
       mcpCatalog,
       mcpMode,
       nativeTools: [...nativeTools],

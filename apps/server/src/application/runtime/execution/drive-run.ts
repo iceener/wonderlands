@@ -8,10 +8,12 @@ import {
   resolveMcpModeForRun,
 } from '../../agents/agent-runtime-policy'
 import type { CommandContext, CommandResult } from '../../commands/command-context'
+import { collectContextFacts } from '../../context/collect-context-facts'
+import { projectContextFactsToThreadContextData } from '../../context/context-facts'
+import { prepareContextState } from '../../context/prepare-context-state'
 import { assembleThreadInteractionRequest } from '../../interactions/assemble-thread-interaction-request'
 import type { RunInteractionOverrides } from '../../interactions/build-run-interaction-request'
 import { applyLatestBudgetCalibration } from '../../interactions/context-bundle'
-import { loadThreadContext } from '../../interactions/load-thread-context'
 import { buildMcpCodeModeCatalog } from '../../mcp/code-mode'
 import { createRunRepository, createUsageLedgerRepository } from '../../persistence/repositories'
 import { finalizeRunCancellation } from '../persistence/run-cancellation'
@@ -107,12 +109,19 @@ export const executeRunTurnLoop = async (
       activeRun.update({
         phase: 'context.loading',
       })
-      const loadedContext = await loadThreadContext(context, currentRun)
+      const preparedContext = await prepareContextState(context, currentRun)
 
-      if (!loadedContext.ok) {
-        return loadedContext
+      if (!preparedContext.ok) {
+        return preparedContext
       }
 
+      const contextFacts = await collectContextFacts(context, preparedContext.value)
+
+      if (!contextFacts.ok) {
+        return contextFacts
+      }
+
+      const threadContext = projectContextFactsToThreadContextData(contextFacts.value)
       const toolSpecs = context.services.tools
         .list(toToolContext(context, currentRun))
         .filter((tool) => isToolAllowedForRun(context.db, context.tenantScope, currentRun, tool))
@@ -131,7 +140,7 @@ export const executeRunTurnLoop = async (
         : []
       const assembledInteraction = assembleThreadInteractionRequest({
         activeTools: toolSpecs,
-        context: loadedContext.value,
+        context: threadContext,
         mcpCatalog,
         mcpMode,
         nativeTools: [...nativeTools],
@@ -181,11 +190,11 @@ export const executeRunTurnLoop = async (
       })
       const interaction = await streamRunInteraction(context, {
         budget: assembledInteraction.bundle.budget,
-        observationCount: loadedContext.value.observations.length,
-        pendingWaitCount: loadedContext.value.pendingWaits.length,
+        observationCount: threadContext.observations.length,
+        pendingWaitCount: threadContext.pendingWaits.length,
         request: interactionRequest,
         run: currentRun,
-        summaryId: loadedContext.value.summary?.id ?? null,
+        summaryId: threadContext.summary?.id ?? null,
         turn,
       })
 
