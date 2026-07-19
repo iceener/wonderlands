@@ -1,4 +1,6 @@
-import { GoogleGenAI, type Interactions } from '@google/genai'
+// Image generation uses the May 2026 Interactions schema from GenAI v2.
+// The text adapter remains on v1 until its larger step/event migration is complete.
+import { GoogleGenAI, type Interactions } from '@google/genai-v2'
 
 import type { AiImageProvider } from '../../../domain/ai/image-provider'
 import type {
@@ -66,22 +68,31 @@ const toInteractionInput = (
   ]
 }
 
-const normalizeImageResponse = (
+const listInteractionImages = (
+  interaction: Interactions.Interaction,
+): Interactions.ImageContent[] =>
+  (interaction.steps ?? []).flatMap((step) =>
+    step.type === 'model_output'
+      ? (step.content ?? []).filter(
+          (content): content is Interactions.ImageContent => content.type === 'image',
+        )
+      : [],
+  )
+
+export const normalizeGoogleImageResponse = (
   request: ResolvedAiImageGenerateRequest,
   interaction: Interactions.Interaction,
 ): AiImageGenerateResponse => ({
-  images: (interaction.outputs ?? [])
-    .filter((output): output is Interactions.ImageContent => output.type === 'image')
-    .flatMap((output) =>
-      typeof output.data === 'string' && output.data.length > 0
-        ? [
-            {
-              base64Data: output.data,
-              mimeType: output.mime_type ?? 'image/png',
-            },
-          ]
-        : [],
-    ),
+  images: listInteractionImages(interaction).flatMap((output) =>
+    typeof output.data === 'string' && output.data.length > 0
+      ? [
+          {
+            base64Data: output.data,
+            mimeType: output.mime_type ?? 'image/jpeg',
+          },
+        ]
+      : [],
+  ),
   model: request.model,
   operation: request.operation,
   provider: 'google',
@@ -93,6 +104,21 @@ const normalizeImageResponse = (
         totalTokens: interaction.usage.total_tokens ?? null,
       }
     : null,
+})
+
+export const buildGoogleImageInteractionParams = (
+  request: ResolvedAiImageGenerateRequest,
+): Interactions.InteractionCreateParams => ({
+  input: toInteractionInput(request),
+  model: request.model,
+  response_format: {
+    ...(request.aspectRatio ? { aspect_ratio: request.aspectRatio } : {}),
+    ...(request.imageSize
+      ? { image_size: request.imageSize === '0.5K' ? '512' : request.imageSize }
+      : {}),
+    mime_type: 'image/jpeg',
+    type: 'image',
+  },
 })
 
 export const createGoogleImageProvider = (config: GoogleProviderConfig): AiImageProvider => {
@@ -123,28 +149,11 @@ export const createGoogleImageProvider = (config: GoogleProviderConfig): AiImage
 
       try {
         const interaction = (await client.interactions.create(
-          {
-            generation_config:
-              request.aspectRatio || request.imageSize
-                ? {
-                    image_config: {
-                      ...(request.aspectRatio ? { aspect_ratio: request.aspectRatio } : {}),
-                      ...(request.imageSize
-                        ? {
-                            image_size: request.imageSize === '0.5K' ? '512' : request.imageSize,
-                          }
-                        : {}),
-                    },
-                  }
-                : undefined,
-            input: toInteractionInput(request),
-            model: request.model,
-            response_modalities: ['image'],
-          },
+          buildGoogleImageInteractionParams(request),
           toRequestOptions(request, config),
         )) as Interactions.Interaction
 
-        return ok(normalizeImageResponse(request, interaction))
+        return ok(normalizeGoogleImageResponse(request, interaction))
       } catch (error) {
         return err(toGoogleDomainError(error))
       }
