@@ -1,6 +1,12 @@
-import { buildRelativeRouteHref, GARDEN_INTERNAL_HREF_PREFIX } from './rewrite-links'
+import { buildRelativeRouteHref } from './rewrite-links'
 import { FAVICON_DATA_URI, FONTS_URL } from './render/assets'
 import { GARDEN_CSS, GARDEN_LAYOUT_CSS } from './render/css'
+import {
+  escapeHtml,
+  renderHrefAttributes,
+  renderSrcAttributes,
+  serializeJsonForHtml,
+} from './render/html-utils'
 import {
   GARDEN_ENHANCEMENTS_SCRIPT,
   GARDEN_NAV_SCRIPT,
@@ -40,52 +46,6 @@ interface MarkdownResult {
 export const GARDEN_PROTECTED_SEARCH_STATE_TOKEN = '__GARDEN_PROTECTED_SEARCH_STATE__'
 
 // --- Utilities ---
-
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-
-const serializeJsonForHtml = (value: unknown): string =>
-  JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
-
-const UNSAFE_URL_RE = /^(javascript|data|vbscript):/i
-
-const sanitizeUrl = (url: string): string => {
-  const trimmed = url.trim()
-  return UNSAFE_URL_RE.test(trimmed) ? '#' : trimmed
-}
-
-const resolveGardenInternalUrl = (url: string): { internal: boolean; url: string } => {
-  if (!url.startsWith(GARDEN_INTERNAL_HREF_PREFIX)) {
-    return {
-      internal: false,
-      url,
-    }
-  }
-
-  return {
-    internal: true,
-    url: url.slice(GARDEN_INTERNAL_HREF_PREFIX.length) || '/',
-  }
-}
-
-const renderHrefAttributes = (rawUrl: string): string => {
-  const resolved = resolveGardenInternalUrl(rawUrl)
-  const href = escapeHtml(sanitizeUrl(resolved.url))
-
-  return resolved.internal ? ` data-garden-link="internal" href="${href}"` : ` href="${href}"`
-}
-
-const renderSrcAttributes = (rawUrl: string): string => {
-  const resolved = resolveGardenInternalUrl(rawUrl)
-  const src = escapeHtml(sanitizeUrl(resolved.url))
-
-  return resolved.internal ? ` data-garden-link="internal" src="${src}"` : ` src="${src}"`
-}
 
 const slugify = (text: string): string => {
   const slug = text
