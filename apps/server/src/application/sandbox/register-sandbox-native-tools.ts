@@ -1,14 +1,14 @@
-import { createAgentRevisionRepository } from '../persistence/repositories'
-import type { ToolOutcome, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
-import { createToolExecutionRepository } from '../persistence/repositories'
-import { createSandboxExecutionRepository } from '../persistence/repositories'
-import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
-import { createSandboxWritebackRepository } from '../persistence/repositories'
 import type { SandboxPolicy } from '../../domain/sandbox/types'
+import {
+  createAgentRevisionRepository,
+  createSandboxExecutionRepository,
+  createSandboxWritebackRepository,
+  createToolExecutionRepository,
+} from '../persistence/repositories'
+import type { ToolOutcome, ToolRegistry, ToolSpec } from '../tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import {
-  type AgentRevisionId,
   asJobId,
   asSandboxExecutionId,
   asSandboxExecutionPackageId,
@@ -20,7 +20,6 @@ import {
   isToolAllowedForRun,
   resolveMcpModeForRun,
 } from '../agents/agent-runtime-policy'
-import { loadGardenAgentContext } from '../garden/garden-agent-context'
 import {
   buildMcpCodeModeCatalog,
   collectLoadedMcpCodeModeLookups,
@@ -33,12 +32,15 @@ import {
   MCP_CODE_MODE_CONFIRMATION_TARGET_REF,
   renderMcpCodeModeWrapperScript,
 } from '../mcp/code-mode'
+import { buildSandboxBashWrapperScript, wrapBashRequestForNodeCompat } from './sandbox-bash-wrapper'
 import {
   formatSandboxDeleteWritebackConfirmationDescription,
   getSandboxDeleteWritebackTargets,
   SANDBOX_DELETE_WRITEBACK_CONFIRMATION_TARGET_REF,
 } from './sandbox-delete-confirmation'
+import { sandboxExecuteToolInputSchema } from './sandbox-execute-tool-schema'
 import type { SandboxExecutionService } from './sandbox-execution-service'
+import { resolveSandboxJobGardenShortcut } from './sandbox-garden-shortcut'
 import {
   type CommitSandboxWritebackArgs,
   type ExecuteArgs,
@@ -49,17 +51,16 @@ import {
   validateSandboxExecutionRequest,
 } from './sandbox-policy'
 import type { SandboxWritebackService } from './sandbox-writeback'
+import { toCommitSandboxWritebackOutput, toSelectedWritebacks } from './sandbox-writeback-mapping'
 
-const toSelectedWritebacks = (
-  writebacks: SandboxWritebackOperationRecord[],
-  operationIds?: string[],
-): SandboxWritebackOperationRecord[] => {
-  const selectedIds = operationIds ? new Set(operationIds) : null
-
-  return writebacks.filter((operation) => (selectedIds ? selectedIds.has(operation.id) : true))
+// Re-exported for call-site stability: consumers previously imported these
+// from this module directly (see sandbox-bash-wrapper.ts, sandbox-garden-shortcut.ts,
+// and sandbox-writeback-mapping.ts for the implementations).
+export {
+  buildSandboxBashWrapperScript,
+  resolveSandboxJobGardenShortcut,
+  toCommitSandboxWritebackOutput,
 }
-
-const normalizeGardenSelector = (value: string): string => value.trim()
 
 const toMcpCodeModeFilename = (filename: string | undefined): string => {
   const trimmed = filename?.trim()
@@ -69,272 +70,6 @@ const toMcpCodeModeFilename = (filename: string | undefined): string => {
   }
 
   return trimmed.replace(/\.(c?js|mjs)$/i, '.mjs')
-}
-
-const resolveGardenVaultPath = (gardenRoot: string, value: string): string => {
-  const trimmed = value.trim()
-
-  if (trimmed.startsWith('/')) {
-    return trimmed
-  }
-
-  if (trimmed.length === 0 || trimmed === '.') {
-    return gardenRoot
-  }
-
-  const withoutCurrentDir = trimmed.replace(/^(?:\.\/)+/, '').replace(/^\/+/, '')
-
-  return withoutCurrentDir.length > 0 ? `${gardenRoot}/${withoutCurrentDir}` : gardenRoot
-}
-
-const ensureGardenVaultInput = (
-  existingVaultInputs: NonNullable<ExecuteArgs['vaultInputs']>,
-  gardenRoot: string,
-): NonNullable<ExecuteArgs['vaultInputs']> => {
-  const alreadyMountsGarden = existingVaultInputs.some(
-    (entry) =>
-      entry.vaultPath.trim() === gardenRoot &&
-      (entry.mountPath?.trim() ?? entry.vaultPath.trim()) === gardenRoot,
-  )
-
-  return alreadyMountsGarden
-    ? existingVaultInputs
-    : [
-        ...existingVaultInputs,
-        {
-          mountPath: gardenRoot,
-          vaultPath: gardenRoot,
-        },
-      ]
-}
-
-const resolveGardenSource = (
-  gardenRoot: string,
-  source: ExecuteArgs['source'],
-): ExecuteArgs['source'] => {
-  if (source.kind !== 'workspace_script' && source.kind !== 'workspace') {
-    return source
-  }
-
-  return {
-    ...source,
-    vaultPath: resolveGardenVaultPath(gardenRoot, source.vaultPath),
-  }
-}
-
-const resolveGardenOutputs = (
-  gardenRoot: string,
-  outputs: ExecuteArgs['outputs'],
-): ExecuteArgs['outputs'] => {
-  if (!outputs?.writeBack) {
-    return outputs
-  }
-
-  return {
-    ...outputs,
-    writeBack: outputs.writeBack.map((writeback) => ({
-      ...writeback,
-      toVaultPath: resolveGardenVaultPath(gardenRoot, writeback.toVaultPath),
-    })),
-  }
-}
-
-const toSandboxBashNetworkConfig = (
-  network: ValidatedSandboxJobRequest['request']['network'],
-): Record<string, unknown> | undefined => {
-  if (network.mode === 'off') {
-    return undefined
-  }
-
-  if (network.mode === 'open') {
-    return {
-      dangerouslyAllowFullInternetAccess: true,
-    }
-  }
-
-  const allowedHosts = network.allowedHosts ?? []
-
-  return allowedHosts.length > 0
-    ? {
-        allowedUrlPrefixes: allowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      }
-    : undefined
-}
-
-export const buildSandboxBashWrapperScript = (input: {
-  cwd: string
-  env?: Record<string, string>
-  mountVault: boolean
-  network: ValidatedSandboxJobRequest['request']['network']
-  script?: string
-  scriptPath?: string
-  stdin?: string
-  vaultWritable: boolean
-}): string => {
-  const networkConfig = toSandboxBashNetworkConfig(input.network)
-  const scriptLoader =
-    typeof input.scriptPath === 'string'
-      ? `const scriptSource = await fs.readFile(${JSON.stringify(input.scriptPath)}, "utf8");`
-      : `const scriptSource = ${JSON.stringify(input.script ?? '')};`
-
-  return `
-import { Bash, InMemoryFs, MountableFs, OverlayFs, ReadWriteFs } from "just-bash";
-
-const fs = new MountableFs({ base: new InMemoryFs() });
-fs.mount("/input", new OverlayFs({ root: "/input", mountPoint: "/", readOnly: true }));
-fs.mount("/work", new ReadWriteFs({ root: "/work" }));
-fs.mount("/output", new ReadWriteFs({ root: "/output" }));
-${input.mountVault ? `fs.mount("/vault", new ${input.vaultWritable ? 'ReadWriteFs' : 'OverlayFs'}({ root: "/vault"${input.vaultWritable ? '' : ', mountPoint: "/", readOnly: true'} }));` : ''}
-
-const bash = new Bash({
-  fs,
-  cwd: ${JSON.stringify(input.cwd)},
-  ${networkConfig ? `network: ${JSON.stringify(networkConfig)},` : ''}
-});
-
-try {
-  ${scriptLoader}
-  const result = await bash.exec(scriptSource, {
-    ${input.env ? `env: ${JSON.stringify(input.env)},` : ''}
-    ${input.stdin !== undefined ? `stdin: ${JSON.stringify(input.stdin)},` : ''}
-    rawScript: true,
-  });
-
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
-  process.exitCode = result.exitCode;
-} catch (error) {
-  const text = error instanceof Error ? (error.stack ?? error.message) : String(error);
-  process.stderr.write(\`\${text}\\n\`);
-  process.exitCode = 1;
-}
-`.trim()
-}
-
-const dirnameOfSandboxPath = (value: string): string => {
-  const trimmed = value.trim()
-
-  if (trimmed === '/' || trimmed.length === 0) {
-    return '/'
-  }
-
-  const withoutTrailingSlash = trimmed.replace(/\/+$/, '')
-  const lastSlashIndex = withoutTrailingSlash.lastIndexOf('/')
-
-  if (lastSlashIndex <= 0) {
-    return '/'
-  }
-
-  return withoutTrailingSlash.slice(0, lastSlashIndex)
-}
-
-const wrapBashRequestForNodeCompat = (input: {
-  request: ValidatedSandboxJobRequest['request']
-  stdin?: string
-  vaultWritable: boolean
-}): ValidatedSandboxJobRequest['request'] => {
-  const mountVault =
-    (input.request.vaultInputs?.length ?? 0) > 0 || typeof input.request.cwdVaultPath === 'string'
-  const cwd =
-    input.request.cwdVaultPath ??
-    (input.request.source.kind === 'workspace_script'
-      ? dirnameOfSandboxPath(input.request.source.vaultPath)
-      : '/work')
-
-  return {
-    ...input.request,
-    source: {
-      filename: 'execute-bash.mjs',
-      kind: 'inline_script',
-      script: buildSandboxBashWrapperScript({
-        cwd,
-        env: input.request.env,
-        mountVault,
-        network: input.request.network,
-        ...(input.request.source.kind === 'inline_script'
-          ? { script: input.request.source.script }
-          : { scriptPath: input.request.source.vaultPath }),
-        stdin: input.stdin,
-        vaultWritable: input.vaultWritable,
-      }),
-    },
-  }
-}
-
-export const resolveSandboxJobGardenShortcut = (
-  db: AppDatabase,
-  input: {
-    agentRevisionId: AgentRevisionId
-    args: ExecuteArgs
-    tenantScope: Parameters<typeof loadGardenAgentContext>[1]
-  },
-): Result<ExecuteArgs, DomainError> => {
-  const selector = normalizeGardenSelector(input.args.garden ?? '')
-
-  if (selector.length === 0) {
-    return ok(input.args)
-  }
-
-  const gardenContext = loadGardenAgentContext(db, input.tenantScope, input.agentRevisionId)
-
-  if (!gardenContext.ok) {
-    return gardenContext
-  }
-
-  const site = gardenContext.value.gardens.find(
-    (candidate) => candidate.slug === selector || candidate.id === selector,
-  )
-
-  if (!site) {
-    return err({
-      message: `garden ${selector} was not found in the current account workspace`,
-      type: 'not_found',
-    })
-  }
-
-  const existingVaultInputs = [...(input.args.vaultInputs ?? [])]
-  const vaultInputs = ensureGardenVaultInput(existingVaultInputs, site.sourceRoot)
-  const source = resolveGardenSource(site.sourceRoot, input.args.source)
-  const outputs = resolveGardenOutputs(site.sourceRoot, input.args.outputs)
-
-  return ok({
-    ...input.args,
-    ...(input.args.cwdVaultPath ? {} : { cwdVaultPath: site.sourceRoot }),
-    ...(outputs ? { outputs } : {}),
-    source,
-    vaultInputs,
-  } satisfies ExecuteArgs)
-}
-
-export const toCommitSandboxWritebackOutput = (input: {
-  applied: Array<Pick<SandboxWritebackOperationRecord, 'id' | 'operation' | 'targetVaultPath'>>
-  executionId: string
-  skipped: Array<{
-    id: string
-    reason: string
-  }>
-}) => {
-  const allSkippedPendingApproval =
-    input.applied.length === 0 &&
-    input.skipped.length > 0 &&
-    input.skipped.every((entry) => entry.reason === 'status_pending')
-
-  return {
-    applied: input.applied.map((operation) => ({
-      id: operation.id,
-      operation: operation.operation,
-      targetVaultPath: operation.targetVaultPath,
-    })),
-    ...(allSkippedPendingApproval
-      ? {
-          message:
-            'No write-backs were applied because they are still pending approval. Review and approve them before committing.',
-          status: 'waiting_for_approval' as const,
-        }
-      : {}),
-    sandboxExecutionId: input.executionId,
-    skipped: input.skipped,
-  }
 }
 
 export const registerSandboxNativeTools = (
@@ -394,237 +129,6 @@ export const registerSandboxNativeTools = (
         type: 'tool' as const,
       },
     })
-  }
-
-  const executeInputSchema = {
-    additionalProperties: false,
-    properties: {
-      args: {
-        description: 'Optional argv passed to the sandbox script.',
-        items: {
-          type: 'string',
-        },
-        type: 'array',
-      },
-      attachments: {
-        description: 'Optional files to stage into the sandbox, usually mounted under /input/....',
-        items: {
-          additionalProperties: false,
-          properties: {
-            fileId: {
-              description:
-                'Existing file id or full canonical attachment ref to stage into the sandbox. Do not pass shorthand aliases like attachment[1] or image[2] here.',
-              type: 'string',
-            },
-            mountPath: {
-              description:
-                'Optional absolute sandbox path where the attachment should appear. Prefer /input/... for files used only during the run.',
-              type: 'string',
-            },
-          },
-          required: ['fileId'],
-          type: 'object',
-        },
-        type: 'array',
-      },
-      garden: {
-        description:
-          'Optional Garden slug or gst_... id. Prefer this for Garden work; the server will mount that garden at its resolved /vault source root, set `pwd` to that root automatically, and resolve relative outputs.writeBack.toVaultPath values under that garden root. After `garden: "overment"`, prefer relative paths like `_garden.yml` over guessed absolute paths. Use `toVaultPath: "."` to target the garden root itself.',
-        type: 'string',
-      },
-      mode: {
-        description:
-          'Execution mode. execute defaults to bash when omitted. Use bash for shell-style file inspection or manipulation, and script for custom JavaScript or MCP code-mode scripts.',
-        enum: ['script', 'bash'],
-        type: 'string',
-      },
-      cwdVaultPath: {
-        description:
-          'Optional /vault/... path to stage and use as the working directory. This is one way to make /vault content available inside the sandbox. Usually omit this when garden is provided.',
-        type: 'string',
-      },
-      env: {
-        description: 'Optional environment variables for the sandbox process.',
-        additionalProperties: {
-          type: 'string',
-        },
-        type: 'object',
-      },
-      filename: {
-        description:
-          'Optional filename for inline script input. Inline script defaults to an ES module file, so usually omit this or use a stable `.mjs` name. Use a `.cjs` filename only when the script truly needs CommonJS `require(...)` semantics.',
-        type: 'string',
-      },
-      network: {
-        description:
-          'Optional runtime network request. If omitted, network defaults to off. Use on only when the agent policy allows it; allow-listed agents may still be restricted to approved hosts.',
-        additionalProperties: false,
-        properties: {
-          hosts: {
-            description:
-              'Optional host allow list for this run when network.mode is on and the agent policy uses an allow list.',
-            items: {
-              type: 'string',
-            },
-            type: 'array',
-          },
-          mode: {
-            description: 'Use off for no network or on for network access allowed by policy.',
-            enum: ['off', 'on'],
-            type: 'string',
-          },
-        },
-        required: ['mode'],
-        type: 'object',
-      },
-      outputs: {
-        description:
-          'Optional output handling. Matching files can be attached after the run, and writeBack entries can request later vault changes.',
-        additionalProperties: false,
-        properties: {
-          attachGlobs: {
-            description:
-              'Promote matching sandbox files, usually under /output/..., as attachments after the run completes.',
-            items: {
-              type: 'string',
-            },
-            type: 'array',
-          },
-          writeBack: {
-            description:
-              'Propose copy, move, write, or delete operations into /vault/.... This requires read_write vault access and still needs commit_sandbox_writeback after the run completes. For write, copy, and move, provide both fromPath and toVaultPath. For delete, provide only toVaultPath. Delete still validates the target as a canonical /vault path, rejects traversal, and asks for execute-time confirmation before the sandbox launches.',
-            items: {
-              oneOf: [
-                {
-                  additionalProperties: false,
-                  properties: {
-                    fromPath: {
-                      description:
-                        'Absolute sandbox path to copy from, usually /output/... or another absolute path created during the run.',
-                      type: 'string',
-                    },
-                    mode: {
-                      description: 'How the sandbox file should later be applied into /vault.',
-                      enum: ['write', 'copy', 'move'],
-                      type: 'string',
-                    },
-                    toVaultPath: {
-                      description:
-                        'Target path under /vault/.... When garden is provided, a relative path resolves under that garden root.',
-                      type: 'string',
-                    },
-                  },
-                  required: ['fromPath', 'mode', 'toVaultPath'],
-                  type: 'object',
-                },
-                {
-                  additionalProperties: false,
-                  properties: {
-                    mode: {
-                      description: 'Delete an existing path in /vault at commit time.',
-                      enum: ['delete'],
-                      type: 'string',
-                    },
-                    toVaultPath: {
-                      description:
-                        'Target path under /vault/.... When garden is provided, a relative path resolves under that garden root.',
-                      type: 'string',
-                    },
-                  },
-                  required: ['mode', 'toVaultPath'],
-                  type: 'object',
-                },
-              ],
-            },
-            type: 'array',
-          },
-        },
-        type: 'object',
-      },
-      packages: {
-        description:
-          'Exact npm packages to install before the script runs, for example { name: "pdf-lib", version: "1.17.1" }. Do not list built-in packages like just-bash here.',
-        items: {
-          additionalProperties: false,
-          properties: {
-            name: { description: 'npm package name.', type: 'string' },
-            version: { description: 'Exact package version.', type: 'string' },
-          },
-          required: ['name', 'version'],
-          type: 'object',
-        },
-        type: 'array',
-      },
-      script: {
-        description:
-          'Preferred inline input for execute. In bash mode this is the shell-style script body. In script mode this is JavaScript source code. Inline script mode normally runs as an ES module: prefer `await import(...)`, avoid `require(...)` unless you intentionally use a `.cjs` filename, and outside MCP code mode do not use top-level `return`. In MCP code mode, write a script body, not a full module: the runtime wraps your code in an awaited async function, so `return` is allowed there but static top-level `import`/`export` is not. Use `await import(...)` inside the script body instead. Provider note: the current local_dev Node runner installs requested npm packages with `--ignore-scripts`, so packages that need native addons or install-time setup, such as `sharp`, may fail; prefer pure-JS packages when possible. When script is provided, omit source.',
-        type: 'string',
-      },
-      source: {
-        description:
-          'Advanced source object. Always pass source as an object, never as a bare string. Prefer the top-level script field for inline bash or JavaScript. Use source only when you need an explicit kind or a staged workspace script.',
-        additionalProperties: false,
-        properties: {
-          filename: {
-            description:
-              'Optional filename to use for inline script input inside /work. Inline script defaults to ES module semantics; use `.cjs` only when CommonJS is required.',
-            type: 'string',
-          },
-          kind: {
-            description:
-              'Use inline or inline_script for inline content, or workspace or workspace_script for a staged /vault script. When omitted, the server infers inline from script or workspace from vaultPath.',
-            enum: ['inline', 'inline_script', 'workspace', 'workspace_script'],
-            type: 'string',
-          },
-          script: {
-            description:
-              'Inline content. In bash mode this is the shell script string. In script mode this is JavaScript source code.',
-            type: 'string',
-          },
-          vaultPath: {
-            description:
-              'Path to an existing staged script under /vault/.... When garden is provided, a relative path resolves under that garden root.',
-            type: 'string',
-          },
-        },
-        type: 'object',
-      },
-      task: {
-        description: 'Short human-readable task title for the sandbox run.',
-        type: 'string',
-      },
-      vaultAccess: {
-        description:
-          'Optional vault access override kept for compatibility. Usually omit it; the server infers read_only or read_write from mounted inputs and outputs.writeBack. This grants permission only; it does not mount /vault into the sandbox by itself.',
-        enum: ['read_only', 'read_write'],
-        type: 'string',
-      },
-      vaultInputs: {
-        description:
-          'Optional files or directories to stage from /vault into the sandbox. Use this or cwdVaultPath whenever your script needs to read /vault/... paths. Usually omit this when garden is provided.',
-        items: {
-          additionalProperties: false,
-          properties: {
-            mountPath: {
-              description:
-                'Optional absolute sandbox path where the staged vault entry should appear. /vault/... is the safest default, but any absolute sandbox path is accepted.',
-              type: 'string',
-            },
-            vaultPath: { description: 'Source path under /vault/....', type: 'string' },
-          },
-          required: ['vaultPath'],
-          type: 'object',
-        },
-        type: 'array',
-      },
-      vaultPath: {
-        description:
-          'Preferred alias for a staged workspace script under /vault/.... Use this instead of source for simple workspace script runs. When garden is provided, a relative path resolves under that garden root.',
-        type: 'string',
-      },
-    },
-    required: ['task'],
-    type: 'object',
   }
 
   const isMcpCodeModeAvailable = (
@@ -842,7 +346,7 @@ export const registerSandboxNativeTools = (
             : request,
       })
     },
-    inputSchema: executeInputSchema,
+    inputSchema: sandboxExecuteToolInputSchema,
     isAvailable: (context) =>
       isNativeToolAllowedForRun(input.db, context.tenantScope, context.run, 'execute'),
     name: 'execute',
