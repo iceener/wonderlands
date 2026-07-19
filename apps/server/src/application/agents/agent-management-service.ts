@@ -1,11 +1,11 @@
 import { z } from 'zod'
+import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
 import { type AgentRecord, createAgentRepository } from '../../domain/agents/agent-repository'
 import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
 import { createAgentSubagentLinkRepository } from '../../domain/agents/agent-subagent-link-repository'
 import type { AgentKind, AgentVisibility } from '../../domain/agents/agent-types'
-import { createAccountPreferencesRepository } from '../../domain/preferences/account-preferences-repository'
 import type { DomainError } from '../../shared/errors'
 import {
   type AccountId,

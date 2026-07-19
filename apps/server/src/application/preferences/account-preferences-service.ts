@@ -1,14 +1,14 @@
 import { z } from 'zod'
+import { createAccountPreferencesRepository } from '../../adapters/persistence/sqlite/preferences/account-preferences-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
+import { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
 import { createAgentRepository } from '../../domain/agents/agent-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
-import { createAccountPreferencesRepository } from '../../domain/preferences/account-preferences-repository'
 import {
   mergeShortcutBindingOverrides,
   resetShortcutBindingOverrides,
   type ShortcutBindingOverrides,
 } from '../../domain/preferences/shortcut-bindings'
-import { createToolProfileRepository } from '../../domain/tool-access/tool-profile-repository'
 import type { DomainError } from '../../shared/errors'
 import { type AgentId, asAgentId, asToolProfileId, type ToolProfileId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

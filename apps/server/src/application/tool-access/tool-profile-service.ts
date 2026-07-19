@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
+import { createToolProfileRepository } from '../../adapters/persistence/sqlite/tool-access/tool-profile-repository'
 import type { AppDatabase } from '../../db/client'
-import {
-  createToolProfileRepository,
-  type ToolProfileRecord,
-  type ToolProfileScope,
-  type ToolProfileStatus,
+import type {
+  ToolProfileRecord,
+  ToolProfileScope,
+  ToolProfileStatus,
 } from '../../domain/tool-access/tool-profile-repository'
 import type { DomainError } from '../../shared/errors'
 import {
