@@ -1,12 +1,12 @@
 import { z } from 'zod'
+import { createSessionMessageRepository } from '../../adapters/persistence/sqlite/sessions/session-message-repository'
+import { createSessionThreadRepository } from '../../adapters/persistence/sqlite/sessions/session-thread-repository'
+import { createWorkSessionRepository } from '../../adapters/persistence/sqlite/sessions/work-session-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import type { AppTransaction } from '../../db/transaction'
 import { withTransaction } from '../../db/transaction'
 import { createJobRepository } from '../../domain/runtime/job-repository'
 import { createRunRepository } from '../../domain/runtime/run-repository'
-import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
-import { createSessionThreadRepository } from '../../domain/sessions/session-thread-repository'
-import { createWorkSessionRepository } from '../../domain/sessions/work-session-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   JobId,

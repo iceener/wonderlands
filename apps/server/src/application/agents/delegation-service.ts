@@ -3,6 +3,7 @@ import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite
 import { createAgentSubagentLinkRepository } from '../../adapters/persistence/sqlite/agents/agent-subagent-link-repository'
 import { createFileLinkRepository } from '../../adapters/persistence/sqlite/files/file-link-repository'
 import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createSessionMessageRepository } from '../../adapters/persistence/sqlite/sessions/session-message-repository'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
@@ -14,7 +15,6 @@ import { createItemRepository } from '../../domain/runtime/item-repository'
 import { createJobDependencyRepository } from '../../domain/runtime/job-dependency-repository'
 import { createJobRepository } from '../../domain/runtime/job-repository'
 import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
-import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
 import type { DomainError } from '../../shared/errors'
 import {
   asFileId,

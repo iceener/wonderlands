@@ -1,7 +1,7 @@
+import { createSessionMessageRepository } from '../../../../adapters/persistence/sqlite/sessions/session-message-repository'
 import type { AiProviderName } from '../../../../domain/ai/types'
 import type { RepositoryDatabase } from '../../../../domain/database-port'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
-import { createSessionMessageRepository } from '../../../../domain/sessions/session-message-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { asSessionMessageId, type SessionMessageId } from '../../../../shared/ids'
 import { ok, type Result } from '../../../../shared/result'

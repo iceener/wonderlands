@@ -1,10 +1,8 @@
 import { z } from 'zod'
+import { createWorkSessionRepository } from '../../adapters/persistence/sqlite/sessions/work-session-repository'
 import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
 import { withTransaction } from '../../db/transaction'
-import {
-  createWorkSessionRepository,
-  type WorkSessionRecord,
-} from '../../domain/sessions/work-session-repository'
+import type { WorkSessionRecord } from '../../domain/sessions/work-session-repository'
 import { DomainErrorException } from '../../shared/errors'
 import { asWorkSessionId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
