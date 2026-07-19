@@ -7,9 +7,8 @@
 
 import { completable } from '@modelcontextprotocol/sdk/server/completable.js';
 import type { GetPromptResult, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
+import { type HandlerExtra, logger } from '@wonderlands/mcp-shared';
 import { z } from 'zod';
-import type { HandlerExtra } from '../types/index.js';
-import { logger } from '../utils/logger.js';
 
 /**
  * Available analysis topics for autocompletion.

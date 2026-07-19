@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { z } from 'zod';
 import { fsManageTool } from './fs-manage.tool.js';
 import { fsReadTool } from './fs-read.tool.js';
 import { fsSearchTool } from './fs-search.tool.js';
@@ -8,8 +9,8 @@ import { fsWriteTool } from './fs-write.tool.js';
  * Get the underlying object schema from a ZodEffects (after .refine() or .transform())
  * Walks down the _def chain to find the ZodObject.
  */
-function getBaseSchema(schema: unknown): unknown {
-  let current = schema;
+function getBaseSchema(schema: z.ZodType): z.ZodObject<z.ZodRawShape> {
+  let current: unknown = schema;
   // Walk down the chain of ZodEffects to find the base ZodObject
   while (current && typeof current === 'object' && '_def' in current) {
     const def = (current as { _def: { schema?: unknown } })._def;
@@ -19,7 +20,7 @@ function getBaseSchema(schema: unknown): unknown {
       break;
     }
   }
-  return current;
+  return current as z.ZodObject<z.ZodRawShape>;
 }
 
 /**
@@ -28,7 +29,7 @@ function getBaseSchema(schema: unknown): unknown {
 export function registerTools(server: McpServer): void {
   // fs_read - explore and read
   // Note: We use getBaseSchema() to get the base schema before refine() transforms
-  const readBaseSchema = getBaseSchema(fsReadTool.inputSchema) as { shape: unknown };
+  const readBaseSchema = getBaseSchema(fsReadTool.inputSchema);
   server.registerTool(
     fsReadTool.name,
     {
@@ -39,7 +40,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // fs_search - find files and search content
-  const searchBaseSchema = getBaseSchema(fsSearchTool.inputSchema) as { shape: unknown };
+  const searchBaseSchema = getBaseSchema(fsSearchTool.inputSchema);
   server.registerTool(
     fsSearchTool.name,
     {
@@ -50,7 +51,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // fs_write - create, update
-  const writeBaseSchema = getBaseSchema(fsWriteTool.inputSchema) as { shape: unknown };
+  const writeBaseSchema = getBaseSchema(fsWriteTool.inputSchema);
   server.registerTool(
     fsWriteTool.name,
     {
@@ -61,7 +62,7 @@ export function registerTools(server: McpServer): void {
   );
 
   // fs_manage - structural operations
-  const manageBaseSchema = getBaseSchema(fsManageTool.inputSchema) as { shape: unknown };
+  const manageBaseSchema = getBaseSchema(fsManageTool.inputSchema);
   server.registerTool(
     fsManageTool.name,
     {

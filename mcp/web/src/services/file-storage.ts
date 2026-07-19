@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { logger } from '@wonderlands/mcp-shared';
 import { config, type OutputMode } from '../config/env.js';
-import { logger } from '../utils/logger.js';
 
 /**
  * Result of saving content to file

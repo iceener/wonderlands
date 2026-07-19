@@ -1,8 +1,7 @@
 import type { GetPromptResult, PromptMessage } from '@modelcontextprotocol/sdk/types.js';
+import { type HandlerExtra, logger } from '@wonderlands/mcp-shared';
 import { z } from 'zod';
 import { promptsMetadata } from '../config/metadata.js';
-import type { HandlerExtra } from '../types/index.js';
-import { logger } from '../utils/logger.js';
 
 /**
  * Greeting Prompt

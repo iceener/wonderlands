@@ -1,0 +1,34 @@
+{
+  "name": "@wonderlands/mcp-shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared scaffolding (server builder, capabilities, stdio lifecycle, logger/error utilities) for standalone stdio MCP servers under mcp/*. Not part of the root npm workspaces.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.1.3",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -18,62 +18,25 @@
  *   API_URL         - Optional API base URL
  */
 
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { buildServer, runStdioServer } from '@wonderlands/mcp-shared';
 import { config } from './config/env.js';
-import { buildServer } from './core/mcp.js';
-import { logger } from './utils/logger.js';
+import { registerPrompts } from './prompts/index.js';
+import { registerResources } from './resources/index.js';
+import { registerTools } from './tools/index.js';
 
-async function main(): Promise<void> {
-  // Build the MCP server
-  const server = buildServer({
-    name: config.NAME,
-    version: config.VERSION,
-    instructions: config.INSTRUCTIONS,
-  });
-
-  // Create stdio transport (reads from stdin, writes to stdout)
-  const transport = new StdioServerTransport();
-
-  // Set up initialization callback - MCP notifications can only be sent AFTER
-  // the client sends the 'initialized' notification (handshake complete)
-  server.server.oninitialized = () => {
-    logger.setServer(server);
-    logger.info('server', {
-      message: 'MCP stdio server started',
-      name: config.NAME,
-      version: config.VERSION,
-    });
-  };
-
-  // Connect server to transport (starts listening, handshake happens async)
-  await server.connect(transport);
-}
-
-// Graceful shutdown handlers
-function shutdown(signal: string): void {
-  logger.info('server', { message: `Received ${signal}, shutting down` });
-  process.exit(0);
-}
-
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-
-// Handle uncaught errors
-process.on('uncaughtException', (error) => {
-  logger.error('server', { message: 'Uncaught exception', error: error.message });
-  process.exit(1);
+// Build the MCP server
+const server = buildServer({
+  name: config.NAME,
+  version: config.VERSION,
+  instructions: config.INSTRUCTIONS,
+  registerTools,
+  registerPrompts,
+  registerResources,
 });
 
-process.on('unhandledRejection', (reason) => {
-  logger.error('server', {
-    message: 'Unhandled rejection',
-    error: reason instanceof Error ? reason.message : String(reason),
-  });
-  process.exit(1);
-});
-
-// Start the server
-main().catch((error) => {
+// Connect to stdio and wire up the standard lifecycle (logging, graceful
+// shutdown, uncaught error handling).
+runStdioServer(server, { name: config.NAME, version: config.VERSION }).catch((error) => {
   console.error('Failed to start server:', error);
   process.exit(1);
 });

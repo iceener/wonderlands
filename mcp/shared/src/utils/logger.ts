@@ -1,6 +1,18 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { LoggingLevel } from '@modelcontextprotocol/sdk/types.js';
-import { config, type LogLevel } from '../config/env.js';
+
+/**
+ * Supported log levels, ordered from most to least verbose.
+ */
+export type LogLevel = 'debug' | 'info' | 'warning' | 'error';
+
+function parseLogLevel(value: string | undefined): LogLevel {
+  const level = value?.toLowerCase();
+  if (level === 'debug' || level === 'info' || level === 'warning' || level === 'error') {
+    return level;
+  }
+  return 'info';
+}
 
 /**
  * Structured log data
@@ -12,6 +24,11 @@ interface LogData {
 
 /**
  * Logger that outputs to stderr and optionally sends MCP log notifications.
+ *
+ * The minimum log level is read from the `LOG_LEVEL` environment variable
+ * (debug | info | warning | error, default: info) each time a message is
+ * logged, so it stays in sync even if the variable is set after the module
+ * is first imported.
  *
  * Note: stdout is reserved for MCP protocol messages, so all logs go to stderr.
  */
@@ -32,7 +49,8 @@ class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return this.levelPriority[level] >= this.levelPriority[config.LOG_LEVEL];
+    const currentLevel = parseLogLevel(process.env['LOG_LEVEL']);
+    return this.levelPriority[level] >= this.levelPriority[currentLevel];
   }
 
   private formatLog(level: LogLevel, logger: string, data: LogData): string {
