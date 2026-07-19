@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { createSessionMessageRepository } from '../../adapters/persistence/sqlite/sessions/session-message-repository'
-import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
+import { createSessionMessageRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'

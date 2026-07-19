@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createFileRepository } from '../persistence/repositories'
 import type { ToolContext, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
 import type { DomainError } from '../../shared/errors'

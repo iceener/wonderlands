@@ -1,12 +1,12 @@
-import { createFileRepository } from '../../../adapters/persistence/sqlite/files/file-repository'
+import { createFileRepository } from '../../persistence/repositories'
 import type {
   ChildRunResultEnvelope,
   ChildRunSuspendedWait,
 } from '../../../domain/agents/agent-types'
-import { createRunDependencyRepository } from '../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
+import { createRunDependencyRepository } from '../../persistence/repositories'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../adapters/persistence/sqlite/runtime/run-repository'
-import { createToolExecutionRepository } from '../../../adapters/persistence/sqlite/runtime/tool-execution-repository'
+import { createRunRepository } from '../../persistence/repositories'
+import { createToolExecutionRepository } from '../../persistence/repositories'
 import { ok } from '../../../shared/result'
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import { toToolArgs } from '../tool-execution-persistence'

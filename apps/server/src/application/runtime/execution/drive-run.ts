@@ -1,7 +1,7 @@
-import { createUsageLedgerRepository } from '../../../adapters/persistence/sqlite/ai/usage-ledger-repository'
+import { createUsageLedgerRepository } from '../../persistence/repositories'
 import type { AiMessageContent } from '../../../domain/ai/types'
 import type { RunRecord } from '../../../domain/runtime/run-repository'
-import { createRunRepository } from '../../../adapters/persistence/sqlite/runtime/run-repository'
+import { createRunRepository } from '../../persistence/repositories'
 import type { RunId } from '../../../shared/ids'
 import { err } from '../../../shared/result'
 import {

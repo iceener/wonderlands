@@ -1,6 +1,6 @@
-import { createRunDependencyRepository } from '../../adapters/persistence/sqlite/runtime/run-dependency-repository'
+import { createRunDependencyRepository } from '../persistence/repositories'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
+import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { RunId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'

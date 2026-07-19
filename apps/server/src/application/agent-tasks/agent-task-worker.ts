@@ -1,4 +1,4 @@
-import { createAgentScheduledTaskRepository } from '../../adapters/persistence/sqlite/agent-tasks/agent-scheduled-task-repository'
+import { createAgentScheduledTaskRepository } from '../persistence/repositories'
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'

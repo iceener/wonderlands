@@ -5,16 +5,16 @@ import type {
   RunAgentScheduledTaskNowOutput,
 } from '@wonderlands/contracts'
 import { z } from 'zod'
-import { createAgentScheduledTaskRepository } from '../../adapters/persistence/sqlite/agent-tasks/agent-scheduled-task-repository'
-import { createAgentScheduledTaskRunRepository } from '../../adapters/persistence/sqlite/agent-tasks/agent-scheduled-task-run-repository'
-import { createAgentRepository } from '../../adapters/persistence/sqlite/agents/agent-repository'
+import { createAgentScheduledTaskRepository } from '../persistence/repositories'
+import { createAgentScheduledTaskRunRepository } from '../persistence/repositories'
+import { createAgentRepository } from '../persistence/repositories'
 import type {
   AgentScheduledTaskRecord,
   AgentScheduledTaskStatus,
 } from '../../domain/agent-tasks/agent-scheduled-task-repository'
 import type { AgentScheduledTaskRunRecord } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
 import type { RunRecord } from '../../domain/runtime/run-repository'
-import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
+import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import {
   type AgentScheduledTaskId,

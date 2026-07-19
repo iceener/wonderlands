@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-import { createWorkspaceRepository } from '../../adapters/persistence/sqlite/agents/workspace-repository'
+import { createWorkspaceRepository } from '../persistence/repositories'
 import type { WorkspaceRecord } from '../../domain/agents/workspace-repository'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainError } from '../../shared/errors'

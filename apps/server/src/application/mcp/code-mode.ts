@@ -1,6 +1,6 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
-import { createMcpServerRepository } from '../../adapters/persistence/sqlite/mcp/mcp-server-repository'
-import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
+import { createMcpServerRepository } from '../persistence/repositories'
+import { createMcpToolAssignmentRepository } from '../persistence/repositories'
 import type { ToolContext, ToolSpec } from '../../application/tooling/tool-registry'
 
 const MCP_RUNTIME_SEPARATOR = '__'

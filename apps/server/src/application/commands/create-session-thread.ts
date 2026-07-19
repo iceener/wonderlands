@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { createSessionThreadRepository } from '../../adapters/persistence/sqlite/sessions/session-thread-repository'
-import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
+import { createSessionThreadRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
 import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
 import { DomainErrorException } from '../../shared/errors'

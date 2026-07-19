@@ -1,8 +1,8 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createItemRepository } from '../../../../adapters/persistence/sqlite/runtime/item-repository'
-import { createRunDependencyRepository } from '../../../../adapters/persistence/sqlite/runtime/run-dependency-repository'
-import { createToolExecutionRepository } from '../../../../adapters/persistence/sqlite/runtime/tool-execution-repository'
-import { createSandboxWritebackRepository } from '../../../../adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
+import { createItemRepository } from '../../../persistence/repositories'
+import { createRunDependencyRepository } from '../../../persistence/repositories'
+import { createToolExecutionRepository } from '../../../persistence/repositories'
+import { createSandboxWritebackRepository } from '../../../persistence/repositories'
 import {
   asItemId,
   asSandboxExecutionId,

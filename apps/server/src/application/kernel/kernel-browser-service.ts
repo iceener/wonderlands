@@ -1,5 +1,5 @@
-import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
-import { createKernelSessionRepository } from '../../adapters/persistence/sqlite/kernel/kernel-session-repository'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createKernelSessionRepository } from '../persistence/repositories'
 import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { KernelSessionRecord } from '../../domain/kernel/kernel-session-repository'
 import type { KernelArtifactKind, KernelPolicy } from '../../domain/kernel/types'

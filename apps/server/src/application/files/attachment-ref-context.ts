@@ -1,4 +1,4 @@
-import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createFileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import type { MessageLinkedFileRecord } from '../../domain/files/file-repository'
 import type { ItemRecord } from '../../domain/runtime/item-repository'

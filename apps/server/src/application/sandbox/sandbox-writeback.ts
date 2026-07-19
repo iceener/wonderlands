@@ -1,9 +1,9 @@
 import { cp, mkdir, rm, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
-import { createSandboxExecutionRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
+import { createSandboxExecutionRepository } from '../persistence/repositories'
 import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
-import { createSandboxWritebackRepository } from '../../adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
+import { createSandboxWritebackRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { SandboxExecutionId, SandboxWritebackOperationId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'

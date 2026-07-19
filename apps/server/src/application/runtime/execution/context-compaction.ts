@@ -1,7 +1,7 @@
 import type { AppConfig } from '../../../app/config'
 import type { RepositoryDatabase } from '../../../db/repository-database'
 import type { ContextSummaryRecord } from '../../../domain/runtime/context-summary-repository'
-import { createContextSummaryRepository } from '../../../adapters/persistence/sqlite/runtime/context-summary-repository'
+import { createContextSummaryRepository } from '../../persistence/repositories'
 import type { ItemRecord } from '../../../domain/runtime/item-repository'
 import type { RunDependencyRecord } from '../../../domain/runtime/run-dependency-repository'
 import type { RunRecord } from '../../../domain/runtime/run-repository'

@@ -1,6 +1,6 @@
 import { access, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, extname, join, resolve } from 'node:path'
-import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createFileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import type { FileRecord } from '../../domain/files/file-repository'
 import type { DomainError } from '../../shared/errors'

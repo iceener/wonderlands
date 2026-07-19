@@ -1,5 +1,5 @@
 import { TextDecoder } from 'node:util'
-import { createFileRepository } from '../../adapters/persistence/sqlite/files/file-repository'
+import { createFileRepository } from '../persistence/repositories'
 import type { AiMessage, AiProviderName } from '../../domain/ai/types'
 import type { FileRecord } from '../../domain/files/file-repository'
 import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'

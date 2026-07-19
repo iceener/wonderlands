@@ -1,4 +1,4 @@
-import { createSessionMessageRepository } from '../../../../adapters/persistence/sqlite/sessions/session-message-repository'
+import { createSessionMessageRepository } from '../../../persistence/repositories'
 import type { ToolContext, ToolSpec } from '../../../../application/tooling/tool-registry'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'

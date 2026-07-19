@@ -1,4 +1,4 @@
-import { createSessionMessageRepository } from '../../../../adapters/persistence/sqlite/sessions/session-message-repository'
+import { createSessionMessageRepository } from '../../../persistence/repositories'
 import type { AiProviderName } from '../../../../domain/ai/types'
 import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'

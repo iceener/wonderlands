@@ -1,6 +1,6 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
-import { createAgentRevisionRepository } from '../../adapters/persistence/sqlite/agents/agent-revision-repository'
-import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createMcpToolAssignmentRepository } from '../persistence/repositories'
 import type { ToolSpec } from '../../application/tooling/tool-registry'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { AiProviderName } from '../../domain/ai/types'

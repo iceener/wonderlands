@@ -1,6 +1,6 @@
-import { createAgentScheduledTaskRepository } from '../../adapters/persistence/sqlite/agent-tasks/agent-scheduled-task-repository'
-import { createAgentScheduledTaskRunRepository } from '../../adapters/persistence/sqlite/agent-tasks/agent-scheduled-task-run-repository'
-import { createTenantMembershipRepository } from '../../adapters/persistence/sqlite/tenancy/tenant-membership-repository'
+import { createAgentScheduledTaskRepository } from '../persistence/repositories'
+import { createAgentScheduledTaskRunRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import type { AppRuntime } from '../../app/runtime'
 import { withTransaction } from '../../db/transaction'
 import type { AgentScheduledTaskRecord } from '../../domain/agent-tasks/agent-scheduled-task-repository'
@@ -8,7 +8,7 @@ import type {
   AgentScheduledTaskRunRecord,
   AgentScheduledTaskRunTrigger,
 } from '../../domain/agent-tasks/agent-scheduled-task-run-repository'
-import { createRunRepository } from '../../adapters/persistence/sqlite/runtime/run-repository'
+import { createRunRepository } from '../persistence/repositories'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import { asAgentScheduledTaskRunId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

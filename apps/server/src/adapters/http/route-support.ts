@@ -4,19 +4,25 @@ import type { z } from 'zod'
 import { requireTenantScope } from '../../app/require-tenant-scope'
 import type { AppEnv } from '../../app/types'
 import type { CommandContext } from '../../application/commands/command-context'
+import { createRepositories } from '../../application/persistence/repositories'
 import { type DomainError, DomainErrorException } from '../../shared/errors'
 import type { Result } from '../../shared/result'
 import { parseJsonBody } from './parse-json-body'
 import { toZodErrorMessage } from './validation'
 
-export const toCommandContext = (c: Context<AppEnv>): CommandContext => ({
-  config: c.get('config'),
-  db: c.get('db'),
-  requestId: c.get('requestId'),
-  services: c.get('services'),
-  tenantScope: requireTenantScope(c),
-  traceId: c.get('traceId'),
-})
+export const toCommandContext = (c: Context<AppEnv>): CommandContext => {
+  const db = c.get('db')
+
+  return {
+    config: c.get('config'),
+    db,
+    repositories: createRepositories(db),
+    requestId: c.get('requestId'),
+    services: c.get('services'),
+    tenantScope: requireTenantScope(c),
+    traceId: c.get('traceId'),
+  }
+}
 
 export const parseJsonBodyAs = async <TSchema extends z.ZodTypeAny>(
   c: Context<AppEnv>,

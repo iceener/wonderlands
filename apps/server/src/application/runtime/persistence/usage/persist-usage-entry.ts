@@ -1,4 +1,4 @@
-import { createUsageLedgerRepository } from '../../../../adapters/persistence/sqlite/ai/usage-ledger-repository'
+import { createUsageLedgerRepository } from '../../../persistence/repositories'
 import { withTransaction } from '../../../../db/transaction'
 import type { AiProviderName, AiUsage } from '../../../../domain/ai/types'
 import type { RepositoryDatabase } from '../../../../db/repository-database'

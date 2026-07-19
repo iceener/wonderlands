@@ -1,7 +1,7 @@
 import { withTransaction } from '../../../../db/transaction'
 import type { AiInteractionResponse, AiOutputItem } from '../../../../domain/ai/types'
 import type { RepositoryDatabase } from '../../../../db/repository-database'
-import { createItemRepository } from '../../../../adapters/persistence/sqlite/runtime/item-repository'
+import { createItemRepository } from '../../../persistence/repositories'
 import type { RunRecord } from '../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../shared/errors'
 import { asItemId, type ItemId } from '../../../../shared/ids'

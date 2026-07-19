@@ -1,4 +1,4 @@
-import { createDomainEventRepository } from '../../adapters/persistence/sqlite/events/domain-event-repository'
+import { createDomainEventRepository } from '../persistence/repositories'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import {
   type CanonicalCommittedEventType,

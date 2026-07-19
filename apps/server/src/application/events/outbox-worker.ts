@@ -2,7 +2,7 @@ import type { LangfuseExporter } from '../../adapters/observability/langfuse/exp
 import type { AppConfig } from '../../app/config'
 import type { RepositoryDatabase } from '../../db/repository-database'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createEventOutboxRepository } from '../../adapters/persistence/sqlite/events/event-outbox-repository'
+import { createEventOutboxRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { AppLogger } from '../../shared/logger'
 import { ok, type Result } from '../../shared/result'
