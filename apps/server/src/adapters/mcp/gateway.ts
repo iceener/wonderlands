@@ -15,14 +15,7 @@ import {
 import { context as otelContext, type SpanContext, TraceFlags, trace } from '@opentelemetry/api'
 import type { AppDatabase } from '../../db/client'
 import { createWorkspaceRepository } from '../../domain/agents/workspace-repository'
-import { createMcpOauthCredentialRepository } from '../../domain/mcp/mcp-oauth-credential-repository'
-import {
-  createMcpServerRepository,
-  type McpServerRecord,
-  toMcpServerConfig,
-} from '../../domain/mcp/mcp-server-repository'
-import { createMcpToolAssignmentRepository } from '../../domain/mcp/mcp-tool-assignment-repository'
-import { createMcpToolCacheRepository } from '../../domain/mcp/mcp-tool-cache-repository'
+import type { McpServerRecord } from '../../domain/mcp/mcp-server-repository'
 import type { ToolContext, ToolRegistry, ToolSpec } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import type { AppLogger } from '../../shared/logger'
@@ -32,6 +25,10 @@ import {
   toLangfuseObservationId,
   toLangfuseTraceId,
 } from '../observability/langfuse/trace-identity'
+import { createMcpOauthCredentialRepository } from '../persistence/sqlite/mcp/mcp-oauth-credential-repository'
+import { createMcpServerRepository } from '../persistence/sqlite/mcp/mcp-server-repository'
+import { createMcpToolAssignmentRepository } from '../persistence/sqlite/mcp/mcp-tool-assignment-repository'
+import { createMcpToolCacheRepository } from '../persistence/sqlite/mcp/mcp-tool-cache-repository'
 import { createMcpClientBundle } from './client-factory'
 import { toMcpDomainError } from './errors'
 import { normalizeMcpCallToolResult } from './normalize-result'
@@ -41,6 +38,7 @@ import {
   toAuthorizationCodeServerConfig,
 } from './oauth-authorization-code'
 import { createStoredMcpOAuthProvider } from './oauth-provider'
+import { toMcpServerConfig } from './server-config'
 import { revealStoredOauthTokens } from './stored-oauth'
 import type {
   McpDiscoveredTool,

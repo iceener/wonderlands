@@ -9,23 +9,20 @@ import type {
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 
+import { createMcpOauthAuthorizationRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
+import { createMcpOauthCredentialRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-credential-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
-import {
-  createMcpOauthAuthorizationRepository,
-  type McpOauthAuthorizationRecord,
-} from '../../domain/mcp/mcp-oauth-authorization-repository'
-import {
-  createMcpOauthCredentialRepository,
-  type McpOauthCredentialRecord,
-} from '../../domain/mcp/mcp-oauth-credential-repository'
+import type { McpOauthAuthorizationRecord } from '../../domain/mcp/mcp-oauth-authorization-repository'
+import type { McpOauthCredentialRecord } from '../../domain/mcp/mcp-oauth-credential-repository'
 import { createPrefixedId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'
 import { decryptStoredSecret, encryptStoredSecret } from './stored-auth'
 import {
-  cloneStoredOauthDiscoveryState,
   protectStoredOauthClientInformation,
+  protectStoredOauthDiscoveryState,
   protectStoredOauthTokens,
   revealStoredOauthClientInformation,
+  revealStoredOauthDiscoveryState,
   revealStoredOauthTokens,
 } from './stored-oauth'
 import type { McpResolvedHttpAuthConfig } from './types'
@@ -131,7 +128,7 @@ class StoredMcpOAuthProvider implements OAuthClientProvider {
           : existing?.clientInformationJson,
       discoveryStateJson:
         input.discoveryState !== undefined
-          ? cloneStoredOauthDiscoveryState(input.discoveryState)
+          ? protectStoredOauthDiscoveryState(input.discoveryState)
           : existing?.discoveryStateJson,
       id: existing?.id ?? createPrefixedId('moc'),
       serverId: this.options.serverId,
@@ -298,7 +295,7 @@ class StoredMcpOAuthProvider implements OAuthClientProvider {
         discoveryState:
           scope === 'discovery' || scope === 'all'
             ? null
-            : cloneStoredOauthDiscoveryState(existing.discoveryStateJson),
+            : revealStoredOauthDiscoveryState(existing.discoveryStateJson),
         tokens:
           scope === 'tokens' || scope === 'all'
             ? null
@@ -308,9 +305,7 @@ class StoredMcpOAuthProvider implements OAuthClientProvider {
   }
 
   discoveryState(): OAuthDiscoveryState | undefined {
-    return (
-      cloneStoredOauthDiscoveryState(this.getCredentialRecord()?.discoveryStateJson) ?? undefined
-    )
+    return revealStoredOauthDiscoveryState(this.getCredentialRecord()?.discoveryStateJson)
   }
 
   saveDiscoveryState(state: OAuthDiscoveryState): void {

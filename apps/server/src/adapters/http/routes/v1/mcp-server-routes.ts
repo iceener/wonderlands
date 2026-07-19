@@ -1,12 +1,12 @@
 import type { Hono } from 'hono'
 
+import { createMcpOauthAuthorizationRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
+import { createMcpOauthCredentialRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-oauth-credential-repository'
+import { createMcpServerRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-server-repository'
+import { createMcpToolAssignmentRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
+import { createMcpToolCacheRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-tool-cache-repository'
 import { requireTenantScope } from '../../../../app/require-tenant-scope'
 import type { AppEnv } from '../../../../app/types'
-import { createMcpOauthAuthorizationRepository } from '../../../../domain/mcp/mcp-oauth-authorization-repository'
-import { createMcpOauthCredentialRepository } from '../../../../domain/mcp/mcp-oauth-credential-repository'
-import { createMcpServerRepository } from '../../../../domain/mcp/mcp-server-repository'
-import { createMcpToolAssignmentRepository } from '../../../../domain/mcp/mcp-tool-assignment-repository'
-import { createMcpToolCacheRepository } from '../../../../domain/mcp/mcp-tool-cache-repository'
 import { successEnvelope } from '../../api-envelope'
 import { parseJsonBodyAs, unwrapRouteResult } from '../../route-support'
 import {

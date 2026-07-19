@@ -106,4 +106,41 @@ describe('server architecture guardrails', () => {
 
     expect(offenders).toEqual([])
   })
+
+  it('domain/mcp stays persistence-neutral and protocol-neutral', async () => {
+    const domainMcpDir = resolve(testDir, '../src/domain/mcp')
+    const files = await collectTypescriptFiles(domainMcpDir)
+    const forbiddenModuleSpecifierPattern =
+      /from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g
+
+    const isForbiddenSpecifier = (specifier: string): boolean => {
+      const pathSegmentPattern = /(?:^|\/)(?:db|application|adapters)(?:\/|$)/
+
+      return (
+        pathSegmentPattern.test(specifier) ||
+        specifier === 'drizzle-orm' ||
+        specifier.startsWith('drizzle-orm/') ||
+        specifier === '@modelcontextprotocol' ||
+        specifier.startsWith('@modelcontextprotocol/')
+      )
+    }
+
+    const offenders: string[] = []
+
+    expect(files.length).toBeGreaterThan(0)
+
+    for (const file of files) {
+      const contents = await readFile(file, 'utf8')
+
+      for (const match of contents.matchAll(forbiddenModuleSpecifierPattern)) {
+        const specifier = match[1] ?? match[2] ?? ''
+
+        if (isForbiddenSpecifier(specifier)) {
+          offenders.push(`${file} -> ${specifier}`)
+        }
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
 })

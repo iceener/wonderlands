@@ -4,24 +4,14 @@ import type {
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 
-import type { EncryptedSecret } from '../../shared/secret-box'
+import type {
+  McpOauthDiscoveryStateJson,
+  McpStoredOAuthClientInformation,
+  McpStoredOAuthTokens,
+} from '../../domain/mcp/mcp-domain-types'
 import { decryptStoredSecret, encryptStoredSecret } from './stored-auth'
 
-export interface McpStoredOAuthTokens {
-  access_token: EncryptedSecret | string
-  expires_in?: number
-  id_token?: EncryptedSecret | string
-  refresh_token?: EncryptedSecret | string
-  scope?: string
-  token_type: string
-}
-
-export interface McpStoredOAuthClientInformation {
-  client_id: string
-  client_id_issued_at?: number
-  client_secret?: EncryptedSecret | string
-  client_secret_expires_at?: number
-}
+export type { McpStoredOAuthClientInformation, McpStoredOAuthTokens }
 
 export const protectStoredOauthTokens = (
   tokens: OAuthTokens | null,
@@ -151,7 +141,14 @@ export const revealStoredOauthClientInformation = (
   }
 }
 
-export const cloneStoredOauthDiscoveryState = (
+export const protectStoredOauthDiscoveryState = (
   discoveryState: OAuthDiscoveryState | null | undefined,
-): OAuthDiscoveryState | null =>
-  discoveryState ? (JSON.parse(JSON.stringify(discoveryState)) as OAuthDiscoveryState) : null
+): McpOauthDiscoveryStateJson | null =>
+  discoveryState ? (JSON.parse(JSON.stringify(discoveryState)) as McpOauthDiscoveryStateJson) : null
+
+export const revealStoredOauthDiscoveryState = (
+  discoveryStateJson: McpOauthDiscoveryStateJson | null | undefined,
+): OAuthDiscoveryState | undefined =>
+  discoveryStateJson
+    ? (JSON.parse(JSON.stringify(discoveryStateJson)) as OAuthDiscoveryState)
+    : undefined

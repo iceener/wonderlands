@@ -1,11 +1,9 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../adapters/mcp/normalize-tool'
+import { createMcpToolAssignmentRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
+import { createMcpToolCacheRepository } from '../../adapters/persistence/sqlite/mcp/mcp-tool-cache-repository'
 import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
 import type { RepositoryDatabase } from '../../domain/database-port'
-import { createMcpToolAssignmentRepository } from '../../domain/mcp/mcp-tool-assignment-repository'
-import {
-  createMcpToolCacheRepository,
-  type McpToolCacheRecord,
-} from '../../domain/mcp/mcp-tool-cache-repository'
+import type { McpToolCacheRecord } from '../../domain/mcp/mcp-tool-cache-repository'
 import type { ToolRegistry } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import { ok, type Result } from '../../shared/result'

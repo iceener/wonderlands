@@ -1,6 +1,6 @@
 import { getMcpRuntimeNameAliasesFromRuntimeName } from '../../../../adapters/mcp/normalize-tool'
+import { createMcpToolAssignmentRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
 import { withTransaction } from '../../../../db/transaction'
-import { createMcpToolAssignmentRepository } from '../../../../domain/mcp/mcp-tool-assignment-repository'
 import { createItemRepository } from '../../../../domain/runtime/item-repository'
 import { createRunDependencyRepository } from '../../../../domain/runtime/run-dependency-repository'
 import { createToolExecutionRepository } from '../../../../domain/runtime/tool-execution-repository'

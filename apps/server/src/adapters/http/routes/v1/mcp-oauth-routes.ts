@@ -4,9 +4,9 @@ import {
   beginStoredMcpAuthorization,
   completeStoredMcpAuthorization,
 } from '../../../../adapters/mcp/oauth-provider'
+import { createMcpOauthAuthorizationRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
 import { requireTenantScope } from '../../../../app/require-tenant-scope'
 import type { AppEnv } from '../../../../app/types'
-import { createMcpOauthAuthorizationRepository } from '../../../../domain/mcp/mcp-oauth-authorization-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import { successEnvelope } from '../../api-envelope'
 import { parseJsonBodyAs, parseQueryAs, unwrapRouteResult } from '../../route-support'
