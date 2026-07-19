@@ -114,35 +114,66 @@ const ensureThoughtState = (
   return created
 }
 
-const toOutputList = (output: Array<Interactions.Content | undefined>): Interactions.Content[] =>
-  output.filter((content): content is Interactions.Content => content !== undefined)
+const toStepList = (steps: Array<Interactions.Step | undefined>): Interactions.Step[] =>
+  steps.filter((step): step is Interactions.Step => step !== undefined)
 
-const readTextValue = (content: Interactions.Content | undefined): string =>
-  content?.type === 'text' && typeof content.text === 'string' ? content.text : ''
+const appendModelOutputText = (
+  existing: Interactions.Step | undefined,
+  text: string,
+): Interactions.Step => {
+  const step: Interactions.ModelOutputStep =
+    existing?.type === 'model_output' ? existing : { content: [], type: 'model_output' }
+  const content = Array.isArray(step.content) ? step.content : []
+  const last = content.at(-1)
 
-const readTextAnnotations = (content: Interactions.Content | undefined): unknown[] | undefined => {
-  const annotations = (content as { annotations?: unknown } | undefined)?.annotations
+  if (last?.type === 'text') {
+    return {
+      ...step,
+      content: [...content.slice(0, -1), { ...last, text: `${last.text}${text}` }],
+    }
+  }
 
-  return content?.type === 'text' && Array.isArray(annotations) ? annotations : undefined
+  return {
+    ...step,
+    content: [...content, { text, type: 'text' }],
+  }
 }
 
-const mergeOutputContent = (
-  existing: Interactions.Content | undefined,
-  delta: Interactions.ContentDelta['delta'],
-): Interactions.Content => {
+const appendModelOutputAnnotations = (
+  existing: Interactions.Step | undefined,
+  annotations: Interactions.Annotation[],
+): Interactions.Step | undefined => {
+  if (existing?.type !== 'model_output' || !Array.isArray(existing.content)) {
+    return existing
+  }
+
+  const last = existing.content.at(-1)
+
+  if (last?.type !== 'text') {
+    return existing
+  }
+
+  return {
+    ...existing,
+    content: [
+      ...existing.content.slice(0, -1),
+      {
+        ...last,
+        annotations: [...(Array.isArray(last.annotations) ? last.annotations : []), ...annotations],
+      },
+    ],
+  }
+}
+
+const mergeStepDelta = (
+  existing: Interactions.Step | undefined,
+  delta: Interactions.StepDelta['delta'],
+): Interactions.Step | undefined => {
   switch (delta.type) {
     case 'text':
-      return {
-        ...(readTextAnnotations(existing) ? { annotations: readTextAnnotations(existing) } : {}),
-        text: `${readTextValue(existing)}${typeof delta.text === 'string' ? delta.text : ''}`,
-        type: 'text',
-      } as Interactions.Content
-    case 'text_annotation':
-      return {
-        text: readTextValue(existing),
-        ...(Array.isArray(delta.annotations) ? { annotations: delta.annotations } : {}),
-        type: 'text',
-      } as Interactions.Content
+      return appendModelOutputText(existing, typeof delta.text === 'string' ? delta.text : '')
+    case 'text_annotation_delta':
+      return appendModelOutputAnnotations(existing, delta.annotations ?? [])
     case 'thought_signature':
       return {
         ...(existing?.type === 'thought' ? existing : { summary: [], type: 'thought' as const }),
@@ -156,57 +187,77 @@ const mergeOutputContent = (
               summary: [
                 ...((existing?.type === 'thought' && Array.isArray(existing.summary)
                   ? existing.summary
-                  : []) as NonNullable<Interactions.ThoughtContent['summary']>),
-                cloneValue(delta.content),
+                  : []) as NonNullable<Interactions.ThoughtStep['summary']>),
+                cloneValue(delta.content) as NonNullable<
+                  Interactions.ThoughtStep['summary']
+                >[number],
               ],
             }
           : {}),
       }
-    case 'function_call':
-      return {
-        ...(existing?.type === 'function_call' ? existing : { type: 'function_call' as const }),
-        ...(delta.arguments ? { arguments: delta.arguments } : {}),
-        ...(delta.id ? { id: delta.id } : {}),
-        ...(delta.name ? { name: delta.name } : {}),
-        ...(delta.signature ? { signature: delta.signature } : {}),
-      } as Interactions.Content
     case 'function_result':
       return {
-        ...(existing?.type === 'function_result' ? existing : { type: 'function_result' as const }),
+        ...(existing?.type === 'function_result'
+          ? existing
+          : { call_id: '', result: '', type: 'function_result' as const }),
         ...(delta.call_id ? { call_id: delta.call_id } : {}),
         ...(delta.is_error !== undefined ? { is_error: delta.is_error } : {}),
         ...(delta.name ? { name: delta.name } : {}),
-        ...(delta.signature ? { signature: delta.signature } : {}),
         ...(delta.result !== undefined ? { result: delta.result } : {}),
-      } as Interactions.Content
+      } as Interactions.Step
     case 'google_search_call':
       return {
         ...(existing?.type === 'google_search_call'
           ? existing
           : {
               arguments: {},
+              id: '',
               type: 'google_search_call' as const,
             }),
         ...(delta.arguments ? { arguments: delta.arguments } : {}),
-        ...(delta.id ? { id: delta.id } : {}),
         ...(delta.signature ? { signature: delta.signature } : {}),
-      } as Interactions.Content
+      } as Interactions.Step
     case 'google_search_result':
       return {
         ...(existing?.type === 'google_search_result'
           ? existing
           : {
+              call_id: '',
               result: [],
               type: 'google_search_result' as const,
             }),
-        ...(delta.call_id ? { call_id: delta.call_id } : {}),
         ...(delta.is_error !== undefined ? { is_error: delta.is_error } : {}),
         ...(delta.signature ? { signature: delta.signature } : {}),
         ...(delta.result ? { result: delta.result } : {}),
-      } as Interactions.Content
+      } as Interactions.Step
     default:
-      return cloneValue(delta) as Interactions.Content
+      // Function-call arguments stream separately as partial JSON
+      // (arguments_delta) and are accumulated by the caller; other
+      // delta types have no adapter-visible representation yet.
+      return existing
   }
+}
+
+const parseStreamedFunctionArguments = (
+  step: Interactions.Step | undefined,
+  argumentsJson: string,
+): Interactions.Step | undefined => {
+  if (step?.type !== 'function_call' || argumentsJson.length === 0) {
+    return step
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(argumentsJson)
+
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return {
+        ...step,
+        arguments: parsed as Interactions.FunctionCallStep['arguments'],
+      }
+    }
+  } catch {}
+
+  return step
 }
 
 const toCancelRequestOptions = (
@@ -331,7 +382,8 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
         return ok(
           (async function* (): AsyncGenerator<AiStreamEvent> {
             const thoughtStates = new Map<number, GoogleThoughtStreamState>()
-            const output: Array<Interactions.Content | undefined> = []
+            const argumentBuffers = new Map<number, string>()
+            const steps: Array<Interactions.Step | undefined> = []
             let interactionSnapshot: Interactions.Interaction | null = null
             let lastError: {
               code?: string | null
@@ -340,12 +392,23 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
             let lastStatus: Interactions.Interaction['status'] | null = null
             let finalInteraction: Interactions.Interaction | null = null
 
+            const finalizeFunctionArguments = (index: number): void => {
+              const buffered = argumentBuffers.get(index)
+
+              if (buffered === undefined) {
+                return
+              }
+
+              argumentBuffers.delete(index)
+              steps[index] = parseStreamedFunctionArguments(steps[index], buffered)
+            }
+
             const flushBufferedThoughtDelta = (index: number): AiStreamEvent | null => {
               const state = ensureThoughtState(thoughtStates, index)
-              const content = output[index]
+              const step = steps[index]
 
-              if (content?.type === 'thought' && typeof content.signature === 'string') {
-                state.itemId = content.signature.trim() || null
+              if (step?.type === 'thought' && typeof step.signature === 'string') {
+                state.itemId = step.signature.trim() || null
               }
 
               if (!state.itemId) {
@@ -369,7 +432,7 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
             }
 
             for await (const event of responseStream) {
-              if (event.event_type === 'interaction.start') {
+              if (event.event_type === 'interaction.created') {
                 interactionSnapshot = cloneValue(event.interaction)
                 lastStatus = event.interaction.status
 
@@ -392,22 +455,27 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
                 continue
               }
 
-              if (event.event_type === 'content.start') {
-                output[event.index] = cloneValue(event.content)
+              if (event.event_type === 'step.start') {
+                steps[event.index] = cloneValue(event.step)
 
-                if (
-                  event.content.type === 'thought' &&
-                  typeof event.content.signature === 'string'
-                ) {
+                if (event.step.type === 'thought' && typeof event.step.signature === 'string') {
                   ensureThoughtState(thoughtStates, event.index).itemId =
-                    event.content.signature.trim() || null
+                    event.step.signature.trim() || null
                 }
 
                 continue
               }
 
-              if (event.event_type === 'content.delta') {
-                output[event.index] = mergeOutputContent(output[event.index], event.delta)
+              if (event.event_type === 'step.delta') {
+                if (event.delta.type === 'arguments_delta') {
+                  argumentBuffers.set(
+                    event.index,
+                    `${argumentBuffers.get(event.index) ?? ''}${event.delta.arguments ?? ''}`,
+                  )
+                  continue
+                }
+
+                steps[event.index] = mergeStepDelta(steps[event.index], event.delta)
 
                 if (
                   event.delta.type === 'text' &&
@@ -450,16 +518,18 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
                 continue
               }
 
-              if (event.event_type === 'content.stop') {
-                if (output[event.index]?.type === 'thought') {
+              if (event.event_type === 'step.stop') {
+                finalizeFunctionArguments(event.index)
+
+                if (steps[event.index]?.type === 'thought') {
                   const state = ensureThoughtState(thoughtStates, event.index)
-                  const thoughtContent = output[event.index]
+                  const thoughtStep = steps[event.index]
 
                   state.itemId =
                     state.itemId ??
                     getThoughtItemId(
-                      thoughtContent && thoughtContent.type === 'thought'
-                        ? thoughtContent.signature
+                      thoughtStep && thoughtStep.type === 'thought'
+                        ? thoughtStep.signature
                         : undefined,
                       event.index,
                     )
@@ -482,12 +552,20 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
                 continue
               }
 
-              if (event.event_type === 'interaction.complete') {
+              if (event.event_type === 'interaction.completed') {
+                for (const index of [...argumentBuffers.keys()]) {
+                  finalizeFunctionArguments(index)
+                }
+
                 finalInteraction = {
                   ...cloneValue(event.interaction),
-                  outputs: toOutputList(output),
+                  steps: toStepList(steps),
                 }
               }
+            }
+
+            for (const index of [...argumentBuffers.keys()]) {
+              finalizeFunctionArguments(index)
             }
 
             const interaction =
@@ -495,8 +573,8 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
               (interactionSnapshot
                 ? {
                     ...interactionSnapshot,
-                    outputs: toOutputList(output),
                     status: lastStatus ?? interactionSnapshot.status,
+                    steps: toStepList(steps),
                     updated: new Date().toISOString(),
                   }
                 : null)
@@ -507,7 +585,7 @@ export const createGoogleProvider = (config: GoogleProviderConfig): AiProvider =
 
             const normalizedResponse = normalizeResponse(request, interaction, {
               error: lastError,
-              output: toOutputList(output),
+              steps: toStepList(steps),
             })
 
             for (const outputItem of normalizedResponse.output) {

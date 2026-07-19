@@ -1,5 +1,6 @@
 // Image generation uses the May 2026 Interactions schema from GenAI v2.
-// The text adapter remains on v1 until its larger step/event migration is complete.
+// The text adapter now also runs on v2 via the primary @google/genai dependency;
+// this alias import is kept until the two entries are consolidated.
 import { GoogleGenAI, type Interactions } from '@google/genai-v2'
 
 import type { AiImageProvider } from '../../../domain/ai/image-provider'

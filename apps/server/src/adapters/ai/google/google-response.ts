@@ -15,7 +15,7 @@ interface NormalizeGoogleResponseOptions {
     code?: string | null
     message?: string | null
   } | null
-  output?: Interactions.Content[]
+  steps?: Interactions.Step[]
 }
 
 interface GoogleAdapterIssue {
@@ -36,22 +36,29 @@ const getThoughtItemId = (signature: string | undefined, index: number): string 
 const normalizeStatus = (
   interaction: Interactions.Interaction,
 ): AiInteractionResponse['status'] => {
-  if (interaction.status === 'requires_action') {
-    return 'completed'
+  switch (interaction.status) {
+    case 'completed':
+    case 'requires_action':
+      return 'completed'
+    case 'in_progress':
+      return 'in_progress'
+    case 'queued':
+      return 'queued'
+    case 'incomplete':
+    case 'budget_exceeded':
+      return 'incomplete'
+    case 'cancelled':
+      return 'cancelled'
+    default:
+      return 'failed'
   }
-
-  return interaction.status
 }
 
-const normalizeToolCall = (
-  content: Interactions.FunctionCallContent,
-  index: number,
-): AiToolCall => ({
-  arguments: content.arguments ?? null,
-  argumentsJson: JSON.stringify(content.arguments ?? {}),
-  callId: content.id || `${content.name || 'tool'}:${index}`,
-  name: content.name || 'unknown_function',
-  ...(content.signature ? { providerSignature: content.signature } : {}),
+const normalizeToolCall = (step: Interactions.FunctionCallStep, index: number): AiToolCall => ({
+  arguments: step.arguments ?? null,
+  argumentsJson: JSON.stringify(step.arguments ?? {}),
+  callId: step.id || `${step.name || 'tool'}:${index}`,
+  name: step.name || 'unknown_function',
 })
 
 export const mapUsage = (interaction: Interactions.Interaction): AiUsage | null => {
@@ -68,8 +75,8 @@ export const mapUsage = (interaction: Interactions.Interaction): AiUsage | null 
   }
 }
 
-const toThoughtSummary = (content: Interactions.ThoughtContent): GoogleThoughtSummary =>
-  (content.summary ?? []).flatMap((item) =>
+const toThoughtSummary = (step: Interactions.ThoughtStep): GoogleThoughtSummary =>
+  (step.summary ?? []).flatMap((item) =>
     item.type === 'text' && item.text.trim().length > 0
       ? [{ text: item.text, type: 'summary_text' as const }]
       : [],
@@ -92,6 +99,9 @@ const flushAssistantMessage = (
   })
 }
 
+const toModelOutputContent = (step: Interactions.Step): Interactions.Content[] =>
+  step.type === 'model_output' && Array.isArray(step.content) ? step.content : []
+
 const toTextAnnotations = (content: Interactions.Content): Interactions.Annotation[] =>
   content.type === 'text' && Array.isArray(content.annotations) ? content.annotations : []
 
@@ -100,36 +110,36 @@ const readTextValue = (content: Interactions.Content): string =>
 
 const normalizeWebSearches = (
   interaction: Interactions.Interaction,
-  output: Interactions.Content[],
+  steps: Interactions.Step[],
 ): AiWebSearchActivity[] => {
   const queries = dedupeStrings(
-    output.flatMap((content) =>
-      content.type === 'google_search_call' ? (content.arguments.queries ?? []) : [],
+    steps.flatMap((step) =>
+      step.type === 'google_search_call' ? (step.arguments.queries ?? []) : [],
     ),
   )
   const references = dedupeWebReferences(
-    output.flatMap((content) =>
-      toTextAnnotations(content).flatMap((annotation) => {
-        if (annotation.type !== 'url_citation' || typeof annotation.url !== 'string') {
-          return []
-        }
+    steps.flatMap((step) =>
+      toModelOutputContent(step).flatMap((content) =>
+        toTextAnnotations(content).flatMap((annotation) => {
+          if (annotation.type !== 'url_citation' || typeof annotation.url !== 'string') {
+            return []
+          }
 
-        return [
-          {
-            domain: toDomainFromUrl(annotation.url),
-            title: annotation.title ?? null,
-            url: annotation.url,
-          },
-        ]
-      }),
+          return [
+            {
+              domain: toDomainFromUrl(annotation.url),
+              title: annotation.title ?? null,
+              url: annotation.url,
+            },
+          ]
+        }),
+      ),
     ),
   )
   const hasSearchOutput =
     queries.length > 0 ||
     references.length > 0 ||
-    output.some(
-      (content) => content.type === 'google_search_call' || content.type === 'google_search_result',
-    )
+    steps.some((step) => step.type === 'google_search_call' || step.type === 'google_search_result')
 
   if (!hasSearchOutput) {
     return []
@@ -160,21 +170,28 @@ interface GoogleTerminalIssue {
   status: Extract<AiInteractionResponse['status'], 'failed' | 'incomplete' | 'cancelled'>
 }
 
-const detectUnsupportedOutputContent = (
-  output: Interactions.Content[],
-): GoogleAdapterIssue | null => {
+const detectUnsupportedOutputContent = (steps: Interactions.Step[]): GoogleAdapterIssue | null => {
   const unsupportedContentTypes = new Set<string>()
 
-  for (const content of output) {
-    switch (content.type) {
-      case 'text':
+  for (const step of steps) {
+    switch (step.type) {
+      case 'user_input':
       case 'function_call':
       case 'function_result':
       case 'google_search_call':
       case 'google_search_result':
         continue
+      case 'model_output': {
+        for (const content of step.content ?? []) {
+          if (content.type !== 'text') {
+            unsupportedContentTypes.add(content.type)
+          }
+        }
+
+        continue
+      }
       case 'thought': {
-        const unsupportedSummaryTypes = (content.summary ?? [])
+        const unsupportedSummaryTypes = (step.summary ?? [])
           .map((item) => item.type)
           .filter((type) => type !== 'text')
 
@@ -185,7 +202,7 @@ const detectUnsupportedOutputContent = (
         continue
       }
       default:
-        unsupportedContentTypes.add(content.type)
+        unsupportedContentTypes.add(step.type)
         continue
     }
   }
@@ -250,17 +267,17 @@ export const normalizeResponse = (
   interaction: Interactions.Interaction,
   options: NormalizeGoogleResponseOptions = {},
 ): AiInteractionResponse => {
-  const outputContent = options.output ?? interaction.outputs ?? []
-  const adapterIssue = detectUnsupportedOutputContent(outputContent)
+  const outputSteps = options.steps ?? interaction.steps ?? []
+  const adapterIssue = detectUnsupportedOutputContent(outputSteps)
   const output: AiOutputItem[] = []
   const toolCalls: AiToolCall[] = []
   const pendingTextParts: Extract<AiMessage['content'][number], { type: 'text' }>[] = []
   let outputText = ''
 
-  for (const [index, content] of outputContent.entries()) {
-    if (content.type === 'function_call') {
+  for (const [index, step] of outputSteps.entries()) {
+    if (step.type === 'function_call') {
       flushAssistantMessage(output, pendingTextParts)
-      const toolCall = normalizeToolCall(content, index)
+      const toolCall = normalizeToolCall(step, index)
       toolCalls.push(toolCall)
       output.push({
         ...toolCall,
@@ -269,16 +286,16 @@ export const normalizeResponse = (
       continue
     }
 
-    if (content.type === 'thought') {
+    if (step.type === 'thought') {
       flushAssistantMessage(output, pendingTextParts)
-      const summary = toThoughtSummary(content)
+      const summary = toThoughtSummary(step)
       const text = summary
         .map((part) => part.text)
         .join('')
         .trim()
 
       output.push({
-        id: getThoughtItemId(content.signature, index),
+        id: getThoughtItemId(step.signature, index),
         summary,
         ...(text ? { text } : {}),
         thought: true,
@@ -287,21 +304,23 @@ export const normalizeResponse = (
       continue
     }
 
-    if (content.type !== 'text') {
+    if (step.type !== 'model_output') {
       continue
     }
 
-    const text = readTextValue(content)
+    for (const content of step.content ?? []) {
+      const text = readTextValue(content)
 
-    if (text.length === 0) {
-      continue
+      if (text.length === 0) {
+        continue
+      }
+
+      pendingTextParts.push({
+        text,
+        type: 'text',
+      })
+      outputText += text
     }
-
-    pendingTextParts.push({
-      text,
-      type: 'text',
-    })
-    outputText += text
   }
 
   flushAssistantMessage(output, pendingTextParts)
@@ -340,6 +359,6 @@ export const normalizeResponse = (
     status: terminalIssue?.status ?? status,
     toolCalls,
     usage: mapUsage(interaction),
-    webSearches: normalizeWebSearches(interaction, outputContent),
+    webSearches: normalizeWebSearches(interaction, outputSteps),
   }
 }

@@ -8,66 +8,91 @@ const isGoogleTimeoutError = (error: Error): boolean =>
   /request timed out/i.test(error.message) ||
   ('cause' in error && /timed? ?out/i.test(String(error.cause ?? '')))
 
+// The 2.x SDK's Interactions client raises its own APIError hierarchy
+// (BadRequestError, RateLimitError, ...) that carries a numeric HTTP status
+// but is not an instance of the exported ApiError compatibility class.
+const resolveHttpStatus = (error: unknown): number | null => {
+  if (error instanceof ApiError) {
+    return error.status
+  }
+
+  if (
+    error instanceof Error &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number'
+  ) {
+    return (error as { status: number }).status
+  }
+
+  return null
+}
+
+const toHttpStatusDomainError = (status: number, error: Error): DomainError => {
+  if (status === 400 || status === 422) {
+    return {
+      message: `Google GenAI rejected the request: ${error.message}`,
+      type: 'validation',
+    }
+  }
+
+  if (status === 401) {
+    return {
+      message: `Google GenAI authentication failed: ${error.message}`,
+      type: 'auth',
+    }
+  }
+
+  if (status === 403) {
+    return {
+      message: `Google GenAI permission denied: ${error.message}`,
+      type: 'permission',
+    }
+  }
+
+  if (status === 404) {
+    return {
+      message: `Google GenAI resource not found: ${error.message}`,
+      type: 'not_found',
+    }
+  }
+
+  if (status === 409) {
+    return {
+      message: `Google GenAI request conflicted with provider state: ${error.message}`,
+      type: 'conflict',
+    }
+  }
+
+  if (status === 429) {
+    return {
+      message: `Google GenAI rate limit reached: ${error.message}`,
+      type: 'capacity',
+    }
+  }
+
+  if (status === 408 || status === 504) {
+    return {
+      message: `Google GenAI request timed out: ${error.message}`,
+      type: 'timeout',
+    }
+  }
+
+  return {
+    message: `Google GenAI provider error (${status}): ${error.message}`,
+    provider: 'google',
+    type: 'provider',
+  }
+}
+
 export const toGoogleDomainError = (error: unknown): DomainError => {
   if (error instanceof DomainErrorException) {
     return error.domainError
   }
 
-  if (error instanceof ApiError) {
-    if (error.status === 400) {
-      return {
-        message: `Google GenAI rejected the request: ${error.message}`,
-        type: 'validation',
-      }
-    }
+  const httpStatus = resolveHttpStatus(error)
 
-    if (error.status === 401) {
-      return {
-        message: `Google GenAI authentication failed: ${error.message}`,
-        type: 'auth',
-      }
-    }
-
-    if (error.status === 403) {
-      return {
-        message: `Google GenAI permission denied: ${error.message}`,
-        type: 'permission',
-      }
-    }
-
-    if (error.status === 404) {
-      return {
-        message: `Google GenAI resource not found: ${error.message}`,
-        type: 'not_found',
-      }
-    }
-
-    if (error.status === 409) {
-      return {
-        message: `Google GenAI request conflicted with provider state: ${error.message}`,
-        type: 'conflict',
-      }
-    }
-
-    if (error.status === 429) {
-      return {
-        message: `Google GenAI rate limit reached: ${error.message}`,
-        type: 'capacity',
-      }
-    }
-
-    if (error.status === 408 || error.status === 504) {
-      return {
-        message: `Google GenAI request timed out: ${error.message}`,
-        type: 'timeout',
-      }
-    }
-
-    return {
-      message: `Google GenAI provider error (${error.status}): ${error.message}`,
-      provider: 'google',
-      type: 'provider',
-    }
+  if (error instanceof Error && httpStatus !== null) {
+    return toHttpStatusDomainError(httpStatus, error)
   }
 
   if (error instanceof Error && isGoogleTimeoutError(error)) {
@@ -82,6 +107,13 @@ export const toGoogleDomainError = (error: unknown): DomainError => {
       message: `Google GenAI connection failed: ${error.message}`,
       provider: 'google',
       type: 'provider',
+    }
+  }
+
+  if (error instanceof Error && error.name === 'APIUserAbortError') {
+    return {
+      message: `Google GenAI request was aborted: ${error.message}`,
+      type: 'conflict',
     }
   }
 

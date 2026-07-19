@@ -18,6 +18,41 @@ test('Google domain error maps SDK timeout statuses to timeout', () => {
   })
 })
 
+test('Google domain error maps Interactions client HTTP errors by status', () => {
+  // The 2.x Interactions client raises its own APIError hierarchy that is not
+  // an instance of the exported ApiError compatibility class.
+  const badRequestError = Object.assign(new Error('400 Invalid request schema.'), {
+    name: 'BadRequestError',
+    status: 400,
+  })
+
+  assert.deepEqual(toGoogleDomainError(badRequestError), {
+    message: 'Google GenAI rejected the request: 400 Invalid request schema.',
+    type: 'validation',
+  })
+
+  const rateLimitError = Object.assign(new Error('429 Resource has been exhausted.'), {
+    name: 'RateLimitError',
+    status: 429,
+  })
+
+  assert.deepEqual(toGoogleDomainError(rateLimitError), {
+    message: 'Google GenAI rate limit reached: 429 Resource has been exhausted.',
+    type: 'capacity',
+  })
+})
+
+test('Google domain error maps Interactions client user aborts to conflict', () => {
+  const abortError = Object.assign(new Error('Request was aborted.'), {
+    name: 'APIUserAbortError',
+  })
+
+  assert.deepEqual(toGoogleDomainError(abortError), {
+    message: 'Google GenAI request was aborted: Request was aborted.',
+    type: 'conflict',
+  })
+})
+
 test('Google domain error maps SDK connection timeout errors to timeout', () => {
   const timeoutError = Object.assign(new Error('Request timed out.'), {
     name: 'APIConnectionTimeoutError',

@@ -161,38 +161,28 @@ test('Google Interactions request sanitizes empty arrays in function results', (
           type: 'text',
         },
       ],
-      role: 'user',
+      type: 'user_input',
     },
     {
-      content: [
-        {
-          arguments: {
-            garden: 'overment',
-            script: 'grep -r "Nora" . || true',
-          },
-          id: 'call_execute',
-          name: 'execute',
-          type: 'function_call',
-        },
-      ],
-      role: 'model',
+      arguments: {
+        garden: 'overment',
+        script: 'grep -r "Nora" . || true',
+      },
+      id: 'call_execute',
+      name: 'execute',
+      type: 'function_call',
     },
     {
-      content: [
-        {
-          call_id: 'call_execute',
-          name: 'execute',
-          result: {
-            files: null,
-            packages: null,
-            status: 'completed',
-            stdout: 'music/deep-house/nora.md:title: Nora En Pure\n',
-            writebacks: null,
-          },
-          type: 'function_result',
-        },
-      ],
-      role: 'user',
+      call_id: 'call_execute',
+      name: 'execute',
+      result: {
+        files: null,
+        packages: null,
+        status: 'completed',
+        stdout: 'music/deep-house/nora.md:title: Nora En Pure\n',
+        writebacks: null,
+      },
+      type: 'function_result',
     },
   ])
 })
@@ -560,7 +550,7 @@ test('OpenAI request rejects invalid function tool names before sending the requ
   )
 })
 
-test('Google Interactions request replay preserves signatures on thoughts, function calls, and thought parts', () => {
+test('Google Interactions request replay preserves signatures on thoughts and thought parts', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -612,50 +602,44 @@ test('Google Interactions request replay preserves signatures on thoughts, funct
 
   assert.deepEqual(input, [
     {
-      content: [
+      signature: 'sig_reason_1',
+      summary: [
         {
-          signature: 'sig_reason_1',
-          summary: [
-            {
-              text: 'Need to reason first.',
-              type: 'text',
-            },
-          ],
-          type: 'thought',
+          text: 'Need to reason first.',
+          type: 'text',
         },
+      ],
+      type: 'thought',
+    },
+    {
+      content: [
         {
           text: 'Final answer',
           type: 'text',
         },
       ],
-      role: 'model',
+      type: 'model_output',
     },
     {
-      content: [
+      arguments: { q: 'status' },
+      id: 'call_1',
+      name: 'lookup_status',
+      type: 'function_call',
+    },
+    {
+      signature: 'sig_reasoning_item_1',
+      summary: [
         {
-          arguments: { q: 'status' },
-          id: 'call_1',
-          name: 'lookup_status',
-          signature: 'sig_call_1',
-          type: 'function_call',
-        },
-        {
-          signature: 'sig_reasoning_item_1',
-          summary: [
-            {
-              text: 'Internal thought replay.',
-              type: 'text',
-            },
-          ],
-          type: 'thought',
+          text: 'Internal thought replay.',
+          type: 'text',
         },
       ],
-      role: 'model',
+      type: 'thought',
     },
   ])
 })
 
-test('Google Interactions request groups tool-call replay into logical model and user turns', () => {
+test('Google Interactions request groups tool-call replay into typed steps', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -733,57 +717,47 @@ test('Google Interactions request groups tool-call replay into logical model and
           type: 'text',
         },
       ],
-      role: 'user',
+      type: 'user_input',
     },
     {
-      content: [
+      signature: 'thought_1',
+      summary: [
         {
-          signature: 'thought_1',
-          summary: [
-            {
-              text: 'Need two lookups.',
-              type: 'text',
-            },
-          ],
-          type: 'thought',
-        },
-        {
-          arguments: { agentAlias: 'tony' },
-          id: 'call_tony',
-          name: 'delegate_to_agent',
-          type: 'function_call',
-        },
-        {
-          arguments: { agentAlias: 'nicky' },
-          id: 'call_nicky',
-          name: 'delegate_to_agent',
-          type: 'function_call',
+          text: 'Need two lookups.',
+          type: 'text',
         },
       ],
-      role: 'model',
+      type: 'thought',
     },
     {
-      content: [
-        {
-          call_id: 'call_tony',
-          name: 'delegate_to_agent',
-          result: {
-            kind: 'completed',
-            summary: 'Tony ok',
-          },
-          type: 'function_result',
-        },
-        {
-          call_id: 'call_nicky',
-          name: 'delegate_to_agent',
-          result: {
-            kind: 'completed',
-            summary: 'Nicky ok',
-          },
-          type: 'function_result',
-        },
-      ],
-      role: 'user',
+      arguments: { agentAlias: 'tony' },
+      id: 'call_tony',
+      name: 'delegate_to_agent',
+      type: 'function_call',
+    },
+    {
+      arguments: { agentAlias: 'nicky' },
+      id: 'call_nicky',
+      name: 'delegate_to_agent',
+      type: 'function_call',
+    },
+    {
+      call_id: 'call_tony',
+      name: 'delegate_to_agent',
+      result: {
+        kind: 'completed',
+        summary: 'Tony ok',
+      },
+      type: 'function_result',
+    },
+    {
+      call_id: 'call_nicky',
+      name: 'delegate_to_agent',
+      result: {
+        kind: 'completed',
+        summary: 'Nicky ok',
+      },
+      type: 'function_result',
     },
   ])
 })

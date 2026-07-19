@@ -99,7 +99,7 @@ const toReasoningSummary = (
     ResolvedAiInteractionRequest['messages'][number]['content'][number],
     { type: 'reasoning' }
   >,
-): Interactions.ThoughtContent['summary'] | undefined => {
+): Interactions.ThoughtStep['summary'] | undefined => {
   if (typeof part.text === 'string' && part.text.trim().length > 0) {
     return [
       {
@@ -207,72 +207,43 @@ const toMediaContent = (part: AiFileUrlContent | AiImageUrlContent): Interaction
   })
 }
 
-const toInteractionContent = (
-  message: ResolvedAiInteractionRequest['messages'][number],
-  part: ResolvedAiInteractionRequest['messages'][number]['content'][number],
-): Interactions.Content => {
-  switch (part.type) {
-    case 'text': {
-      if (message.role === 'assistant' && part.thought === true) {
-        return {
-          ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
-          summary: [
-            {
-              text: part.text,
-              type: 'text',
-            },
-          ],
-          type: 'thought',
-        }
-      }
-
-      return {
-        text: part.text,
-        type: 'text',
-      }
+const toThoughtStep = (
+  part: Extract<GoogleReplayPart, { type: 'reasoning' } | { type: 'text' }>,
+): Interactions.ThoughtStep => {
+  if (part.type === 'text') {
+    return {
+      ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
+      summary: [
+        {
+          text: part.text,
+          type: 'text',
+        },
+      ],
+      type: 'thought',
     }
-    case 'function_call':
-      if (message.role !== 'assistant') {
-        throw new DomainErrorException({
-          message: 'Function calls must be emitted by assistant messages',
-          type: 'validation',
-        })
-      }
+  }
 
-      return {
-        arguments:
-          toJsonSchemaObject(part.argumentsJson, `Function call "${part.name}" arguments`) ?? {},
-        id: part.callId,
-        name: part.name,
-        ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
-        type: 'function_call',
-      }
-    case 'function_result':
-      return {
-        call_id: part.callId,
-        ...(part.isError !== undefined ? { is_error: part.isError } : {}),
-        name: part.name,
-        ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
-        result: toFunctionResultValue(part),
-        type: 'function_result',
-      }
-    case 'file_url':
-    case 'image_url':
-      return toMediaContent(part)
-    case 'file_id':
-    case 'image_file':
-      throw new DomainErrorException({
-        message: `Google Interactions adapter does not support ${part.type} inputs yet`,
-        type: 'validation',
-      })
-    case 'reasoning':
-      return {
-        ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
-        ...(toReasoningSummary(part) ? { summary: toReasoningSummary(part) } : {}),
-        type: 'thought',
-      }
+  return {
+    ...(resolveProviderSignature(part) ? { signature: resolveProviderSignature(part) } : {}),
+    ...(toReasoningSummary(part) ? { summary: toReasoningSummary(part) } : {}),
+    type: 'thought',
   }
 }
+
+const toFunctionCallStep = (part: AiFunctionCallContent): Interactions.FunctionCallStep => ({
+  arguments: toJsonSchemaObject(part.argumentsJson, `Function call "${part.name}" arguments`) ?? {},
+  id: part.callId,
+  name: part.name,
+  type: 'function_call',
+})
+
+const toFunctionResultStep = (part: AiFunctionResultContent): Interactions.FunctionResultStep => ({
+  call_id: part.callId,
+  ...(part.isError !== undefined ? { is_error: part.isError } : {}),
+  name: part.name,
+  result: toFunctionResultValue(part) as Interactions.FunctionResultStep['result'],
+  type: 'function_result',
+})
 
 const buildSystemInstruction = (
   messages: ResolvedAiInteractionRequest['messages'],
@@ -362,23 +333,73 @@ const mergeReplayMessagesForGoogle = (
 
 export const buildInputForRequest = (
   messages: ResolvedAiInteractionRequest['messages'],
-): Interactions.Turn[] => {
-  const turns: Interactions.Turn[] = []
+): Interactions.Step[] => {
+  const steps: Interactions.Step[] = []
 
   for (const message of mergeReplayMessagesForGoogle(messages)) {
-    const content = message.content.map((part) => toInteractionContent(message, part))
+    const isAssistant = message.role === 'assistant'
+    const pendingContent: Interactions.Content[] = []
 
-    if (content.length === 0) {
-      continue
+    const flushPendingContent = (): void => {
+      if (pendingContent.length === 0) {
+        return
+      }
+
+      const content = pendingContent.splice(0, pendingContent.length)
+
+      steps.push(isAssistant ? { content, type: 'model_output' } : { content, type: 'user_input' })
     }
 
-    turns.push({
-      content,
-      role: message.role === 'assistant' ? 'model' : 'user',
-    })
+    for (const part of message.content) {
+      switch (part.type) {
+        case 'text':
+          if (isAssistant && part.thought === true) {
+            flushPendingContent()
+            steps.push(toThoughtStep(part))
+            continue
+          }
+
+          pendingContent.push({
+            text: part.text,
+            type: 'text',
+          })
+          continue
+        case 'function_call':
+          if (!isAssistant) {
+            throw new DomainErrorException({
+              message: 'Function calls must be emitted by assistant messages',
+              type: 'validation',
+            })
+          }
+
+          flushPendingContent()
+          steps.push(toFunctionCallStep(part))
+          continue
+        case 'function_result':
+          flushPendingContent()
+          steps.push(toFunctionResultStep(part))
+          continue
+        case 'file_url':
+        case 'image_url':
+          pendingContent.push(toMediaContent(part))
+          continue
+        case 'file_id':
+        case 'image_file':
+          throw new DomainErrorException({
+            message: `Google Interactions adapter does not support ${part.type} inputs yet`,
+            type: 'validation',
+          })
+        case 'reasoning':
+          flushPendingContent()
+          steps.push(toThoughtStep(part))
+          continue
+      }
+    }
+
+    flushPendingContent()
   }
 
-  return turns
+  return steps
 }
 
 export const buildContentsForRequest = buildInputForRequest
@@ -568,13 +589,12 @@ export const buildRequestOptions = (
   request: ResolvedAiInteractionRequest,
   config: GoogleRequestConfig,
 ): {
-  idempotencyKey?: string
   maxRetries: number
   signal?: AbortSignal
   timeout: number
 } => ({
+  // The 2.x SDK request options no longer accept an idempotency key.
   ...(request.abortSignal ? { signal: request.abortSignal } : {}),
-  ...(request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : {}),
   maxRetries: request.maxRetries ?? config.maxRetries,
   timeout: request.timeoutMs ?? config.defaultHttpTimeoutMs,
 })
@@ -592,8 +612,11 @@ export const buildCreateInteractionParams = (
   model: request.model,
   ...(request.responseFormat?.type === 'json_schema'
     ? {
-        response_format: request.responseFormat.schema,
-        response_mime_type: 'application/json' as const,
+        response_format: {
+          mime_type: 'application/json' as const,
+          schema: request.responseFormat.schema,
+          type: 'text' as const,
+        },
       }
     : {}),
   ...(mapServiceTier(request.serviceTier)

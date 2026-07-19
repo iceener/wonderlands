@@ -16,12 +16,13 @@ const request: ResolvedAiInteractionRequest = {
   provider: 'google',
 }
 
-test('Google Interactions normalization preserves thought signatures and function signatures', () => {
+test('Google Interactions normalization preserves thought signatures and function call steps', () => {
   const interaction = {
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_1',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'requires_action',
+    steps: [
       {
         signature: 'sig_thought_1',
         summary: [
@@ -36,15 +37,18 @@ test('Google Interactions normalization preserves thought signatures and functio
         arguments: { q: 'status' },
         id: 'call_1',
         name: 'lookup_status',
-        signature: 'sig_call_1',
         type: 'function_call',
       },
       {
-        text: 'The tool completed successfully.',
-        type: 'text',
+        content: [
+          {
+            text: 'The tool completed successfully.',
+            type: 'text',
+          },
+        ],
+        type: 'model_output',
       },
     ],
-    status: 'requires_action',
     updated: '2026-04-06T09:00:01.000Z',
     usage: {
       total_input_tokens: 20,
@@ -70,7 +74,6 @@ test('Google Interactions normalization preserves thought signatures and functio
       argumentsJson: '{"q":"status"}',
       callId: 'call_1',
       name: 'lookup_status',
-      providerSignature: 'sig_call_1',
       type: 'function_call',
     },
     {
@@ -85,7 +88,6 @@ test('Google Interactions normalization preserves thought signatures and functio
       argumentsJson: '{"q":"status"}',
       callId: 'call_1',
       name: 'lookup_status',
-      providerSignature: 'sig_call_1',
     },
   ])
   assert.equal(normalized.responseId, 'int_google_1')
@@ -97,7 +99,8 @@ test('Google Interactions normalization preserves web search queries and URL cit
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_2',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'completed',
+    steps: [
       {
         arguments: {
           queries: ['latest svelte docs'],
@@ -107,18 +110,22 @@ test('Google Interactions normalization preserves web search queries and URL cit
         type: 'google_search_call',
       },
       {
-        text: 'The latest Svelte docs are available on the official site.',
-        type: 'text',
-        annotations: [
+        content: [
           {
-            title: 'Svelte documentation',
-            type: 'url_citation',
-            url: 'https://svelte.dev/docs',
+            annotations: [
+              {
+                title: 'Svelte documentation',
+                type: 'url_citation',
+                url: 'https://svelte.dev/docs',
+              },
+            ],
+            text: 'The latest Svelte docs are available on the official site.',
+            type: 'text',
           },
         ],
+        type: 'model_output',
       },
     ],
-    status: 'completed',
     updated: '2026-04-06T09:00:01.000Z',
   } as Interactions.Interaction
 
@@ -149,8 +156,8 @@ test('Google Interactions normalization keeps failed status and error payloads',
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_failed_1',
     model: 'gemini-2.5-pro',
-    outputs: [],
     status: 'failed',
+    steps: [],
     updated: '2026-04-06T09:00:01.000Z',
   } as Interactions.Interaction
 
@@ -179,7 +186,8 @@ test('Google Interactions normalization preserves reasoning blocks without signa
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_reasoning_1',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'completed',
+    steps: [
       {
         summary: [
           {
@@ -190,11 +198,15 @@ test('Google Interactions normalization preserves reasoning blocks without signa
         type: 'thought',
       },
       {
-        text: 'The invariant still holds.',
-        type: 'text',
+        content: [
+          {
+            text: 'The invariant still holds.',
+            type: 'text',
+          },
+        ],
+        type: 'model_output',
       },
     ],
-    status: 'completed',
     updated: '2026-04-06T09:00:01.000Z',
   } as Interactions.Interaction
 
@@ -221,16 +233,21 @@ test('Google Interactions normalization ignores malformed empty text blocks', ()
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_text_1',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'completed',
+    steps: [
       {
-        type: 'text',
-      },
-      {
-        text: 'Hi Adam! It is good to hear from you.',
-        type: 'text',
+        content: [
+          {
+            type: 'text',
+          },
+          {
+            text: 'Hi Adam! It is good to hear from you.',
+            type: 'text',
+          },
+        ],
+        type: 'model_output',
       },
     ],
-    status: 'completed',
     updated: '2026-04-06T09:00:01.000Z',
   } as unknown as Interactions.Interaction
 
@@ -245,19 +262,59 @@ test('Google Interactions normalization ignores malformed empty text blocks', ()
   ])
 })
 
+test('Google Interactions normalization skips user input steps from full timelines', () => {
+  const interaction = {
+    created: '2026-04-06T09:00:00.000Z',
+    id: 'int_google_timeline_1',
+    model: 'gemini-2.5-pro',
+    status: 'completed',
+    steps: [
+      {
+        content: [
+          {
+            text: 'hello',
+            type: 'text',
+          },
+        ],
+        type: 'user_input',
+      },
+      {
+        content: [
+          {
+            text: 'Hello back!',
+            type: 'text',
+          },
+        ],
+        type: 'model_output',
+      },
+    ],
+    updated: '2026-04-06T09:00:01.000Z',
+  } as Interactions.Interaction
+
+  const normalized = normalizeResponse(request, interaction)
+
+  assert.equal(normalized.status, 'completed')
+  assert.equal(normalized.outputText, 'Hello back!')
+})
+
 test('Google Interactions normalization fails explicitly on unsupported output content types', () => {
   const interaction = {
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_image_1',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'completed',
+    steps: [
       {
-        mime_type: 'image/png',
-        type: 'image',
-        uri: 'gs://bucket/example.png',
+        content: [
+          {
+            mime_type: 'image/png',
+            type: 'image',
+            uri: 'gs://bucket/example.png',
+          },
+        ],
+        type: 'model_output',
       },
     ],
-    status: 'completed',
     updated: '2026-04-06T09:00:01.000Z',
   } as unknown as Interactions.Interaction
 
@@ -291,7 +348,8 @@ test('Google Interactions normalization fails explicitly on unsupported thought 
     created: '2026-04-06T09:00:00.000Z',
     id: 'int_google_thought_image_1',
     model: 'gemini-2.5-pro',
-    outputs: [
+    status: 'completed',
+    steps: [
       {
         summary: [
           {
@@ -302,7 +360,6 @@ test('Google Interactions normalization fails explicitly on unsupported thought 
         type: 'thought',
       },
     ],
-    status: 'completed',
     updated: '2026-04-06T09:00:01.000Z',
   } as unknown as Interactions.Interaction
 
