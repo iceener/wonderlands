@@ -23,6 +23,12 @@ export const toRunTranscriptMessages = (input: ContextContributorInput): AiMessa
     provider: resolveRequestedProvider(input),
   })
 
+const latestTranscriptTimestamp = (input: ContextContributorInput): string =>
+  input.context.items
+    .map((item) => item.createdAt)
+    .sort((left, right) => Date.parse(left) - Date.parse(right) || left.localeCompare(right))
+    .at(-1) ?? input.context.run.createdAt
+
 export const runTranscriptContributor: ContextContributor = {
   build: (input) => [
     {
@@ -31,6 +37,29 @@ export const runTranscriptContributor: ContextContributor = {
       volatility: 'volatile',
     },
   ],
+  describe: ({ input }) => ({
+    authority: 'conversation',
+    capturedAt: latestTranscriptTimestamp(input),
+    conflictKey: null,
+    dedupeKey: 'run-transcript',
+    dependencies: [],
+    expiresAt: null,
+    priority: 0,
+    provenance: {
+      createdByRunId: String(input.context.run.id),
+      sourceIds: input.context.items.map((item) => String(item.id)).sort(),
+      sourceType: 'runtime',
+      sourceVersion: String(input.context.run.version),
+    },
+    // The legacy transcript remains one preferred artifact for projection parity. A future
+    // granular representation must classify the current user turn and unresolved tool state as
+    // mandatory rather than allowing this whole transcript to compete as one preferred block.
+    requirement: 'preferred',
+    sensitivity: 'restricted',
+    supersedes: [],
+    transformation: { kind: 'none' },
+    visibility: 'model',
+  }),
   id: 'run-transcript',
   order: 11,
 }

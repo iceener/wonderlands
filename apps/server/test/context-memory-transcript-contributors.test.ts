@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
+import {
+  buildContextArtifacts,
+  projectContextArtifactMessages,
+} from '../src/application/context/artifacts'
 import type { ContextContributorInput } from '../src/application/context/contracts'
 import { observationMemoryContributor } from '../src/application/context/contributors/observation-memory'
 import { reflectionMemoryContributor } from '../src/application/context/contributors/reflection-memory'
@@ -26,6 +30,7 @@ import {
   createReflection,
   createVisibleMessage,
   summaryFixture,
+  textAndImageFilesFixture,
 } from './fixtures/context/context-assembly'
 
 const contributors = defineContextContributors([
@@ -127,6 +132,227 @@ describe('memory, transcript, fallback, and reserved context contributors', () =
     assert.deepEqual(pendingWaitsContributor.build(createInput(createContext())), [
       { kind: 'pending_waits', messages: [], volatility: 'volatile' },
     ])
+  })
+
+  test('declares complete metadata for reserved and empty memory/transcript layers', () => {
+    const input = deepFreeze(createInput(createContext()))
+    const contributions = buildContextContributions(contributors, input)
+    const artifacts = buildContextArtifacts(contributors, input, { validationMode: 'strict' })
+
+    assert.deepEqual(projectContextArtifactMessages(artifacts), contributions)
+    assert.deepEqual(
+      artifacts.map((artifact) => ({
+        authority: artifact.authority,
+        dedupeKey: artifact.dedupeKey,
+        metadataStatus: artifact.metadataStatus,
+        requirement: artifact.requirement,
+        sensitivity: artifact.sensitivity,
+        sourceIds: artifact.provenance.sourceIds,
+        sourceType: artifact.provenance.sourceType,
+        visibility: artifact.visibility,
+      })),
+      [
+        {
+          authority: 'conversation',
+          dedupeKey: 'system-prompt',
+          metadataStatus: 'declared',
+          requirement: 'optional',
+          sensitivity: 'private',
+          sourceIds: ['run_context_characterization'],
+          sourceType: 'runtime',
+          visibility: 'model',
+        },
+        {
+          authority: 'conversation',
+          dedupeKey: 'session-metadata',
+          metadataStatus: 'declared',
+          requirement: 'optional',
+          sensitivity: 'private',
+          sourceIds: ['run_context_characterization'],
+          sourceType: 'runtime',
+          visibility: 'model',
+        },
+        {
+          authority: 'summary',
+          dedupeKey: 'summary-memory',
+          metadataStatus: 'declared',
+          requirement: 'preferred',
+          sensitivity: 'private',
+          sourceIds: [],
+          sourceType: 'memory_summary',
+          visibility: 'model',
+        },
+        {
+          authority: 'reflection',
+          dedupeKey: 'reflection-memory',
+          metadataStatus: 'declared',
+          requirement: 'preferred',
+          sensitivity: 'private',
+          sourceIds: [],
+          sourceType: 'memory_reflection',
+          visibility: 'model',
+        },
+        {
+          authority: 'observation',
+          dedupeKey: 'observation-memory',
+          metadataStatus: 'declared',
+          requirement: 'preferred',
+          sensitivity: 'private',
+          sourceIds: [],
+          sourceType: 'memory_observation',
+          visibility: 'model',
+        },
+        {
+          authority: 'conversation',
+          dedupeKey: 'run-transcript',
+          metadataStatus: 'declared',
+          requirement: 'preferred',
+          sensitivity: 'restricted',
+          sourceIds: [],
+          sourceType: 'runtime',
+          visibility: 'model',
+        },
+        {
+          authority: 'conversation',
+          dedupeKey: 'visible-history-fallback',
+          metadataStatus: 'declared',
+          requirement: 'preferred',
+          sensitivity: 'restricted',
+          sourceIds: [],
+          sourceType: 'runtime',
+          visibility: 'model',
+        },
+        {
+          authority: 'conversation',
+          dedupeKey: 'pending-waits',
+          metadataStatus: 'declared',
+          requirement: 'optional',
+          sensitivity: 'private',
+          sourceIds: ['run_context_characterization'],
+          sourceType: 'runtime',
+          visibility: 'model',
+        },
+      ],
+    )
+    assert.ok(
+      artifacts.every(
+        (artifact) =>
+          artifact.capturedAt === input.context.run.createdAt &&
+          artifact.expiresAt === null &&
+          artifact.priority === 0 &&
+          artifact.conflictKey === null &&
+          artifact.dependencies.length === 0 &&
+          artifact.supersedes.length === 0 &&
+          artifact.transformation.kind === 'none',
+      ),
+    )
+    assert.deepEqual(
+      buildContextArtifacts(contributors, input, { validationMode: 'strict' }).map(
+        (artifact) => artifact.id,
+      ),
+      artifacts.map((artifact) => artifact.id),
+    )
+  })
+
+  test('declares durable, sorted provenance without changing strict artifact projection', () => {
+    const secondObservation = {
+      ...createObservation(),
+      id: 'mem_observation_alpha',
+    }
+    const input = deepFreeze(
+      createInput(
+        createContext({
+          activeReflection: createReflection(),
+          items: [
+            createMessageItem({
+              id: 'itm_transcript_zulu',
+              role: 'assistant',
+              sequence: 2,
+              text: 'Second item.',
+            }),
+            createMessageItem({
+              id: 'itm_transcript_alpha',
+              role: 'user',
+              sequence: 1,
+              text: 'First item.',
+            }),
+          ],
+          observations: [createObservation(), secondObservation],
+          summary: summaryFixture,
+          visibleFiles: [...textAndImageFilesFixture].reverse(),
+          visibleMessages: [
+            createVisibleMessage({ id: 'msg_visible_zulu', sequence: 2, text: 'Second visible.' }),
+            createVisibleMessage({ id: 'msg_visible_alpha', sequence: 1, text: 'First visible.' }),
+          ],
+        }),
+      ),
+    )
+    const before = JSON.stringify(input.context)
+    const contributions = buildContextContributions(contributors, input)
+    const artifacts = buildContextArtifacts(contributors, input, { validationMode: 'strict' })
+    const [system, session, summary, reflection, observations, transcript, visible, waits] =
+      artifacts
+
+    assert.deepEqual(projectContextArtifactMessages(artifacts), contributions)
+    assert.deepEqual(summary?.provenance, {
+      createdByRunId: 'run_context_characterization',
+      sourceIds: ['sum_context_characterization'],
+      sourceType: 'memory_summary',
+      sourceVersion: null,
+    })
+    assert.deepEqual(reflection?.provenance, {
+      createdByRunId: 'run_context_characterization',
+      sourceIds: ['mem_reflection_characterization'],
+      sourceType: 'memory_reflection',
+      sourceVersion: '1',
+    })
+    assert.deepEqual(observations?.provenance, {
+      createdByRunId: 'run_context_characterization',
+      sourceIds: ['mem_observation_alpha', 'mem_observation_characterization'],
+      sourceType: 'memory_observation',
+      sourceVersion: null,
+    })
+    assert.deepEqual(transcript?.provenance, {
+      createdByRunId: 'run_context_characterization',
+      sourceIds: ['itm_transcript_alpha', 'itm_transcript_zulu'],
+      sourceType: 'runtime',
+      sourceVersion: '1',
+    })
+    assert.deepEqual(visible?.provenance, {
+      createdByRunId: null,
+      sourceIds: [
+        'fil_characterization_diagram',
+        'fil_characterization_notes',
+        'msg_visible_alpha',
+        'msg_visible_zulu',
+      ],
+      sourceType: 'runtime',
+      sourceVersion: null,
+    })
+    assert.deepEqual(
+      [system, session, waits].map((artifact) => artifact?.provenance),
+      [system, session, waits].map(() => ({
+        createdByRunId: 'run_context_characterization',
+        sourceIds: ['run_context_characterization'],
+        sourceType: 'runtime',
+        sourceVersion: '1',
+      })),
+    )
+    assert.equal(summary?.transformation.kind, 'none')
+    assert.deepEqual(
+      artifacts.map((artifact) => artifact.authority),
+      [
+        'conversation',
+        'conversation',
+        'summary',
+        'reflection',
+        'observation',
+        'conversation',
+        'conversation',
+        'conversation',
+      ],
+    )
+    assert.equal(JSON.stringify(input.context), before)
   })
 
   test('preserves summary, reflection, and observation roles, text, and source order', () => {

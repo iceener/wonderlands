@@ -24,6 +24,30 @@ export const reflectionMemoryContributor: ContextContributor = {
       volatility: 'stable',
     },
   ],
+  describe: ({ input }) => {
+    const reflection = input.context.activeReflection
+
+    return {
+      authority: 'reflection',
+      capturedAt: reflection?.createdAt ?? input.context.run.createdAt,
+      conflictKey: null,
+      dedupeKey: 'reflection-memory',
+      dependencies: [],
+      expiresAt: null,
+      priority: 0,
+      provenance: {
+        createdByRunId: reflection?.ownerRunId ? String(reflection.ownerRunId) : null,
+        sourceIds: reflection ? [reflection.id] : [],
+        sourceType: 'memory_reflection',
+        sourceVersion: reflection ? String(reflection.generation) : null,
+      },
+      requirement: 'preferred',
+      sensitivity: 'private',
+      supersedes: [],
+      transformation: { kind: 'none' },
+      visibility: 'model',
+    }
+  },
   id: 'reflection-memory',
   order: 9,
 }
