@@ -5,14 +5,13 @@ import {
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
-import type { GardenBuildRecord } from '../../domain/garden/garden-build-repository'
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
 import type { GardenSiteId } from '../../shared/ids'
 import type { TenantScope } from '../../shared/scope'
 import { createPollingWorker } from '../polling-worker'
 import { createWorkspaceService } from '../workspaces/workspace-service'
 import { computeGardenSourceFingerprint } from './compiler/build-site'
-import { createGardenService, type GardenService } from './garden-service'
+import { createGardenService } from './garden-service'
 
 export interface GardenAutoBuildWorker {
   processEligibleSites: () => Promise<number>
@@ -28,7 +27,6 @@ interface DebounceEntry {
 export const createGardenAutoBuildWorker = (input: {
   config: AppConfig
   db: AppDatabase
-  gardenService?: Pick<GardenService, 'publishCurrentBuild' | 'requestAutoBuild'>
   services: AppServices
 }): GardenAutoBuildWorker => {
   const logger = input.services.logger.child({
@@ -40,15 +38,13 @@ export const createGardenAutoBuildWorker = (input: {
     createId: input.services.ids.create,
     fileStorageRoot: input.config.files.storage.root,
   })
-  const gardenService =
-    input.gardenService ??
-    createGardenService({
-      apiBasePath: input.config.api.basePath,
-      createId: input.services.ids.create,
-      db: input.db,
-      fileStorageRoot: input.config.files.storage.root,
-      now: () => input.services.clock.nowIso(),
-    })
+  const gardenService = createGardenService({
+    apiBasePath: input.config.api.basePath,
+    createId: input.services.ids.create,
+    db: input.db,
+    fileStorageRoot: input.config.files.storage.root,
+    now: () => input.services.clock.nowIso(),
+  })
   const debounceState = new Map<GardenSiteId, DebounceEntry>()
 
   const nowMs = (): number => {
@@ -62,7 +58,7 @@ export const createGardenAutoBuildWorker = (input: {
     tenantId: site.tenantId,
   })
 
-  const resolveCompletedBuild = (site: GardenSiteRecord): GardenBuildRecord | null => {
+  const resolveCompletedFingerprint = (site: GardenSiteRecord): string | null => {
     if (!site.currentBuildId) {
       return null
     }
@@ -73,7 +69,7 @@ export const createGardenAutoBuildWorker = (input: {
       return null
     }
 
-    return currentBuild.value
+    return currentBuild.value.sourceFingerprintSha256
   }
 
   const resolveSourceFingerprint = async (site: GardenSiteRecord): Promise<string | null> => {
@@ -118,38 +114,11 @@ export const createGardenAutoBuildWorker = (input: {
       return false
     }
 
-    const completedBuild = resolveCompletedBuild(site)
+    const completedFingerprintSha256 = resolveCompletedFingerprint(site)
 
-    if (completedBuild?.sourceFingerprintSha256 === sourceFingerprintSha256) {
+    if (completedFingerprintSha256 === sourceFingerprintSha256) {
       debounceState.delete(site.id)
-
-      if (site.currentPublishedBuildId === completedBuild.id) {
-        return false
-      }
-
-      const publishedSite = gardenService.publishCurrentBuild(
-        site.id,
-        completedBuild.requestedByAccountId,
-      )
-
-      if (!publishedSite.ok || publishedSite.value.currentPublishedBuildId !== completedBuild.id) {
-        logger.warn('Automatic Garden publish-gap repair failed', {
-          buildId: completedBuild.id,
-          error: publishedSite.ok
-            ? 'The completed build was not selected for publishing'
-            : publishedSite.error.message,
-          gardenSiteId: site.id,
-          tenantId: site.tenantId,
-        })
-        return false
-      }
-
-      logger.info('Automatic Garden publish gap repaired', {
-        buildId: completedBuild.id,
-        gardenSiteId: site.id,
-        tenantId: site.tenantId,
-      })
-      return true
+      return false
     }
 
     const currentTimeMs = nowMs()
@@ -196,33 +165,20 @@ export const createGardenAutoBuildWorker = (input: {
     let autoPublished = false
 
     if (requestedBuild.value.status === 'completed') {
-      const latestSourceFingerprintSha256 = await resolveSourceFingerprint(site)
-      const sourceStillMatchesBuild =
-        latestSourceFingerprintSha256 !== null &&
-        latestSourceFingerprintSha256 === requestedBuild.value.sourceFingerprintSha256
+      const publishedSite = gardenService.publishCurrentBuild(
+        site.id,
+        requestedBuild.value.requestedByAccountId,
+      )
 
-      if (sourceStillMatchesBuild) {
-        const publishedSite = gardenService.publishCurrentBuild(
-          site.id,
-          requestedBuild.value.requestedByAccountId,
-        )
-
-        if (!publishedSite.ok) {
-          logger.warn('Automatic Garden publish failed', {
-            buildId: requestedBuild.value.id,
-            error: publishedSite.error.message,
-            gardenSiteId: site.id,
-            tenantId: site.tenantId,
-          })
-        } else {
-          autoPublished = publishedSite.value.currentPublishedBuildId === requestedBuild.value.id
-        }
-      } else {
-        logger.info('Skipped automatic Garden publish because source changed during build', {
+      if (!publishedSite.ok) {
+        logger.warn('Automatic Garden publish failed', {
           buildId: requestedBuild.value.id,
+          error: publishedSite.error.message,
           gardenSiteId: site.id,
           tenantId: site.tenantId,
         })
+      } else {
+        autoPublished = publishedSite.value.currentPublishedBuildId === requestedBuild.value.id
       }
     }
 
