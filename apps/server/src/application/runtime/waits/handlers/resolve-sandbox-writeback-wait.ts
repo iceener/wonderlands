@@ -1,8 +1,8 @@
 import { withTransaction } from '../../../../db/transaction'
-import { createItemRepository } from '../../../../domain/runtime/item-repository'
-import { createRunDependencyRepository } from '../../../../domain/runtime/run-dependency-repository'
-import { createToolExecutionRepository } from '../../../../domain/runtime/tool-execution-repository'
-import { createSandboxWritebackRepository } from '../../../../domain/sandbox/sandbox-writeback-repository'
+import { createItemRepository } from '../../../persistence/repositories'
+import { createRunDependencyRepository } from '../../../persistence/repositories'
+import { createToolExecutionRepository } from '../../../persistence/repositories'
+import { createSandboxWritebackRepository } from '../../../persistence/repositories'
 import {
   asItemId,
   asSandboxExecutionId,

@@ -1,5 +1,6 @@
-import { createRunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
+import { createRunDependencyRepository } from '../persistence/repositories'
+import type { RunRecord } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { RunId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'

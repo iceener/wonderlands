@@ -1,15 +1,12 @@
 import { createHash } from 'node:crypto'
+import { createAgentRepository } from '../persistence/repositories'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createAgentSubagentLinkRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
-import { type AgentRecord, createAgentRepository } from '../../domain/agents/agent-repository'
-import {
-  type AgentRevisionRecord,
-  createAgentRevisionRepository,
-} from '../../domain/agents/agent-revision-repository'
-import {
-  type AgentSubagentLinkRecord,
-  createAgentSubagentLinkRepository,
-} from '../../domain/agents/agent-subagent-link-repository'
+import type { AgentRecord } from '../../domain/agents/agent-repository'
+import type { AgentRevisionRecord } from '../../domain/agents/agent-revision-repository'
+import type { AgentSubagentLinkRecord } from '../../domain/agents/agent-subagent-link-repository'
 import type { KernelPolicy } from '../../domain/kernel/types'
 import type { SandboxPolicy } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'

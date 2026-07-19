@@ -1,15 +1,12 @@
 import { createHash } from 'node:crypto'
 import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-
+import { createFileRepository } from '../persistence/repositories'
 import type { BlobStore } from '../../domain/files/blob-store'
-import { createFileRepository } from '../../domain/files/file-repository'
-import {
-  createSandboxExecutionFileRepository,
-  type SandboxExecutionFileRecord,
-} from '../../domain/sandbox/sandbox-execution-file-repository'
+import type { SandboxExecutionFileRecord } from '../../domain/sandbox/sandbox-execution-file-repository'
+import { createSandboxExecutionFileRepository } from '../persistence/repositories'
 import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
-import { createSandboxExecutionPackageRepository } from '../../domain/sandbox/sandbox-package-repository'
+import { createSandboxExecutionPackageRepository } from '../persistence/repositories'
 import type { PreparedSandboxExecution } from '../../domain/sandbox/sandbox-runner'
 import type { SandboxExecutionRequest, SandboxPolicy } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'

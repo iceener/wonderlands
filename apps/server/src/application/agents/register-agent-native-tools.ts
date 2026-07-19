@@ -1,8 +1,7 @@
 import { z } from 'zod'
-
+import { createFileRepository } from '../persistence/repositories'
+import type { ToolContext, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
-import { createFileRepository } from '../../domain/files/file-repository'
-import type { ToolContext, ToolRegistry, ToolSpec } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import { asFileId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

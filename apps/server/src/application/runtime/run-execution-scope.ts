@@ -1,9 +1,7 @@
-import { and, eq } from 'drizzle-orm'
-
-import { tenantMemberships, workSessions } from '../../db/schema'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import { createTenantMembershipRepository, createWorkSessionRepository } from '../persistence/repositories'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { DomainError } from '../../shared/errors'
-import { asAccountId, type TenantId, type WorkSessionId } from '../../shared/ids'
+import type { TenantId, WorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'
 
@@ -14,51 +12,48 @@ export const resolveExecutionScopeForSession = (
     tenantId: TenantId
   },
 ): Result<TenantScope, DomainError> => {
-  const session = db
-    .select({
-      createdByAccountId: workSessions.createdByAccountId,
-    })
-    .from(workSessions)
-    .where(and(eq(workSessions.id, input.sessionId), eq(workSessions.tenantId, input.tenantId)))
-    .get()
+  const workSessionRepository = createWorkSessionRepository(db)
+  const tenantMembershipRepository = createTenantMembershipRepository(db)
 
-  if (!session) {
+  const session = workSessionRepository.findByIdForTenant(input.tenantId, input.sessionId)
+
+  if (!session.ok) {
+    return session
+  }
+
+  if (!session.value) {
     return err({
       message: `work session ${input.sessionId} not found in tenant ${input.tenantId}`,
       type: 'not_found',
     })
   }
 
-  if (!session.createdByAccountId) {
+  if (!session.value.createdByAccountId) {
     return err({
       message: `work session ${input.sessionId} has no owning account for execution scope`,
       type: 'conflict',
     })
   }
 
-  const membership = db
-    .select({
-      role: tenantMemberships.role,
-    })
-    .from(tenantMemberships)
-    .where(
-      and(
-        eq(tenantMemberships.accountId, session.createdByAccountId),
-        eq(tenantMemberships.tenantId, input.tenantId),
-      ),
-    )
-    .get()
+  const membership = tenantMembershipRepository.findMembership(
+    session.value.createdByAccountId,
+    input.tenantId,
+  )
 
-  if (!membership) {
+  if (!membership.ok) {
+    return membership
+  }
+
+  if (!membership.value) {
     return err({
-      message: `tenant membership not found for account ${session.createdByAccountId} in tenant ${input.tenantId}`,
+      message: `tenant membership not found for account ${session.value.createdByAccountId} in tenant ${input.tenantId}`,
       type: 'permission',
     })
   }
 
   return ok({
-    accountId: asAccountId(session.createdByAccountId),
-    role: membership.role,
+    accountId: session.value.createdByAccountId,
+    role: membership.value.role,
     tenantId: input.tenantId,
   })
 }

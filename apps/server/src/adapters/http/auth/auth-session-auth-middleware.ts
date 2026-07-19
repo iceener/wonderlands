@@ -3,10 +3,10 @@ import { createMiddleware } from 'hono/factory'
 
 import type { AppConfig } from '../../../app/config'
 import type { AppEnv } from '../../../app/types'
-import { createAuthSessionRepository } from '../../../domain/identity/auth-session-repository'
 import { hashAuthSessionSecret } from '../../../shared/auth-session'
 import { DomainErrorException } from '../../../shared/errors'
 import type { RequestScope, TenantScope } from '../../../shared/scope'
+import { createAuthSessionRepository } from '../../persistence/sqlite/identity/auth-session-repository'
 import { parseTenantIdHeader, resolveTenantScopeForAccount } from './tenant-scope'
 
 export const authSessionAuthMiddleware = (config: AppConfig) =>

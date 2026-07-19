@@ -1,16 +1,13 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import {
-  createGardenBuildRepository,
-  createGardenSiteRepository,
-} from '../../adapters/persistence/sqlite'
+import { createGardenBuildRepository, createGardenSiteRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { GardenBuildRecord } from '../../domain/garden/garden-build-repository'
 import type { GardenSiteRecord } from '../../domain/garden/garden-site-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import type { DomainError } from '../../shared/errors'
 import { getReservedPublicSegments } from '../../shared/http-routing'
 import {

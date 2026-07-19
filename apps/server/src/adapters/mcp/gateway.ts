@@ -13,10 +13,9 @@ import {
   type ReadResourceResult,
 } from '@modelcontextprotocol/sdk/types.js'
 import { context as otelContext, type SpanContext, TraceFlags, trace } from '@opentelemetry/api'
+import type { ToolContext, ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import type { AppDatabase } from '../../db/client'
-import { createWorkspaceRepository } from '../../domain/agents/workspace-repository'
 import type { McpServerRecord } from '../../domain/mcp/mcp-server-repository'
-import type { ToolContext, ToolRegistry, ToolSpec } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import type { AppLogger } from '../../shared/logger'
 import { err, ok, type Result } from '../../shared/result'
@@ -25,6 +24,7 @@ import {
   toLangfuseObservationId,
   toLangfuseTraceId,
 } from '../observability/langfuse/trace-identity'
+import { createWorkspaceRepository } from '../persistence/sqlite/agents/workspace-repository'
 import { createMcpOauthCredentialRepository } from '../persistence/sqlite/mcp/mcp-oauth-credential-repository'
 import { createMcpServerRepository } from '../persistence/sqlite/mcp/mcp-server-repository'
 import { createMcpToolAssignmentRepository } from '../persistence/sqlite/mcp/mcp-tool-assignment-repository'

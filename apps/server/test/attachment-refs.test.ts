@@ -10,6 +10,7 @@ import {
   prepareToolExecution,
 } from '../src/application/runtime/execution/run-tool-execution'
 import { registerSandboxNativeTools } from '../src/application/sandbox/register-sandbox-native-tools'
+import { createToolRegistry, type ToolSpec } from '../src/application/tooling/tool-registry'
 import {
   fileLinks,
   files,
@@ -18,7 +19,6 @@ import {
   sessionThreads,
   workSessions,
 } from '../src/db/schema'
-import { createToolRegistry, type ToolSpec } from '../src/domain/tooling/tool-registry'
 import {
   asAccountId,
   asFileId,

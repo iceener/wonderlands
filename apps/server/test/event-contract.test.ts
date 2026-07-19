@@ -10,8 +10,8 @@ import {
   DOMAIN_EVENT_TYPES,
   TELEMETRY_EVENT_TYPES,
 } from '../src/domain/events/committed-event-contract'
-import { createDomainEventRepository } from '../src/domain/events/domain-event-repository'
-import { createEventOutboxRepository } from '../src/domain/events/event-outbox-repository'
+import { createDomainEventRepository } from '../src/adapters/persistence/sqlite/events/domain-event-repository'
+import { createEventOutboxRepository } from '../src/adapters/persistence/sqlite/events/event-outbox-repository'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
 

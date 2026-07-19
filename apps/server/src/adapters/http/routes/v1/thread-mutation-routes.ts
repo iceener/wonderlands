@@ -26,8 +26,7 @@ import {
   appendThreadUpdatedEvent,
 } from '../../../../application/naming/thread-title-events'
 import { withTransaction } from '../../../../db/transaction'
-import { createRunRepository } from '../../../../domain/runtime/run-repository'
-import { createSessionThreadRepository } from '../../../../domain/sessions/session-thread-repository'
+import { createRunRepository } from '../../../persistence/sqlite/runtime/run-repository'
 import { DomainErrorException } from '../../../../shared/errors'
 import {
   asFileId,
@@ -36,6 +35,7 @@ import {
   asSessionThreadId,
   asWorkSessionId,
 } from '../../../../shared/ids'
+import { createSessionThreadRepository } from '../../../persistence/sqlite/sessions/session-thread-repository'
 import { successEnvelope } from '../../api-envelope'
 import {
   buildRecordedProgressIdempotentRoute,

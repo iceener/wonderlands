@@ -11,7 +11,7 @@ import type {
 
 import { createMcpOauthAuthorizationRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-authorization-repository'
 import { createMcpOauthCredentialRepository } from '../../adapters/persistence/sqlite/mcp/mcp-oauth-credential-repository'
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { McpOauthAuthorizationRecord } from '../../domain/mcp/mcp-oauth-authorization-repository'
 import type { McpOauthCredentialRecord } from '../../domain/mcp/mcp-oauth-credential-repository'
 import { createPrefixedId } from '../../shared/ids'

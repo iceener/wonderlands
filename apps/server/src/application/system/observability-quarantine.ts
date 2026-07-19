@@ -1,6 +1,6 @@
-import type { RepositoryDatabase } from '../../domain/database-port'
+import type { RepositoryDatabase } from '../../db/repository-database'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createEventOutboxRepository } from '../../domain/events/event-outbox-repository'
+import { createEventOutboxRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { err, ok, type Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'

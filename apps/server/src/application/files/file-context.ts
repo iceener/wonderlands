@@ -1,7 +1,7 @@
 import { TextDecoder } from 'node:util'
-
+import { createFileRepository } from '../persistence/repositories'
 import type { AiMessage, AiProviderName } from '../../domain/ai/types'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
 import type { SessionMessageRecord } from '../../domain/sessions/session-message-repository'
 import type { FileId, RunId, SessionMessageId } from '../../shared/ids'
 import { ok } from '../../shared/result'

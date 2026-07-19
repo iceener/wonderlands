@@ -1,19 +1,15 @@
-import { and, eq } from 'drizzle-orm'
-
-import { fileLinks } from '../../db/schema'
-import type { RepositoryDatabase } from '../../domain/database-port'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
-import { createRunRepository, type RunRecord } from '../../domain/runtime/run-repository'
-import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
-import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
-import {
-  createSessionThreadRepository,
-  type SessionThreadRecord,
-} from '../../domain/sessions/session-thread-repository'
-import {
-  createWorkSessionRepository,
-  type WorkSessionRecord,
-} from '../../domain/sessions/work-session-repository'
+import { createFileRepository } from '../persistence/repositories'
+import { createFileLinkRepository } from '../persistence/repositories'
+import { createSessionMessageRepository } from '../persistence/repositories'
+import { createSessionThreadRepository } from '../persistence/repositories'
+import { createWorkSessionRepository } from '../persistence/repositories'
+import type { RepositoryDatabase } from '../../db/repository-database'
+import type { FileRecord } from '../../domain/files/file-repository'
+import type { RunRecord } from '../../domain/runtime/run-repository'
+import { createRunRepository } from '../persistence/repositories'
+import { createToolExecutionRepository } from '../persistence/repositories'
+import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
+import type { WorkSessionRecord } from '../../domain/sessions/work-session-repository'
 import type { DomainError } from '../../shared/errors'
 import {
   asRunId,
@@ -72,6 +68,7 @@ export const hasTenantResourceOverride = (scope: TenantScope): boolean =>
   tenantResourceOverrideRoles.has(scope.role)
 
 export const createResourceAccessService = (db: RepositoryDatabase) => {
+  const fileLinkRepository = createFileLinkRepository(db)
   const fileRepository = createFileRepository(db)
   const runRepository = createRunRepository(db)
   const sessionMessageRepository = createSessionMessageRepository(db)
@@ -150,11 +147,13 @@ export const createResourceAccessService = (db: RepositoryDatabase) => {
     fileId: FileId,
   ): Result<boolean, DomainError> => {
     try {
-      const links = db
-        .select()
-        .from(fileLinks)
-        .where(and(eq(fileLinks.fileId, fileId), eq(fileLinks.tenantId, scope.tenantId)))
-        .all()
+      const linkedFiles = fileLinkRepository.listByFileId(scope, fileId)
+
+      if (!linkedFiles.ok) {
+        return linkedFiles
+      }
+
+      const links = linkedFiles.value
 
       for (const link of links) {
         switch (link.linkType) {

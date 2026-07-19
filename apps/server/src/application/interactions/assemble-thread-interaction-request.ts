@@ -1,3 +1,4 @@
+import type { ToolSpec } from '../../application/tooling/tool-registry'
 import type {
   AiInteractionRequest,
   AiMessage,
@@ -9,7 +10,6 @@ import type {
   ObservationMemoryContent,
   ReflectionMemoryContent,
 } from '../../domain/memory/memory-record-repository'
-import type { ToolSpec } from '../../domain/tooling/tool-registry'
 import type { AgentMcpMode } from '../agents/agent-runtime-policy'
 import { toFileContextMessages } from '../files/file-context'
 import { formatGardenContextDeveloperMessage } from '../garden/garden-agent-context'

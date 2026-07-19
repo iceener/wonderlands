@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, or } from 'drizzle-orm'
 import { gardenBuilds } from '../../../db/schema'
-import type { RepositoryDatabase } from '../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../db/repository-database'
 import type { GardenBuildManifest } from '../../../domain/garden/garden-build-manifest'
 import type {
   CreateGardenBuildInput,

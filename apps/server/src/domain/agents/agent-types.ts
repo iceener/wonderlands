@@ -1,5 +1,5 @@
 import type { RunId } from '../../shared/ids'
-import type { WaitTargetKind, WaitType } from '../tooling/tool-registry'
+import type { WaitTargetKind, WaitType } from '../tooling/tool-vocabulary'
 
 export const agentVisibilityValues = ['account_private', 'tenant_shared', 'system'] as const
 export type AgentVisibility = (typeof agentVisibilityValues)[number]

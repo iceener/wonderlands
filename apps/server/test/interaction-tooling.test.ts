@@ -5,7 +5,7 @@ import {
   buildInteractionToolingRequest,
   toToolDefinitions,
 } from '../src/application/interactions/interaction-tooling'
-import type { ToolSpec } from '../src/domain/tooling/tool-registry'
+import type { ToolSpec } from '../src/application/tooling/tool-registry'
 
 const makeTool = (name: string): ToolSpec => ({
   domain: 'native',

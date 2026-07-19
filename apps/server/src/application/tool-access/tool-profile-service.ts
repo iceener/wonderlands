@@ -1,11 +1,11 @@
 import { z } from 'zod'
+import { createTenantMembershipRepository } from '../persistence/repositories'
+import { createToolProfileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
-import {
-  createToolProfileRepository,
-  type ToolProfileRecord,
-  type ToolProfileScope,
-  type ToolProfileStatus,
+import type {
+  ToolProfileRecord,
+  ToolProfileScope,
+  ToolProfileStatus,
 } from '../../domain/tool-access/tool-profile-repository'
 import type { DomainError } from '../../shared/errors'
 import {

@@ -1,13 +1,11 @@
+import { createAgentRepository } from '../persistence/repositories'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createAgentSubagentLinkRepository } from '../persistence/repositories'
+import { createMemoryRecordRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import { createAgentRepository } from '../../domain/agents/agent-repository'
-import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
-import { createAgentSubagentLinkRepository } from '../../domain/agents/agent-subagent-link-repository'
-import {
-  createMemoryRecordRepository,
-  type MemoryRecordRecord,
-} from '../../domain/memory/memory-record-repository'
-import { createContextSummaryRepository } from '../../domain/runtime/context-summary-repository'
-import { createRunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
+import type { MemoryRecordRecord } from '../../domain/memory/memory-record-repository'
+import { createContextSummaryRepository } from '../persistence/repositories'
+import { createRunDependencyRepository } from '../persistence/repositories'
 import type { RunRecord } from '../../domain/runtime/run-repository'
 import { ok } from '../../shared/result'
 import { getAgentDescription, listAgentCapabilities } from '../agents/agent-capabilities'

@@ -1,5 +1,5 @@
+import type { ToolOutcome, ToolSpec } from '../../../../application/tooling/tool-registry'
 import type { AiToolCall } from '../../../../domain/ai/types'
-import type { ToolOutcome, ToolSpec } from '../../../../domain/tooling/tool-registry'
 import type { DomainError } from '../../../../shared/errors'
 
 export interface ToolExecutionResult {

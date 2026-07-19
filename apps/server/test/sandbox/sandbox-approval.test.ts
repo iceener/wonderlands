@@ -23,8 +23,8 @@ import {
   toolExecutions,
   workSessions,
 } from '../../src/db/schema'
-import { createSandboxExecutionRepository } from '../../src/domain/sandbox/sandbox-execution-repository'
-import { createSandboxWritebackRepository } from '../../src/domain/sandbox/sandbox-writeback-repository'
+import { createSandboxExecutionRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
+import { createSandboxWritebackRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-writeback-repository'
 import {
   asAccountId,
   asJobId,

@@ -1,11 +1,12 @@
 import { z } from 'zod'
+import { createAgentRepository } from '../persistence/repositories'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createAgentSubagentLinkRepository } from '../persistence/repositories'
+import { createAccountPreferencesRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import { type AgentRecord, createAgentRepository } from '../../domain/agents/agent-repository'
-import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
-import { createAgentSubagentLinkRepository } from '../../domain/agents/agent-subagent-link-repository'
+import type { AgentRecord } from '../../domain/agents/agent-repository'
 import type { AgentKind, AgentVisibility } from '../../domain/agents/agent-types'
-import { createAccountPreferencesRepository } from '../../domain/preferences/account-preferences-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
 import type { DomainError } from '../../shared/errors'
 import {
   type AccountId,

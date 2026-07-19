@@ -1,6 +1,6 @@
+import { createSessionMessageRepository } from '../persistence/repositories'
 import type { EventOutboxRecord } from '../../domain/events/event-outbox-repository'
-import { createRunRepository } from '../../domain/runtime/run-repository'
-import { createSessionMessageRepository } from '../../domain/sessions/session-message-repository'
+import { createRunRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import { asRunId, asSessionThreadId, asWorkSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

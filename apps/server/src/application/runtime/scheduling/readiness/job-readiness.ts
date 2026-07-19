@@ -1,13 +1,13 @@
-import { and, eq, inArray } from 'drizzle-orm'
 import type { AppConfig } from '../../../../app/config'
 import type { AppDatabase } from '../../../../db/client'
-import { jobs, runClaims, runs } from '../../../../db/schema'
-import { createRunDependencyRepository } from '../../../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../../../domain/runtime/run-repository'
-import { createToolExecutionRepository } from '../../../../domain/runtime/tool-execution-repository'
+import { createJobRunReadinessRepository } from '../../../persistence/repositories'
+import { createRunDependencyRepository } from '../../../persistence/repositories'
+import type { RunRecord } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../persistence/repositories'
+import { createToolExecutionRepository } from '../../../persistence/repositories'
 import type { DomainError } from '../../../../shared/errors'
 import { asJobId, asRunId, asTenantId, asWorkSessionId } from '../../../../shared/ids'
-import { err, ok, type Result } from '../../../../shared/result'
+import { ok, type Result } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'
 import { resolveExecutionScopeForSession } from '../../run-execution-scope'
 import { dependenciesSatisfiedForJob } from '../job-dependencies'
@@ -36,67 +36,33 @@ const addMilliseconds = (value: string, milliseconds: number): string =>
 const listExecutionCapableJobSnapshots = (
   db: AppDatabase,
 ): Result<JobRunReadinessSnapshot[], DomainError> => {
-  try {
-    const rows = db
-      .select({
-        lastHeartbeatAt: jobs.lastHeartbeatAt,
-        lastProgressAt: runs.lastProgressAt,
-        leaseExpiresAt: runClaims.expiresAt,
-        nextSchedulerCheckAt: jobs.nextSchedulerCheckAt,
-        parentRunId: runs.parentRunId,
-        priority: jobs.priority,
-        queuedAt: jobs.queuedAt,
-        runCreatedAt: runs.createdAt,
-        runId: runs.id,
-        runStatus: runs.status,
-        sessionId: runs.sessionId,
-        statusReasonJson: jobs.statusReasonJson,
-        tenantId: runs.tenantId,
-        jobId: jobs.id,
-        jobStatus: jobs.status,
-        jobUpdatedAt: jobs.updatedAt,
-      })
-      .from(jobs)
-      .innerJoin(runs, and(eq(jobs.currentRunId, runs.id), eq(jobs.tenantId, runs.tenantId)))
-      .leftJoin(runClaims, and(eq(runClaims.runId, runs.id), eq(runClaims.tenantId, runs.tenantId)))
-      .where(
-        and(
-          inArray(jobs.status, ['queued', 'running', 'waiting']),
-          inArray(runs.status, ['pending', 'running', 'waiting']),
-        ),
-      )
-      .all()
+  const snapshots = createJobRunReadinessRepository(db).listExecutionCapableJobRunSnapshots()
 
-    return ok(
-      rows.map((row) => ({
-        jobId: row.jobId,
-        jobStatus: row.jobStatus,
-        jobUpdatedAt: row.jobUpdatedAt,
-        lastHeartbeatAt: row.lastHeartbeatAt,
-        lastProgressAt: row.lastProgressAt,
-        leaseExpiresAt: row.leaseExpiresAt,
-        nextSchedulerCheckAt: row.nextSchedulerCheckAt,
-        parentRunId: row.parentRunId,
-        priority: row.priority,
-        queueReason: parseJobQueueReason(row.statusReasonJson),
-        queuedAt: row.queuedAt,
-        runCreatedAt: row.runCreatedAt,
-        runId: row.runId,
-        runRole: row.parentRunId ? 'child' : 'root',
-        runStatus: row.runStatus,
-        sessionId: row.sessionId,
-        tenantId: row.tenantId,
-      })),
-    )
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Unknown work-item attempt readiness failure'
-
-    return err({
-      message: `failed to list work-item attempt readiness snapshots: ${message}`,
-      type: 'conflict',
-    })
+  if (!snapshots.ok) {
+    return snapshots
   }
+
+  return ok(
+    snapshots.value.map((row) => ({
+      jobId: row.jobId,
+      jobStatus: row.jobStatus,
+      jobUpdatedAt: row.jobUpdatedAt,
+      lastHeartbeatAt: row.lastHeartbeatAt,
+      lastProgressAt: row.lastProgressAt,
+      leaseExpiresAt: row.leaseExpiresAt,
+      nextSchedulerCheckAt: row.nextSchedulerCheckAt,
+      parentRunId: row.parentRunId,
+      priority: row.priority,
+      queueReason: parseJobQueueReason(row.statusReasonJson),
+      queuedAt: row.queuedAt,
+      runCreatedAt: row.runCreatedAt,
+      runId: row.runId,
+      runRole: row.parentRunId ? 'child' : 'root',
+      runStatus: row.runStatus,
+      sessionId: row.sessionId,
+      tenantId: row.tenantId,
+    })),
+  )
 }
 
 export const listJobRunDecisions = (input: {

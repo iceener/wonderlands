@@ -1,15 +1,14 @@
 import { z } from 'zod'
+import { createFileLinkRepository } from '../persistence/repositories'
+import { createSessionMessageRepository } from '../persistence/repositories'
+import { createWorkSessionRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import { createFileLinkRepository } from '../../domain/files/file-link-repository'
-import { createJobRepository, type JobRecord } from '../../domain/runtime/job-repository'
+import type { JobRecord } from '../../domain/runtime/job-repository'
+import { createJobRepository } from '../persistence/repositories'
 import { reopenableJobStatuses } from '../../domain/runtime/job-types'
-import { createRunRepository } from '../../domain/runtime/run-repository'
-import {
-  createSessionMessageRepository,
-  type SessionMessageContentPart,
-} from '../../domain/sessions/session-message-repository'
-import { createWorkSessionRepository } from '../../domain/sessions/work-session-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
+import { createRunRepository } from '../persistence/repositories'
+import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type {
   FileId,

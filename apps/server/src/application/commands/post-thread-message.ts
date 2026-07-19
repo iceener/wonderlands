@@ -1,10 +1,8 @@
 import { z } from 'zod'
+import { createSessionMessageRepository } from '../persistence/repositories'
+import { createTenantMembershipRepository } from '../persistence/repositories'
 import { withTransaction } from '../../db/transaction'
-import {
-  createSessionMessageRepository,
-  type SessionMessageContentPart,
-} from '../../domain/sessions/session-message-repository'
-import { createTenantMembershipRepository } from '../../domain/tenancy/tenant-membership-repository'
+import type { SessionMessageContentPart } from '../../domain/sessions/session-message-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type { SessionMessageId, SessionThreadId, WorkSessionId } from '../../shared/ids'
 import { asSessionMessageId } from '../../shared/ids'

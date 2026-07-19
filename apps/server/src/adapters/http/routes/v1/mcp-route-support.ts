@@ -10,7 +10,7 @@ import { createMcpServerRepository } from '../../../../adapters/persistence/sqli
 import { createMcpToolAssignmentRepository } from '../../../../adapters/persistence/sqlite/mcp/mcp-tool-assignment-repository'
 import type { requireTenantScope } from '../../../../app/require-tenant-scope'
 import type { AppEnv } from '../../../../app/types'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import { DomainErrorException } from '../../../../shared/errors'
 import { ok } from '../../../../shared/result'
 import type { TenantScope } from '../../../../shared/scope'

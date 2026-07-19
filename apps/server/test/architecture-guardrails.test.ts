@@ -79,65 +79,55 @@ describe('server architecture guardrails', () => {
     )
   })
 
-  it('domain/garden modules stay persistence-neutral', async () => {
-    const gardenDomainDir = resolve(testDir, '../src/domain/garden')
-    const files = await collectTypescriptFiles(gardenDomainDir)
-    const importSpecifierPattern = /from\s+['"]([^'"]+)['"]/g
+  it('all domain modules stay persistence-neutral and point inward', async () => {
+    const domainDir = resolve(testDir, '../src/domain')
+    const files = await collectTypescriptFiles(domainDir)
+    const importPattern = /from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g
     const offenders: string[] = []
 
     for (const file of files) {
       const contents = await readFile(file, 'utf8')
 
-      for (const match of contents.matchAll(importSpecifierPattern)) {
-        const specifier = match[1]
-        const isBareDrizzleImport =
-          specifier === 'drizzle-orm' || specifier.startsWith('drizzle-orm/')
-        const touchesForbiddenLayer = specifier
-          .split('/')
-          .some(
-            (segment) => segment === 'db' || segment === 'application' || segment === 'adapters',
-          )
+      for (const match of contents.matchAll(importPattern)) {
+        const specifier = match[1] ?? match[2] ?? ''
+        const forbiddenPath = /(?:^|\/)(?:app|application|adapters|db)(?:\/|$)/.test(specifier)
+        const forbiddenPackage =
+          specifier === 'drizzle-orm' ||
+          specifier.startsWith('drizzle-orm/') ||
+          specifier === '@modelcontextprotocol' ||
+          specifier.startsWith('@modelcontextprotocol/')
 
-        if (isBareDrizzleImport || touchesForbiddenLayer) {
+        if (forbiddenPath || forbiddenPackage) {
           offenders.push(`${file} -> ${specifier}`)
         }
+      }
+
+      if (/\$(?:inferSelect|inferInsert)\b/.test(contents)) {
+        offenders.push(`${file} -> schema inference type`)
       }
     }
 
     expect(offenders).toEqual([])
   })
 
-  it('domain/mcp stays persistence-neutral and protocol-neutral', async () => {
-    const domainMcpDir = resolve(testDir, '../src/domain/mcp')
-    const files = await collectTypescriptFiles(domainMcpDir)
-    const forbiddenModuleSpecifierPattern =
-      /from\s+['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]\s*\)/g
-
-    const isForbiddenSpecifier = (specifier: string): boolean => {
-      const pathSegmentPattern = /(?:^|\/)(?:db|application|adapters)(?:\/|$)/
-
-      return (
-        pathSegmentPattern.test(specifier) ||
-        specifier === 'drizzle-orm' ||
-        specifier.startsWith('drizzle-orm/') ||
-        specifier === '@modelcontextprotocol' ||
-        specifier.startsWith('@modelcontextprotocol/')
-      )
-    }
-
+  it('application modules do not execute raw persistence queries', async () => {
+    const applicationDir = resolve(testDir, '../src/application')
+    const files = await collectTypescriptFiles(applicationDir)
     const offenders: string[] = []
-
-    expect(files.length).toBeGreaterThan(0)
 
     for (const file of files) {
       const contents = await readFile(file, 'utf8')
 
-      for (const match of contents.matchAll(forbiddenModuleSpecifierPattern)) {
-        const specifier = match[1] ?? match[2] ?? ''
+      if (/from\s+['"]drizzle-orm(?:\/[^'"]*)?['"]/.test(contents)) {
+        offenders.push(`${file} -> drizzle-orm`)
+      }
 
-        if (isForbiddenSpecifier(specifier)) {
-          offenders.push(`${file} -> ${specifier}`)
-        }
+      if (/from\s+['"][^'"]*\/db\/schema(?:\/[^'"]*)?['"]/.test(contents)) {
+        offenders.push(`${file} -> db/schema`)
+      }
+
+      if (/\$(?:inferSelect|inferInsert)\b/.test(contents)) {
+        offenders.push(`${file} -> schema inference type`)
       }
     }
 

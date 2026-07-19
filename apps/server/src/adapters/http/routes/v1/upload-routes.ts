@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import { requireTenantScope } from '../../../../app/require-tenant-scope'
 import type { AppEnv } from '../../../../app/types'
 import { createUploadFileCommand } from '../../../../application/files/upload-file'
 import { DomainErrorException } from '../../../../shared/errors'
 import { asWorkSessionId } from '../../../../shared/ids'
 import { successEnvelope } from '../../api-envelope'
 import { toUploadedFileResponse } from '../../presenters/file-presenter'
+import { toCommandContext } from '../../route-support'
 
 const isUploadedFileLike = (value: FormDataEntryValue | null): value is File =>
   value instanceof File
@@ -15,7 +15,7 @@ export const createUploadRoutes = (): Hono<AppEnv> => {
   const uploadFileCommand = createUploadFileCommand()
 
   routes.post('/', async (c) => {
-    const tenantScope = requireTenantScope(c)
+    const commandContext = toCommandContext(c)
     const formData = await c.req.formData()
     const fileEntry = formData.get('file')
     const accessScope = formData.get('accessScope')
@@ -51,14 +51,7 @@ export const createUploadRoutes = (): Hono<AppEnv> => {
     }
 
     const result = await uploadFileCommand.execute(
-      {
-        config: c.get('config'),
-        db: c.get('db'),
-        requestId: c.get('requestId'),
-        services: c.get('services'),
-        tenantScope,
-        traceId: c.get('traceId'),
-      },
+      commandContext,
       {
         accessScope,
         file: fileEntry,

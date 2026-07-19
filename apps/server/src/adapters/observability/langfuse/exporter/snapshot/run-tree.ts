@@ -1,10 +1,13 @@
-import type { createRunRepository, RunRecord } from '../../../../../domain/runtime/run-repository'
+import type {
+  RunRecord,
+  RunRepository,
+} from '../../../../../domain/runtime/run-repository'
 import type { DomainError } from '../../../../../shared/errors'
 import { ok, type Result } from '../../../../../shared/result'
 import type { TenantScope } from '../../../../../shared/scope'
 
 export const buildRunTree = (
-  runRepository: ReturnType<typeof createRunRepository>,
+  runRepository: RunRepository,
   scope: TenantScope,
   run: RunRecord,
 ): Result<RunRecord[], DomainError> => {

@@ -1,6 +1,6 @@
 import { and, eq, lt } from 'drizzle-orm'
 import { mcpOauthAuthorizations } from '../../../../db/schema'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type {
   McpOauthAuthorizationRecord,
   McpOauthAuthorizationRepository,

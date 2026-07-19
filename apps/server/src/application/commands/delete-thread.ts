@@ -1,10 +1,10 @@
-import { and, eq } from 'drizzle-orm'
-import { runs, sessionThreads } from '../../db/schema'
 import { withTransaction } from '../../db/transaction'
+import type { SessionThreadRecord } from '../../domain/sessions/session-thread-repository'
 import { DomainErrorException } from '../../shared/errors'
 import type { SessionThreadId } from '../../shared/ids'
 import { err, ok } from '../../shared/result'
 import { createResourceAccessService } from '../access/resource-access'
+import { createRunRepository, createSessionThreadRepository } from '../persistence/repositories'
 import type { CommandContext, CommandResult } from './command-context'
 import { pruneThreadHistoryInTransaction } from './thread-history-pruning'
 
@@ -14,7 +14,7 @@ export interface DeleteThreadOutput {
 }
 
 const collectThreadSubtreeIds = (
-  rows: Array<typeof sessionThreads.$inferSelect>,
+  rows: SessionThreadRecord[],
   rootThreadId: string,
 ): string[] => {
   const childrenByParent = new Map<string, string[]>()
@@ -66,27 +66,28 @@ export const createDeleteThreadCommand = () => ({
     try {
       const blobStorageKeys = withTransaction(context.db, (tx) => {
         const sessionId = authorizedThread.value.session.id
-        const sessionThreadRows = tx
-          .select()
-          .from(sessionThreads)
-          .where(
-            and(
-              eq(sessionThreads.tenantId, context.tenantScope.tenantId),
-              eq(sessionThreads.sessionId, sessionId),
-            ),
-          )
-          .all()
-        const threadIds = collectThreadSubtreeIds(sessionThreadRows, threadId)
-        const sessionRunRows = tx
-          .select()
-          .from(runs)
-          .where(
-            and(eq(runs.tenantId, context.tenantScope.tenantId), eq(runs.sessionId, sessionId)),
-          )
-          .all()
+        const sessionThreadRows = createSessionThreadRepository(tx).listBySessionId(
+          context.tenantScope,
+          sessionId,
+        )
+
+        if (!sessionThreadRows.ok) {
+          throw new DomainErrorException(sessionThreadRows.error)
+        }
+
+        const threadIds = collectThreadSubtreeIds(sessionThreadRows.value, threadId)
+        const sessionRunRows = createRunRepository(tx).listBySessionId(
+          context.tenantScope,
+          sessionId,
+        )
+
+        if (!sessionRunRows.ok) {
+          throw new DomainErrorException(sessionRunRows.error)
+        }
+
         const rootRunIds = [
           ...new Set(
-            sessionRunRows
+            sessionRunRows.value
               .filter((row) => row.threadId !== null && threadIds.includes(row.threadId))
               .map((row) => row.rootRunId),
           ),

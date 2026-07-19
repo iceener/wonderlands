@@ -1,18 +1,13 @@
 import type { AppDatabase } from '../../db/client'
 import { withTransaction } from '../../db/transaction'
-import { createJobRepository, type JobRecord } from '../../domain/runtime/job-repository'
-import {
-  createSandboxExecutionRepository,
-  type SandboxExecutionRecord,
-} from '../../domain/sandbox/sandbox-execution-repository'
-import {
-  createSandboxExecutionPackageRepository,
-  type SandboxExecutionPackageRecord,
-} from '../../domain/sandbox/sandbox-package-repository'
-import {
-  createSandboxWritebackRepository,
-  type SandboxWritebackOperationRecord,
-} from '../../domain/sandbox/sandbox-writeback-repository'
+import type { JobRecord } from '../../domain/runtime/job-repository'
+import { createJobRepository } from '../persistence/repositories'
+import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
+import { createSandboxExecutionRepository } from '../persistence/repositories'
+import type { SandboxExecutionPackageRecord } from '../../domain/sandbox/sandbox-package-repository'
+import { createSandboxExecutionPackageRepository } from '../persistence/repositories'
+import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
+import { createSandboxWritebackRepository } from '../persistence/repositories'
 import type { SandboxPolicy, SandboxProvider, SandboxRuntime } from '../../domain/sandbox/types'
 import type { DomainError } from '../../shared/errors'
 import type {

@@ -1,7 +1,8 @@
-import { createRunDependencyRepository } from '../../domain/runtime/run-dependency-repository'
-import { createRunRepository } from '../../domain/runtime/run-repository'
-import { createToolExecutionRepository } from '../../domain/runtime/tool-execution-repository'
-import type { ToolContext } from '../../domain/tooling/tool-registry'
+import type { ToolContext } from '../../application/tooling/tool-registry'
+import { createRepositories } from '../persistence/repositories'
+import { createRunDependencyRepository } from '../persistence/repositories'
+import { createRunRepository } from '../persistence/repositories'
+import { createToolExecutionRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { RunId } from '../../shared/ids'
 import { asRunId } from '../../shared/ids'
@@ -27,6 +28,7 @@ export interface ResumeDelegatedRunResult {
 const toCommandContext = (context: ToolContext) => ({
   config: context.config,
   db: context.db,
+  repositories: createRepositories(context.db),
   requestId: context.requestId,
   services: context.services,
   tenantScope: context.tenantScope,

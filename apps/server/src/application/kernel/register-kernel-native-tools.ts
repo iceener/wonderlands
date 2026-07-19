@@ -1,4 +1,4 @@
-import type { ToolRegistry, ToolSpec } from '../../domain/tooling/tool-registry'
+import type { ToolRegistry, ToolSpec } from '../../application/tooling/tool-registry'
 import { ok } from '../../shared/result'
 import { isNativeToolAllowedForRun } from '../agents/agent-runtime-policy'
 import type { createKernelBrowserService } from './kernel-browser-service'

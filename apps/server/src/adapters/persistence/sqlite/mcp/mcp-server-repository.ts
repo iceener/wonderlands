@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { mcpServers } from '../../../../db/schema'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type {
   CreateMcpServerInput,
   McpServerRecord,

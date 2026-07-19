@@ -1,14 +1,5 @@
-import { gunzipSync, gzipSync } from 'node:zlib'
-
-import { eq, inArray } from 'drizzle-orm'
-
-import { eventPayloadSidecars } from '../../db/schema'
 import type { DomainError } from '../../shared/errors'
-import { err, ok, type Result } from '../../shared/result'
-import type { RepositoryDatabase } from '../database-port'
-
-const PAYLOAD_SIDECAR_ENCODING = 'gzip-json-v1'
-const PAYLOAD_SIDECAR_MIN_BYTES = 1024
+import type { Result } from '../../shared/result'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -18,23 +9,14 @@ const EVENT_PAYLOAD_SIDECAR_KEYS: Partial<Record<string, readonly string[]>> = {
   'generation.started': ['inputMessages', 'tools'],
 }
 
-const encodePayloadFragment = (payload: Record<string, unknown>): Buffer | null => {
-  try {
-    return gzipSync(Buffer.from(JSON.stringify(payload), 'utf8'))
-  } catch {
-    return null
-  }
-}
-
-const decodePayloadFragment = (buffer: Buffer): Record<string, unknown> | null => {
-  try {
-    const decoded = JSON.parse(gunzipSync(buffer).toString('utf8'))
-    return isRecord(decoded) ? decoded : null
-  } catch {
-    return null
-  }
-}
-
+/**
+ * Splits large event payload fragments out of the primary event payload so
+ * they can be stored in a compressed sidecar record instead of inline. This
+ * is pure domain logic (no persistence access); the concrete sidecar
+ * storage lives under `adapters/persistence/sqlite/` -- see
+ * `EventPayloadSidecarRepository` below and
+ * `test/architecture-guardrails.test.ts`.
+ */
 export const splitEventPayloadForStorage = (
   type: string,
   payload: unknown,
@@ -80,7 +62,7 @@ export const splitEventPayloadForStorage = (
   try {
     const serialized = JSON.stringify(sidecarPayload)
 
-    if (Buffer.byteLength(serialized, 'utf8') < PAYLOAD_SIDECAR_MIN_BYTES) {
+    if (Buffer.byteLength(serialized, 'utf8') < 1024) {
       return {
         primaryPayload: payload,
         sidecarPayload: null,
@@ -117,105 +99,23 @@ export const hydrateStoredEventPayload = (
   }
 }
 
-export const createEventPayloadSidecarRepository = (db: RepositoryDatabase) => ({
-  create: (input: {
-    createdAt: string
-    eventId: string
-    payload: Record<string, unknown>
-  }): Result<null, DomainError> => {
-    try {
-      const payloadCompressed = encodePayloadFragment(input.payload)
+export interface CreateEventPayloadSidecarInput {
+  createdAt: string
+  eventId: string
+  payload: Record<string, unknown>
+}
 
-      if (!payloadCompressed) {
-        return err({
-          message: `failed to encode payload sidecar for event ${input.eventId}`,
-          type: 'conflict',
-        })
-      }
-
-      db.insert(eventPayloadSidecars)
-        .values({
-          createdAt: input.createdAt,
-          encoding: PAYLOAD_SIDECAR_ENCODING,
-          eventId: input.eventId,
-          payloadCompressed,
-        })
-        .run()
-
-      return ok(null)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown event payload sidecar write failure'
-
-      return err({
-        message: `failed to persist payload sidecar for event ${input.eventId}: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
+/**
+ * Persistence-neutral port for event payload sidecar storage. Concrete
+ * implementations (e.g. the Drizzle/SQLite adapter) live under
+ * `adapters/persistence/sqlite/`. This module must not import anything from
+ * `db`, `drizzle-orm`, `application`, or `adapters` -- see
+ * `test/architecture-guardrails.test.ts`.
+ */
+export interface EventPayloadSidecarRepository {
+  create: (input: CreateEventPayloadSidecarInput) => Result<null, DomainError>
   listByEventIds: (
     eventIds: string[],
-  ): Result<Map<string, Record<string, unknown>>, DomainError> => {
-    if (eventIds.length === 0) {
-      return ok(new Map())
-    }
-
-    try {
-      const rows = db
-        .select({
-          encoding: eventPayloadSidecars.encoding,
-          eventId: eventPayloadSidecars.eventId,
-          payloadCompressed: eventPayloadSidecars.payloadCompressed,
-        })
-        .from(eventPayloadSidecars)
-        .where(inArray(eventPayloadSidecars.eventId, eventIds))
-        .all()
-
-      const payloads = new Map<string, Record<string, unknown>>()
-
-      for (const row of rows) {
-        if (row.encoding !== PAYLOAD_SIDECAR_ENCODING) {
-          return err({
-            message: `event ${row.eventId} uses unsupported payload sidecar encoding "${row.encoding}"`,
-            type: 'conflict',
-          })
-        }
-
-        const payload = decodePayloadFragment(Buffer.from(row.payloadCompressed))
-
-        if (!payload) {
-          return err({
-            message: `failed to decode payload sidecar for event ${row.eventId}`,
-            type: 'conflict',
-          })
-        }
-
-        payloads.set(row.eventId, payload)
-      }
-
-      return ok(payloads)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown event payload sidecar query failure'
-
-      return err({
-        message: `failed to query payload sidecars: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
-  removeByEventId: (eventId: string): Result<null, DomainError> => {
-    try {
-      db.delete(eventPayloadSidecars).where(eq(eventPayloadSidecars.eventId, eventId)).run()
-      return ok(null)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown event payload sidecar delete failure'
-
-      return err({
-        message: `failed to delete payload sidecar for event ${eventId}: ${message}`,
-        type: 'conflict',
-      })
-    }
-  },
-})
+  ) => Result<Map<string, Record<string, unknown>>, DomainError>
+  removeByEventId: (eventId: string) => Result<null, DomainError>
+}

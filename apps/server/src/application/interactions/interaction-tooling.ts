@@ -1,9 +1,9 @@
+import type { ToolSpec } from '../../application/tooling/tool-registry'
 import type {
   AiInteractionRequest,
   AiProviderNativeToolName,
   AiToolDefinition,
 } from '../../domain/ai/types'
-import type { ToolSpec } from '../../domain/tooling/tool-registry'
 import type { AgentMcpMode } from '../agents/agent-runtime-policy'
 
 const modelVisibleFunctionToolNamePattern = /^[a-zA-Z0-9_-]+$/

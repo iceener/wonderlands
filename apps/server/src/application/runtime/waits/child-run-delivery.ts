@@ -1,11 +1,12 @@
+import { createFileRepository } from '../../persistence/repositories'
 import type {
   ChildRunResultEnvelope,
   ChildRunSuspendedWait,
 } from '../../../domain/agents/agent-types'
-import { createFileRepository } from '../../../domain/files/file-repository'
-import { createRunDependencyRepository } from '../../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../../domain/runtime/run-repository'
-import { createToolExecutionRepository } from '../../../domain/runtime/tool-execution-repository'
+import { createRunDependencyRepository } from '../../persistence/repositories'
+import type { RunRecord } from '../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../persistence/repositories'
+import { createToolExecutionRepository } from '../../persistence/repositories'
 import { ok } from '../../../shared/result'
 import type { CommandContext, CommandResult } from '../../commands/command-context'
 import { toToolArgs } from '../tool-execution-persistence'

@@ -1,10 +1,8 @@
-import { createAgentRevisionRepository } from '../../domain/agents/agent-revision-repository'
-import {
-  createKernelSessionRepository,
-  type KernelSessionRecord,
-} from '../../domain/kernel/kernel-session-repository'
+import { createAgentRevisionRepository } from '../persistence/repositories'
+import { createKernelSessionRepository } from '../persistence/repositories'
+import type { ToolContext } from '../../application/tooling/tool-registry'
+import type { KernelSessionRecord } from '../../domain/kernel/kernel-session-repository'
 import type { KernelArtifactKind, KernelPolicy } from '../../domain/kernel/types'
-import type { ToolContext } from '../../domain/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import { asKernelSessionId } from '../../shared/ids'
 import { err, ok, type Result } from '../../shared/result'

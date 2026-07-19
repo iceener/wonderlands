@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { onTestFinished, test } from 'vitest'
 
 import { closeAppRuntime } from '../src/app/runtime'
+import type { ToolContext } from '../src/application/tooling/tool-registry'
 import {
   accounts,
   agentRevisions,
@@ -18,7 +19,6 @@ import {
 } from '../src/db/schema'
 import type { KernelAdapter } from '../src/domain/kernel/kernel-adapter'
 import type { RunRecord } from '../src/domain/runtime/run-repository'
-import type { ToolContext } from '../src/domain/tooling/tool-registry'
 import { ok } from '../src/shared/result'
 import { createAsyncTestHarness } from './helpers/create-test-app'
 

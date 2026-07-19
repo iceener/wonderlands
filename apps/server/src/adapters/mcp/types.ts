@@ -7,7 +7,7 @@ import type {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 
-import type { ToolContext } from '../../domain/tooling/tool-registry'
+import type { ToolContext } from '../../application/tooling/tool-registry'
 import type { DomainError } from '../../shared/errors'
 import type { Result } from '../../shared/result'
 import type { TenantScope } from '../../shared/scope'

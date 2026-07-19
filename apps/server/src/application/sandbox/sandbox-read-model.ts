@@ -1,19 +1,14 @@
+import { createFileRepository } from '../persistence/repositories'
 import type { AppDatabase } from '../../db/client'
-import { createFileRepository, type FileRecord } from '../../domain/files/file-repository'
-import { createJobRepository } from '../../domain/runtime/job-repository'
-import {
-  createSandboxExecutionFileRepository,
-  type SandboxExecutionFileRecord,
-} from '../../domain/sandbox/sandbox-execution-file-repository'
-import {
-  createSandboxExecutionRepository,
-  type SandboxExecutionRecord,
-} from '../../domain/sandbox/sandbox-execution-repository'
-import { createSandboxExecutionPackageRepository } from '../../domain/sandbox/sandbox-package-repository'
-import {
-  createSandboxWritebackRepository,
-  type SandboxWritebackOperationRecord,
-} from '../../domain/sandbox/sandbox-writeback-repository'
+import type { FileRecord } from '../../domain/files/file-repository'
+import { createJobRepository } from '../persistence/repositories'
+import type { SandboxExecutionFileRecord } from '../../domain/sandbox/sandbox-execution-file-repository'
+import { createSandboxExecutionFileRepository } from '../persistence/repositories'
+import type { SandboxExecutionRecord } from '../../domain/sandbox/sandbox-execution-repository'
+import { createSandboxExecutionRepository } from '../persistence/repositories'
+import { createSandboxExecutionPackageRepository } from '../persistence/repositories'
+import type { SandboxWritebackOperationRecord } from '../../domain/sandbox/sandbox-writeback-repository'
+import { createSandboxWritebackRepository } from '../persistence/repositories'
 import type { DomainError } from '../../shared/errors'
 import type { SandboxExecutionId } from '../../shared/ids'
 import { ok, type Result } from '../../shared/result'

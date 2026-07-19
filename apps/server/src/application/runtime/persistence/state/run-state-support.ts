@@ -4,12 +4,13 @@ import type {
   AiProviderName,
   AiWebReference,
 } from '../../../../domain/ai/types'
-import type { RepositoryDatabase } from '../../../../domain/database-port'
+import type { RepositoryDatabase } from '../../../../db/repository-database'
 import type { DomainEventEnvelope } from '../../../../domain/events/domain-event'
-import { createDomainEventRepository } from '../../../../domain/events/domain-event-repository'
-import { createItemRepository } from '../../../../domain/runtime/item-repository'
-import { createRunDependencyRepository } from '../../../../domain/runtime/run-dependency-repository'
-import { createRunRepository, type RunRecord } from '../../../../domain/runtime/run-repository'
+import { createDomainEventRepository } from '../../../persistence/repositories'
+import { createItemRepository } from '../../../persistence/repositories'
+import { createRunDependencyRepository } from '../../../persistence/repositories'
+import type { RunRecord } from '../../../../domain/runtime/run-repository'
+import { createRunRepository } from '../../../persistence/repositories'
 import { type DomainError, DomainErrorException } from '../../../../shared/errors'
 import { asRunId } from '../../../../shared/ids'
 import { err, ok, type Result } from '../../../../shared/result'

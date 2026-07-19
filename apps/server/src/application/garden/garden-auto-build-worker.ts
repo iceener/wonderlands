@@ -1,7 +1,4 @@
-import {
-  createGardenBuildRepository,
-  createGardenSiteRepository,
-} from '../../adapters/persistence/sqlite'
+import { createGardenBuildRepository, createGardenSiteRepository } from '../persistence/repositories'
 import type { AppConfig } from '../../app/config'
 import type { AppServices } from '../../app/runtime'
 import type { AppDatabase } from '../../db/client'
