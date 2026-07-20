@@ -43,10 +43,21 @@ describe('extractSandboxOutputAttachments', () => {
       },
     ]
 
-    expect(extractSandboxOutputAttachments(blocks).map((attachment) => attachment.name)).toEqual([
+    const attachments = extractSandboxOutputAttachments(blocks)
+
+    expect(attachments.map((attachment) => attachment.name)).toEqual([
       'image.png',
       'image (2).png',
       'image (3).png',
     ])
+    expect(attachments[0]).toEqual({
+      id: 'fil_1',
+      kind: 'image',
+      mime: 'image/png',
+      name: 'image.png',
+      size: 1,
+      thumbnailUrl: '/api/files/fil_1/content',
+      url: '/api/files/fil_1/content',
+    })
   })
 })

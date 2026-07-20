@@ -5,54 +5,6 @@ import { buildBlockRenderItems } from './render-items'
 const at = '2026-03-31T08:00:00.000Z'
 
 describe('buildBlockRenderItems', () => {
-  test('keeps repeated completed tools flat when grouping is explicitly disabled', () => {
-    const blocks: Block[] = [
-      {
-        args: { path: 'nicolas-cage/face-off.md' },
-        createdAt: at,
-        finishedAt: at,
-        id: 'tool:write-1',
-        name: 'files__fs_write',
-        output: { bytes: 342 },
-        status: 'complete',
-        toolCallId: asToolCallId('call_write_1'),
-        type: 'tool_interaction',
-      },
-      {
-        args: { path: 'nicolas-cage/leaving-las-vegas.md' },
-        createdAt: at,
-        finishedAt: at,
-        id: 'tool:write-2',
-        name: 'files__fs_write',
-        output: { bytes: 418 },
-        status: 'complete',
-        toolCallId: asToolCallId('call_write_2'),
-        type: 'tool_interaction',
-      },
-      {
-        args: { path: 'nicolas-cage/raising-arizona.md' },
-        createdAt: at,
-        finishedAt: at,
-        id: 'tool:write-3',
-        name: 'files__fs_write',
-        output: { bytes: 385 },
-        status: 'complete',
-        toolCallId: asToolCallId('call_write_3'),
-        type: 'tool_interaction',
-      },
-    ]
-
-    const items = buildBlockRenderItems(blocks, { groupingEnabled: false })
-
-    expect(items).toHaveLength(3)
-    expect(items.map((item) => item.kind)).toEqual(['block', 'block', 'block'])
-    expect(items.map((item) => (item.kind === 'block' ? item.block.id : item.id))).toEqual([
-      'tool:write-1',
-      'tool:write-2',
-      'tool:write-3',
-    ])
-  })
-
   test('groups repeated completed tools before chaining', () => {
     const blocks: Block[] = [
       {
@@ -131,6 +83,10 @@ describe('buildBlockRenderItems', () => {
         { id: 'tool:write-3', name: 'files__fs_write' },
       ],
     })
+
+    const ungrouped = buildBlockRenderItems(blocks, { groupingEnabled: false })
+    expect(ungrouped).toHaveLength(5)
+    expect(ungrouped.every((item) => item.kind === 'block')).toBe(true)
   })
 
   test('keeps mixed completed activity in a chain when no tool group applies', () => {

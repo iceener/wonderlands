@@ -190,12 +190,40 @@ const handleDocumentPointerDown = (event: PointerEvent) => {
   }
 }
 
+const handleDocumentKeyDown = (event: KeyboardEvent) => {
+  if (!isOpen || event.defaultPrevented || event.isComposing) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    onClose?.()
+    return
+  }
+
+  if (results.length === 0) return
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    onHighlight?.((selectedIndex + delta + results.length) % results.length)
+    return
+  }
+
+  if (event.key === 'Enter') {
+    const selected = results[selectedIndex]
+    if (!selected) return
+    event.preventDefault()
+    onSelect(selected)
+  }
+}
+
 $effect(() => {
   if (!isOpen) return
 
   document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+  document.addEventListener('keydown', handleDocumentKeyDown)
   return () => {
     document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+    document.removeEventListener('keydown', handleDocumentKeyDown)
   }
 })
 

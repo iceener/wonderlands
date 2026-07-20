@@ -1,25 +1,8 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-  ACTIVE_THREAD_TIPS,
-  buildTargetCycle,
-  EMPTY_THREAD_TIPS,
-  getNextTarget,
-  pickComposerPlaceholderTip,
-  toPickedImageAttachment,
-} from './chat-composer-logic'
+import { buildTargetCycle, getNextTarget, toPickedImageAttachment } from './chat-composer-logic'
 
 describe('chat-composer-logic', () => {
-  test('picks placeholder tips only when thread state changes', () => {
-    const first = pickComposerPlaceholderTip(false, null, () => 0)
-    expect(first).toEqual({ lastHasMessages: false, tip: EMPTY_THREAD_TIPS[0] })
-
-    expect(pickComposerPlaceholderTip(false, false, () => 0)).toBeNull()
-
-    const active = pickComposerPlaceholderTip(true, false, () => 0)
-    expect(active).toEqual({ lastHasMessages: true, tip: ACTIVE_THREAD_TIPS[0] })
-  })
-
   test('converts image file picker results into attachments', () => {
     expect(
       toPickedImageAttachment({

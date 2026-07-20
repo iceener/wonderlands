@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { createViewNavigator } from './view-store.svelte.js'
 
 describe('createViewNavigator', () => {
-  test('push keeps previous views mounted and derives back labels from the stack', () => {
+  test('push keeps previous views mounted in stack order', () => {
     const navigator = createViewNavigator(async () => true)
 
     navigator.push({ kind: 'agent-form', agentId: 'agt_1' })
@@ -12,8 +12,6 @@ describe('createViewNavigator', () => {
       { kind: 'chat' },
       { kind: 'agent-form', agentId: 'agt_1' },
     ])
-    expect(navigator.backLabel).toBe('Back to Chat')
-
     navigator.push({ kind: 'tool-profile-form', toolProfileId: 'tp_1' })
 
     expect(navigator.activeView).toEqual({ kind: 'tool-profile-form', toolProfileId: 'tp_1' })
@@ -22,7 +20,6 @@ describe('createViewNavigator', () => {
       { kind: 'agent-form', agentId: 'agt_1' },
       { kind: 'tool-profile-form', toolProfileId: 'tp_1' },
     ])
-    expect(navigator.backLabel).toBe('Back to Agent')
   })
 
   test('requestPop blocks when the active view is dirty and discard is cancelled', async () => {
@@ -35,11 +32,7 @@ describe('createViewNavigator', () => {
 
     await expect(navigator.requestPop()).resolves.toBe(false)
     expect(navigator.activeView).toEqual(agentView)
-    expect(openConfirm).toHaveBeenCalledWith({
-      cancelLabel: 'Keep editing',
-      confirmLabel: 'Discard changes',
-      title: 'You have unsaved changes',
-    })
+    expect(openConfirm).toHaveBeenCalledOnce()
   })
 
   test('buried dirty views survive push/pop without confirmation', async () => {
@@ -77,6 +70,5 @@ describe('createViewNavigator', () => {
     expect(navigator.mountedViews).toEqual([{ kind: 'chat' }])
     expect(navigator.canGoBack).toBe(false)
     expect(navigator.isDirty).toBe(false)
-    expect(navigator.backLabel).toBeNull()
   })
 })

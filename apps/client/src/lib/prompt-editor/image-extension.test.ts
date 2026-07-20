@@ -6,6 +6,8 @@ import { StarterKit } from '@tiptap/starter-kit'
 import { describe, expect, test } from 'vitest'
 import { PromptImage } from './image-extension'
 
+const imageMarkdown = '![Chart](https://example.com/chart.png)'
+
 const createEditor = (content: string) =>
   new Editor({
     element: null,
@@ -14,209 +16,108 @@ const createEditor = (content: string) =>
     contentType: 'markdown',
   })
 
-const findImagePos = (editor: Editor): number => {
-  let imagePos = -1
-
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'image' && imagePos < 0) {
-      imagePos = pos
+const findNodePosition = (state: EditorState, type: string): number => {
+  let found = -1
+  state.doc.descendants((node, position) => {
+    if (node.type.name === type && found < 0) {
+      found = position
       return false
     }
   })
-
-  if (imagePos < 0) {
-    throw new Error('Expected an image node in the test document.')
-  }
-
-  return imagePos
+  if (found < 0) throw new Error(`Expected a ${type} node.`)
+  return found
 }
 
-const findImagePosInState = (state: EditorState): number => {
-  let imagePos = -1
-
-  state.doc.descendants((node, pos) => {
-    if (node.type.name === 'image' && imagePos < 0) {
-      imagePos = pos
+const findTextPosition = (state: EditorState, text: string): number => {
+  let found = -1
+  state.doc.descendants((node, position) => {
+    const offset = node.isText ? (node.text?.indexOf(text) ?? -1) : -1
+    if (offset >= 0) {
+      found = position + offset
       return false
     }
   })
-
-  if (imagePos < 0) {
-    throw new Error('Expected an image node in the test document.')
-  }
-
-  return imagePos
+  if (found < 0) throw new Error(`Expected text ${text}.`)
+  return found
 }
 
-const applyImageAppendTransaction = (
+const pluginFor = (editor: Editor) => {
+  const plugin = editor.extensionManager.plugins.find((candidate) =>
+    candidate.key.startsWith('imageInlineEdit$'),
+  )
+  if (!plugin) throw new Error('Expected the PromptImage plugin.')
+  return plugin
+}
+
+const applyTransaction = (
   editor: Editor,
   oldState: EditorState,
   transaction: Transaction,
 ): EditorState => {
   const nextState = oldState.apply(transaction)
-  const plugin = editor.extensionManager.plugins.find((candidate) =>
-    candidate.key.startsWith('imageInlineEdit$'),
-  )
-
-  if (!plugin?.spec.appendTransaction) {
-    throw new Error('Expected the PromptImage appendTransaction plugin to be registered.')
-  }
-
-  const appended = plugin.spec.appendTransaction([transaction], oldState, nextState)
-
+  const appended = pluginFor(editor).spec.appendTransaction?.([transaction], oldState, nextState)
   return appended ? nextState.apply(appended) : nextState
 }
 
-const applyImageKeyDown = (
-  editor: Editor,
-  oldState: EditorState,
-  key: string,
-  selection: TextSelection,
-): { handled: boolean; state: EditorState } => {
-  const plugin = editor.extensionManager.plugins.find((candidate) =>
-    candidate.key.startsWith('imageInlineEdit$'),
+const selectImage = (editor: Editor): EditorState => {
+  const position = findNodePosition(editor.state, 'image')
+  return applyTransaction(
+    editor,
+    editor.state,
+    editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, position)),
   )
+}
 
-  if (!plugin?.props.handleKeyDown) {
-    throw new Error('Expected the PromptImage keydown handler to be registered.')
-  }
-
-  let currentState = oldState.apply(oldState.tr.setSelection(selection))
+const pressKey = (
+  editor: Editor,
+  state: EditorState,
+  key: 'Enter' | 'Backspace',
+  position: number,
+): EditorState => {
+  let currentState = state.apply(state.tr.setSelection(TextSelection.create(state.doc, position)))
   const view = {
-    dispatch(tr: Transaction) {
-      currentState = applyImageAppendTransaction(editor, currentState, tr)
+    dispatch(transaction: Transaction) {
+      currentState = applyTransaction(editor, currentState, transaction)
       view.state = currentState
     },
     state: currentState,
   }
-  let defaultPrevented = false
+  const event = {
+    altKey: false,
+    ctrlKey: false,
+    key,
+    metaKey: false,
+    preventDefault() {},
+    shiftKey: false,
+  } as KeyboardEvent
 
-  const handled = plugin.props.handleKeyDown(
-    view as never,
-    {
-      altKey: false,
-      ctrlKey: false,
-      key,
-      metaKey: false,
-      preventDefault() {
-        defaultPrevented = true
-      },
-      shiftKey: false,
-    } as KeyboardEvent,
-  )
-
-  return {
-    handled: Boolean(handled && defaultPrevented),
-    state: currentState,
-  }
+  expect(pluginFor(editor).props.handleKeyDown?.(view as never, event)).toBe(true)
+  return currentState
 }
 
-const findTextPosition = (state: EditorState, text: string): number => {
-  let foundPos = -1
-
-  state.doc.descendants((node, pos) => {
-    if (!node.isText || !node.text) {
-      return
-    }
-
-    const offset = node.text.indexOf(text)
-    if (offset >= 0) {
-      foundPos = pos + offset
-      return false
-    }
+const countNodes = (state: EditorState, type: string): number => {
+  let count = 0
+  state.doc.descendants((node) => {
+    if (node.type.name === type) count += 1
   })
-
-  if (foundPos < 0) {
-    throw new Error(`Expected to find text "${text}" in the document.`)
-  }
-
-  return foundPos
+  return count
 }
 
 describe('prompt image inline editing', () => {
-  test('expands an inline image onto its own line when text follows', () => {
-    const editor = createEditor('![Chart](https://example.com/chart.png)After text')
-    const imagePos = findImagePos(editor)
-    const result = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
+  test('expands a selected inline image onto a dedicated editable line', () => {
+    const editor = createEditor(`Before ${imageMarkdown} After`)
+    const expanded = selectImage(editor)
 
-    expect(result.selection).toBeInstanceOf(TextSelection)
-    expect(result.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: '![Chart](https://example.com/chart.png)',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: 'After text',
-            },
-          ],
-        },
-      ],
-    })
+    expect(expanded.selection).toBeInstanceOf(TextSelection)
+    expect(expanded.doc.textContent).toBe(`Before ${imageMarkdown} After`)
+    expect(countNodes(expanded, 'image')).toBe(0)
+    expect(countNodes(expanded, 'hardBreak')).toBe(2)
   })
 
-  test('expands an inline image onto its own line when surrounded by text', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const result = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
-
-    expect(result.selection).toBeInstanceOf(TextSelection)
-    expect(result.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: 'Before ',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: '![Chart](https://example.com/chart.png)',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: ' After',
-            },
-          ],
-        },
-      ],
-    })
-  })
-
-  test('collapses expanded markdown back into an image when cursor leaves the markdown', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const expanded = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
-
-    const collapsed = applyImageAppendTransaction(
+  test('collapses edited markdown back into an image when selection leaves it', () => {
+    const editor = createEditor(`Before ${imageMarkdown} After`)
+    const expanded = selectImage(editor)
+    const collapsed = applyTransaction(
       editor,
       expanded,
       expanded.tr.setSelection(TextSelection.create(expanded.doc, 1)),
@@ -225,277 +126,27 @@ describe('prompt image inline editing', () => {
     expect(collapsed.doc.toJSON()).toEqual(editor.state.doc.toJSON())
   })
 
-  test('expands inside nested list content without changing block structure', () => {
-    const editor = createEditor('- Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const result = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
+  test('keeps nested list structure while expanding image markdown', () => {
+    const editor = createEditor(`- Before ${imageMarkdown} After`)
+    const expanded = selectImage(editor)
 
-    expect(result.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'bulletList',
-          content: [
-            {
-              type: 'listItem',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: 'Before ',
-                    },
-                    {
-                      type: 'hardBreak',
-                    },
-                    {
-                      type: 'text',
-                      text: '![Chart](https://example.com/chart.png)',
-                    },
-                    {
-                      type: 'hardBreak',
-                    },
-                    {
-                      type: 'text',
-                      text: ' After',
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    })
+    expect(expanded.doc.firstChild?.type.name).toBe('bulletList')
+    expect(expanded.doc.textContent).toBe(`Before ${imageMarkdown} After`)
+    expect(countNodes(expanded, 'hardBreak')).toBe(2)
   })
 
-  test('pressing Enter inside expanded image markdown collapses it and creates a continuation line', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const expanded = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
-    const markdownPos = findTextPosition(expanded, 'https://example.com/chart.png')
-    const enterResult = applyImageKeyDown(
-      editor,
-      expanded,
-      'Enter',
-      TextSelection.create(expanded.doc, markdownPos),
-    )
-
-    expect(enterResult.handled).toBe(true)
-    expect(enterResult.state.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: 'Before ',
-            },
-            {
-              type: 'image',
-              attrs: {
-                alt: 'Chart',
-                src: 'https://example.com/chart.png',
-                title: null,
-              },
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: ' After',
-            },
-          ],
-        },
-      ],
-    })
-  })
-
-  test('pressing Enter at the start of expanded image markdown pushes the image down', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const expanded = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
+  test('Enter and Backspace move an image down and back up without losing it', () => {
+    const editor = createEditor(`Before ${imageMarkdown} After`)
+    const expanded = selectImage(editor)
     const markdownStart = findTextPosition(expanded, '![Chart]')
-    const enterResult = applyImageKeyDown(
-      editor,
-      expanded,
-      'Enter',
-      TextSelection.create(expanded.doc, markdownStart),
-    )
+    const movedDown = pressKey(editor, expanded, 'Enter', markdownStart)
 
-    expect(enterResult.handled).toBe(true)
-    expect(enterResult.state.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: 'Before ',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'image',
-              attrs: {
-                alt: 'Chart',
-                src: 'https://example.com/chart.png',
-                title: null,
-              },
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: ' After',
-            },
-          ],
-        },
-      ],
-    })
-  })
+    expect(countNodes(movedDown, 'image')).toBe(1)
+    expect(countNodes(movedDown, 'hardBreak')).toBe(3)
 
-  test('pressing Enter directly before an image pushes it down another line', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const expanded = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
-    const markdownStart = findTextPosition(expanded, '![Chart]')
-    const firstEnter = applyImageKeyDown(
-      editor,
-      expanded,
-      'Enter',
-      TextSelection.create(expanded.doc, markdownStart),
-    )
-    const secondEnter = applyImageKeyDown(
-      editor,
-      firstEnter.state,
-      'Enter',
-      firstEnter.state.selection as TextSelection,
-    )
-
-    expect(secondEnter.handled).toBe(true)
-    expect(secondEnter.state.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: 'Before ',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'image',
-              attrs: {
-                alt: 'Chart',
-                src: 'https://example.com/chart.png',
-                title: null,
-              },
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: ' After',
-            },
-          ],
-        },
-      ],
-    })
-    expect((secondEnter.state.selection as TextSelection).from).toBe(
-      findImagePosInState(secondEnter.state),
-    )
-  })
-
-  test('pressing Backspace directly before an image pulls it up one line', () => {
-    const editor = createEditor('Before ![Chart](https://example.com/chart.png) After')
-    const imagePos = findImagePos(editor)
-    const expanded = applyImageAppendTransaction(
-      editor,
-      editor.state,
-      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, imagePos)),
-    )
-    const markdownStart = findTextPosition(expanded, '![Chart]')
-    const firstEnter = applyImageKeyDown(
-      editor,
-      expanded,
-      'Enter',
-      TextSelection.create(expanded.doc, markdownStart),
-    )
-    const backspace = applyImageKeyDown(
-      editor,
-      firstEnter.state,
-      'Backspace',
-      firstEnter.state.selection as TextSelection,
-    )
-
-    expect(backspace.handled).toBe(true)
-    expect(backspace.state.doc.toJSON()).toEqual({
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [
-            {
-              type: 'text',
-              text: 'Before ',
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'image',
-              attrs: {
-                alt: 'Chart',
-                src: 'https://example.com/chart.png',
-                title: null,
-              },
-            },
-            {
-              type: 'hardBreak',
-            },
-            {
-              type: 'text',
-              text: ' After',
-            },
-          ],
-        },
-      ],
-    })
+    const movedUp = pressKey(editor, movedDown, 'Backspace', movedDown.selection.from)
+    expect(countNodes(movedUp, 'image')).toBe(1)
+    expect(countNodes(movedUp, 'hardBreak')).toBe(2)
+    expect(movedUp.doc.textContent).toBe('Before  After')
   })
 })

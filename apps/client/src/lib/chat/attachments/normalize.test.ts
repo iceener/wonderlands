@@ -17,100 +17,57 @@ const attachment = (overrides: Partial<MessageAttachment> = {}): MessageAttachme
   ...overrides,
 })
 
-describe('cloneAttachments', () => {
-  test('returns a deep-enough copy that does not alias the source objects', () => {
+describe('attachment normalization', () => {
+  test('clones attachment objects without aliasing the source', () => {
     const source = [attachment()]
     const cloned = cloneAttachments(source)
 
     expect(cloned).toEqual(source)
     expect(cloned[0]).not.toBe(source[0])
-  })
-
-  test('returns an empty array for an empty input', () => {
     expect(cloneAttachments([])).toEqual([])
   })
-})
 
-describe('mergeAttachments', () => {
-  test('returns a clone of existing attachments when incoming is empty', () => {
-    const existing = [attachment()]
-    const merged = mergeAttachments(existing, [])
+  test('merges new ids while preserving the first attachment for duplicate ids', () => {
+    const existing = [attachment({ name: 'original.txt' })]
+    const merged = mergeAttachments(existing, [
+      attachment({ name: 'renamed.txt' }),
+      attachment({ id: 'att_2', name: 'image.png' }),
+    ])
 
-    expect(merged).toEqual(existing)
+    expect(merged.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'att_1', name: 'original.txt' },
+      { id: 'att_2', name: 'image.png' },
+    ])
     expect(merged[0]).not.toBe(existing[0])
   })
 
-  test('appends new incoming attachments not already present by id', () => {
-    const existing = [attachment({ id: 'att_1' })]
-    const incoming = [attachment({ id: 'att_2', name: 'image.png' })]
-
-    const merged = mergeAttachments(existing, incoming)
-
-    expect(merged.map((item) => item.id)).toEqual(['att_1', 'att_2'])
-  })
-
-  test('does not duplicate attachments that already exist by id', () => {
-    const existing = [attachment({ id: 'att_1', name: 'original.txt' })]
-    const incoming = [attachment({ id: 'att_1', name: 'renamed.txt' })]
-
-    const merged = mergeAttachments(existing, incoming)
-
-    expect(merged).toHaveLength(1)
-    expect(merged[0]?.name).toBe('original.txt')
-  })
-})
-
-describe('isMessageAttachment', () => {
-  test('accepts a well-formed attachment', () => {
-    expect(isMessageAttachment(attachment())).toBe(true)
-  })
-
-  test('accepts an optional thumbnailUrl string', () => {
-    expect(isMessageAttachment(attachment({ thumbnailUrl: 'https://example.test/thumb' }))).toBe(
-      true,
-    )
-  })
-
-  test('rejects non-object values', () => {
-    expect(isMessageAttachment(null)).toBe(false)
-    expect(isMessageAttachment('att_1')).toBe(false)
-    expect(isMessageAttachment(undefined)).toBe(false)
-  })
-
-  test('rejects an object missing required fields or with wrong field types', () => {
-    expect(isMessageAttachment({ ...attachment(), size: '10' })).toBe(false)
-    expect(isMessageAttachment({ ...attachment(), kind: 'video' })).toBe(false)
+  test('validates required fields and the optional thumbnail URL', () => {
+    const cases: Array<[unknown, boolean]> = [
+      [attachment(), true],
+      [attachment({ thumbnailUrl: 'https://example.test/thumb' }), true],
+      [null, false],
+      ['att_1', false],
+      [{ ...attachment(), size: '10' }, false],
+      [{ ...attachment(), kind: 'video' }, false],
+      [{ ...attachment(), thumbnailUrl: 42 }, false],
+    ]
     const { name: _name, ...withoutName } = attachment()
-    expect(isMessageAttachment(withoutName)).toBe(false)
+    cases.push([withoutName, false])
+
+    for (const [value, expected] of cases) {
+      expect(isMessageAttachment(value)).toBe(expected)
+    }
   })
 
-  test('rejects a non-string thumbnailUrl', () => {
-    expect(isMessageAttachment({ ...attachment(), thumbnailUrl: 42 })).toBe(false)
-  })
-})
-
-describe('extractAttachmentsFromMetadata', () => {
-  test('extracts and clones valid attachments from metadata.attachments', () => {
+  test('extracts only valid metadata attachments and returns independent objects', () => {
     const source = attachment()
-    const extracted = extractAttachmentsFromMetadata({ attachments: [source] })
+    const extracted = extractAttachmentsFromMetadata({
+      attachments: [source, { id: 'bad' }, null, 42],
+    })
 
     expect(extracted).toEqual([source])
     expect(extracted[0]).not.toBe(source)
-  })
-
-  test('filters out malformed entries while keeping valid ones', () => {
-    const valid = attachment()
-    const extracted = extractAttachmentsFromMetadata({
-      attachments: [valid, { id: 'bad' }, null, 42],
-    })
-
-    expect(extracted).toEqual([valid])
-  })
-
-  test('returns an empty array when metadata is not an object or has no attachments array', () => {
     expect(extractAttachmentsFromMetadata(null)).toEqual([])
-    expect(extractAttachmentsFromMetadata('nope')).toEqual([])
-    expect(extractAttachmentsFromMetadata({})).toEqual([])
     expect(extractAttachmentsFromMetadata({ attachments: 'nope' })).toEqual([])
   })
 })

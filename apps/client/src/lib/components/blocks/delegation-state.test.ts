@@ -1,10 +1,6 @@
 import { asToolCallId, type Block, type ToolInteractionBlock } from '@wonderlands/contracts/chat'
 import { describe, expect, test } from 'vitest'
-import {
-  getDelegationStatus,
-  getWaitingFooterLabel,
-  getWaitingFooterState,
-} from './delegation-state'
+import { getDelegationStatus, getWaitingFooterState } from './delegation-state'
 
 const at = '2026-04-03T00:00:00.000Z'
 
@@ -122,7 +118,6 @@ describe('delegation-state', () => {
       },
     ]
 
-    expect(getWaitingFooterLabel(blocks)).toBe('Waiting for your approval on tony.')
     expect(getWaitingFooterState(blocks).kind).toBe('pending')
   })
 
@@ -150,7 +145,6 @@ describe('delegation-state', () => {
       }),
     ]
 
-    expect(getWaitingFooterLabel(blocks)).toBe('Waiting for your reply before tony can continue.')
     expect(getWaitingFooterState(blocks).kind).toBe('reply')
   })
 })

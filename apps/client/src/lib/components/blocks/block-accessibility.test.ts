@@ -5,47 +5,11 @@ import {
   getBlockAnnouncement,
   getBlockLiveMode,
   getBlockRenderErrorMessage,
-  getExpandablePanelId,
-  getExpandableToggleLabel,
 } from './block-accessibility'
 
 const at = '2026-03-29T10:00:00.000Z'
 
 describe('block accessibility helpers', () => {
-  test('builds stable panel ids and toggle labels for expandable blocks', () => {
-    const thinkingBlock: Block = {
-      id: 'thinking:block-1',
-      type: 'thinking',
-      title: 'reasoning',
-      content: 'Working',
-      status: 'thinking',
-      createdAt: at,
-    }
-    const toolBlock: Block = {
-      id: 'tool:block-1',
-      type: 'tool_interaction',
-      toolCallId: asToolCallId('call-1'),
-      name: 'lookup_sales',
-      args: {},
-      status: 'running',
-      createdAt: at,
-    }
-    const artifactBlock: Block = {
-      id: 'artifact:block-1',
-      type: 'artifact',
-      artifactId: asArtifactId('artifact-1'),
-      kind: 'markdown',
-      title: 'Report',
-      preview: '# Report',
-      createdAt: at,
-    }
-
-    expect(getExpandablePanelId(thinkingBlock)).toBe('block-panel-thinking-block-1')
-    expect(getExpandableToggleLabel(thinkingBlock, false)).toBe('Expand reasoning details')
-    expect(getExpandableToggleLabel(toolBlock, true)).toBe('Collapse lookup_sales details')
-    expect(getExpandableToggleLabel(artifactBlock, false)).toBe('Expand Report preview')
-  })
-
   test('maps block types to scoped live-region modes and fallback messages', () => {
     const cases: Array<{
       block: Block
