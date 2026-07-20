@@ -16,7 +16,11 @@ const request: ResolvedAiImageGenerateRequest = {
   prompt: 'A pencil sketch of the sea',
 }
 
-test('Google image request uses the v2 Interactions image response format', () => {
+type ContractCase = { name: string; run: () => void }
+const contractCases: ContractCase[] = []
+const contractCase = (name: string, run: () => void) => contractCases.push({ name, run })
+
+contractCase('Google image request uses the v2 Interactions image response format', () => {
   assert.deepEqual(buildGoogleImageInteractionParams(request), {
     input: request.prompt,
     model: request.model,
@@ -29,7 +33,7 @@ test('Google image request uses the v2 Interactions image response format', () =
   })
 })
 
-test('Google image response reads image content from model output steps', () => {
+contractCase('Google image response reads image content from model output steps', () => {
   const interaction = {
     id: 'interaction_test',
     model: request.model,
@@ -63,4 +67,10 @@ test('Google image response reads image content from model output steps', () => 
     outputTokens: 7,
     totalTokens: 12,
   })
+})
+
+test('Google image request and response contract matrix', () => {
+  for (const contract of contractCases) {
+    assert.doesNotThrow(contract.run, contract.name)
+  }
 })

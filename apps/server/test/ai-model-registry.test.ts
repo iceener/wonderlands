@@ -21,7 +21,11 @@ const registry = {
   defaultAlias: 'default',
 }
 
-test('resolveAiModelTarget uses explicit model with explicit provider', () => {
+type ContractCase = { name: string; run: () => void }
+const contractCases: ContractCase[] = []
+const contractCase = (name: string, run: () => void) => contractCases.push({ name, run })
+
+contractCase('resolveAiModelTarget uses explicit model with explicit provider', () => {
   const result = resolveAiModelTarget(registry, {
     model: 'gpt-5.4-mini',
     provider: 'openai',
@@ -39,7 +43,7 @@ test('resolveAiModelTarget uses explicit model with explicit provider', () => {
   })
 })
 
-test('resolveAiModelTarget falls back to provider defaults', () => {
+contractCase('resolveAiModelTarget falls back to provider defaults', () => {
   const result = resolveAiModelTarget(registry, {
     provider: 'google',
   })
@@ -56,7 +60,7 @@ test('resolveAiModelTarget falls back to provider defaults', () => {
   })
 })
 
-test('resolveAiModelTarget rejects unknown aliases', () => {
+contractCase('resolveAiModelTarget rejects unknown aliases', () => {
   const result = resolveAiModelTarget(registry, {
     modelAlias: 'missing',
   })
@@ -68,4 +72,10 @@ test('resolveAiModelTarget rejects unknown aliases', () => {
   }
 
   assert.match(result.error.message, /Unknown AI model alias/)
+})
+
+test('AI model registry contract matrix', () => {
+  for (const contract of contractCases) {
+    assert.doesNotThrow(contract.run, contract.name)
+  }
 })

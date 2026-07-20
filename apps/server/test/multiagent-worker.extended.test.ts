@@ -9,7 +9,6 @@ import { closeAppRuntime, createAppRuntime, initializeAppRuntime } from '../src/
 import { createExecuteRunCommand } from '../src/application/commands/execute-run'
 import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
 import { createResumeRunCommand } from '../src/application/commands/resume-run'
-import { createStartThreadInteractionCommand } from '../src/application/commands/start-thread-interaction'
 import {
   agentRevisions,
   agentSubagentLinks,
@@ -25,7 +24,7 @@ import {
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
 import { asAccountId, asItemId, asRunId, asTenantId } from '../src/shared/ids'
-import { err, ok } from '../src/shared/result'
+import { type err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
 import { grantNativeToolToDefaultAgent } from './helpers/grant-native-tool-agent'
@@ -237,27 +236,6 @@ const executeRun = async (
     response,
   }
 }
-
-const cancelRun = async (
-  app: ReturnType<typeof createTestHarness>['app'],
-  headers: Record<string, string>,
-  runId: string,
-) => {
-  const response = await app.request(`http://local/v1/runs/${runId}/cancel`, {
-    body: JSON.stringify({}),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-
-  return {
-    body: await response.json(),
-    response,
-  }
-}
-
 const registerFunctionTool = (
   runtime: ReturnType<typeof createTestHarness>['runtime'],
   input: {
@@ -330,70 +308,6 @@ const buildDelegateResponse = (input: {
   ],
   usage: null,
 })
-
-const buildReasoningDelegateResponse = (input: {
-  agentAlias: string
-  callId: string
-  instructions?: string
-  reasoning: string
-  reasoningId: string
-  task: string
-}): AiInteractionResponse => ({
-  messages: [],
-  model: 'gpt-5.4',
-  output: [
-    {
-      id: input.reasoningId,
-      summary: [
-        {
-          text: input.reasoning,
-          type: 'summary_text',
-        },
-      ],
-      text: input.reasoning,
-      type: 'reasoning',
-    },
-    {
-      arguments: {
-        agentAlias: input.agentAlias,
-        ...(input.instructions ? { instructions: input.instructions } : {}),
-        task: input.task,
-      },
-      argumentsJson: JSON.stringify({
-        agentAlias: input.agentAlias,
-        ...(input.instructions ? { instructions: input.instructions } : {}),
-        task: input.task,
-      }),
-      callId: input.callId,
-      name: 'delegate_to_agent',
-      type: 'function_call',
-    },
-  ],
-  outputText: '',
-  provider: 'openai',
-  providerRequestId: 'req_delegate_reasoning',
-  raw: { stub: true },
-  responseId: 'resp_delegate_reasoning',
-  status: 'completed',
-  toolCalls: [
-    {
-      arguments: {
-        agentAlias: input.agentAlias,
-        ...(input.instructions ? { instructions: input.instructions } : {}),
-        task: input.task,
-      },
-      argumentsJson: JSON.stringify({
-        agentAlias: input.agentAlias,
-        ...(input.instructions ? { instructions: input.instructions } : {}),
-        task: input.task,
-      }),
-      callId: input.callId,
-      name: 'delegate_to_agent',
-    },
-  ],
-  usage: null,
-})
-
 const buildAssistantResponse = (text: string, outputText = text): AiInteractionResponse => ({
   messages: [
     {
@@ -418,49 +332,6 @@ const buildAssistantResponse = (text: string, outputText = text): AiInteractionR
   toolCalls: [],
   usage: null,
 })
-
-const buildReasoningAssistantResponse = (input: {
-  reasoning: string
-  reasoningId: string
-  text: string
-  webSearches?: AiInteractionResponse['webSearches']
-}): AiInteractionResponse => ({
-  messages: [
-    {
-      content: [{ text: input.text, type: 'text' }],
-      role: 'assistant',
-    },
-  ],
-  model: 'gpt-5.4',
-  output: [
-    {
-      id: input.reasoningId,
-      summary: [
-        {
-          text: input.reasoning,
-          type: 'summary_text',
-        },
-      ],
-      text: input.reasoning,
-      type: 'reasoning',
-    },
-    {
-      content: [{ text: input.text, type: 'text' }],
-      role: 'assistant',
-      type: 'message',
-    },
-  ],
-  outputText: input.text,
-  provider: 'openai',
-  providerRequestId: 'req_reasoning_text',
-  raw: { stub: true },
-  responseId: 'resp_reasoning_text',
-  status: 'completed',
-  toolCalls: [],
-  usage: null,
-  webSearches: input.webSearches ?? [],
-})
-
 const drainWorker = async (
   runtime: ReturnType<typeof createTestHarness>['runtime'],
   maxIterations = 20,

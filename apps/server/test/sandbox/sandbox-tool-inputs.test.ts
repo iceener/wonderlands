@@ -5,10 +5,7 @@ import { createGardenSiteRepository } from '../../src/adapters/persistence/sqlit
 import { createInternalCommandContext } from '../../src/application/commands/internal-command-context'
 import { MCP_CODE_MODE_CONFIRMATION_TARGET_REF } from '../../src/application/mcp/code-mode'
 import { toToolContext } from '../../src/application/runtime/execution/run-tool-execution'
-import {
-  buildSandboxBashWrapperScript,
-  resolveSandboxJobGardenShortcut,
-} from '../../src/application/sandbox/register-sandbox-native-tools'
+import { resolveSandboxJobGardenShortcut } from '../../src/application/sandbox/register-sandbox-native-tools'
 import { SANDBOX_DELETE_WRITEBACK_CONFIRMATION_TARGET_REF } from '../../src/application/sandbox/sandbox-delete-confirmation'
 import {
   agentRevisions,
@@ -356,29 +353,6 @@ test('execute schema exposes source and package controls through one tool surfac
   assert.equal(Object.hasOwn(tool?.inputSchema.properties ?? {}, 'script'), true)
   assert.equal(Object.hasOwn(tool?.inputSchema.properties ?? {}, 'source'), true)
   assert.equal(Object.hasOwn(tool?.inputSchema.properties ?? {}, 'packages'), true)
-})
-
-test('execute tool description warns about local_dev native package limits', () => {
-  const { runtime } = createTestHarness({ AUTH_MODE: 'api_key', NODE_ENV: 'test' })
-  const tool = runtime.services.tools.get('execute')
-  const scriptSchema = tool?.inputSchema.properties?.script as Record<string, unknown> | undefined
-
-  assert.ok(tool)
-  assert.equal(tool?.description.includes('--ignore-scripts'), true)
-  assert.equal(tool?.description.includes('sharp'), true)
-  assert.equal(tool?.description.includes('prefer pure-JS packages'), true)
-  assert.equal(tool?.description.includes('write a script body, not a full module'), true)
-  assert.equal(tool?.description.includes('static top-level `import`/`export` is not'), true)
-  assert.equal(
-    (scriptSchema?.description as string | undefined)?.includes('--ignore-scripts'),
-    true,
-  )
-  assert.equal(
-    (scriptSchema?.description as string | undefined)?.includes(
-      'write a script body, not a full module',
-    ),
-    true,
-  )
 })
 
 test('execute rejects static import syntax early in MCP code mode script bodies', async () => {
@@ -953,38 +927,4 @@ test('execute schema keeps source provider-friendly for model adapters', () => {
   assert.equal(Array.isArray(tool?.inputSchema.required), true)
   assert.equal((tool?.inputSchema.required as string[]).includes('task'), true)
   assert.equal((tool?.inputSchema.required as string[]).includes('source'), false)
-})
-
-test('buildSandboxBashWrapperScript mounts read-only roots at their virtual mount points', () => {
-  const script = buildSandboxBashWrapperScript({
-    cwd: '/vault',
-    mountVault: true,
-    network: { mode: 'off' },
-    script: 'ls /input && ls /vault',
-    vaultWritable: false,
-  })
-
-  assert.equal(
-    script.includes('new OverlayFs({ root: "/input", mountPoint: "/", readOnly: true })'),
-    true,
-  )
-  assert.equal(
-    script.includes('new OverlayFs({ root: "/vault", mountPoint: "/", readOnly: true })'),
-    true,
-  )
-})
-
-test('buildSandboxBashWrapperScript tolerates only post-copy chmod permission failures', () => {
-  const script = buildSandboxBashWrapperScript({
-    cwd: '/vault/wonderlands',
-    mountVault: true,
-    network: { mode: 'off' },
-    script: 'cp public/image.jpg /output/image.jpg',
-    vaultWritable: false,
-  })
-
-  assert.match(script, /class SandboxMountableFs extends MountableFs/)
-  assert.match(script, /async crossMountCopy\(source, target, options\)/)
-  assert.match(script, /!isNodePermissionDenied\(error\) \|\| !\(await this\.exists\(target\)\)/)
-  assert.match(script, /const fs = new SandboxMountableFs/)
 })

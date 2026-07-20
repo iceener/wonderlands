@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { homedir, tmpdir } from 'node:os'
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, test } from 'vitest'
 
 const tempRoots: string[] = []
-const runtimeImportFromPattern = /(from\s+['"])(\.{1,2}\/[^'"]+)(['"])/g
-const runtimeImportBarePattern = /(import\s+['"])(\.{1,2}\/[^'"]+)(['"])/g
-const runtimeImportCallPattern = /(import\s*\(\s*['"])(\.{1,2}\/[^'"]+)(['"]\s*\))/g
+const _runtimeImportFromPattern = /(from\s+['"])(\.{1,2}\/[^'"]+)(['"])/g
+const _runtimeImportBarePattern = /(import\s+['"])(\.{1,2}\/[^'"]+)(['"])/g
+const _runtimeImportCallPattern = /(import\s*\(\s*['"])(\.{1,2}\/[^'"]+)(['"]\s*\))/g
 
 afterEach(async () => {
   await Promise.all(
@@ -56,7 +55,7 @@ const collectSpawnResult = async (input: {
     })
   })
 
-const collectRuntimeFiles = async (sourceDir: string): Promise<string[]> => {
+const _collectRuntimeFiles = async (sourceDir: string): Promise<string[]> => {
   const entries = await readdir(sourceDir, {
     withFileTypes: true,
   })
@@ -66,7 +65,7 @@ const collectRuntimeFiles = async (sourceDir: string): Promise<string[]> => {
     const entryPath = join(sourceDir, entry.name)
 
     if (entry.isDirectory()) {
-      files.push(...(await collectRuntimeFiles(entryPath)))
+      files.push(...(await _collectRuntimeFiles(entryPath)))
       continue
     }
 
@@ -77,35 +76,6 @@ const collectRuntimeFiles = async (sourceDir: string): Promise<string[]> => {
 
   return files
 }
-
-const stageLoRuntimeForTest = async (input: {
-  bootstrapEntryPath: string
-  runtimeRoot: string
-}) => {
-  const sourceRuntimeRoot = dirname(input.bootstrapEntryPath)
-  await cp(sourceRuntimeRoot, input.runtimeRoot, {
-    recursive: true,
-  })
-
-  const runtimeFiles = await collectRuntimeFiles(input.runtimeRoot)
-
-  for (const filePath of runtimeFiles) {
-    const source = await readFile(filePath, 'utf8')
-    const rewrite = (_full: string, prefix: string, specifier: string, suffix: string) =>
-      `${prefix}${resolve(dirname(filePath), specifier)}${suffix}`
-    const rewritten = source
-      .replaceAll(runtimeImportFromPattern, rewrite)
-      .replaceAll(runtimeImportBarePattern, rewrite)
-      .replaceAll(runtimeImportCallPattern, rewrite)
-
-    if (rewritten !== source) {
-      await writeFile(filePath, rewritten, 'utf8')
-    }
-  }
-
-  return join(input.runtimeRoot, 'entry.mjs')
-}
-
 test('sandbox-runtime-lo bootstrap loads the manifest and runs script mode in Node', async () => {
   const root = await mkdtemp(join(tmpdir(), 'wl-lo-bootstrap-'))
   tempRoots.push(root)
@@ -357,4 +327,3 @@ test('sandbox-runtime-lo bootstrap exposes the MCP bridge helper in script mode'
   assert.equal(stderr, '')
   assert.equal(stdout.trim(), JSON.stringify({ id: 'ISSUE-1', title: 'Bridge ok' }))
 })
-

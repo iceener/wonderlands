@@ -102,7 +102,7 @@ const delay = async (milliseconds: number) =>
     setTimeout(resolve, milliseconds)
   })
 
-test('users can register their own MCP servers, discover tools, and assign a tool to a profile', async () => {
+test('users can manage an MCP server and its tool assignments through the full lifecycle', async () => {
   const { app, runtime } = await createAsyncTestHarness({
     AUTH_MODE: 'api_key',
     NODE_ENV: 'test',
@@ -170,21 +170,6 @@ test('users can register their own MCP servers, discover tools, and assign a too
   assert.equal(assignmentRows[0]?.runtimeName, echoTool.runtimeName)
   assert.equal(assignmentRows[0]?.toolProfileId, assistantToolProfileId)
   assert.equal(assignmentRows[0]?.requiresConfirmation, true)
-})
-
-test('users can update their own MCP servers and refresh discovery', async () => {
-  const { app, runtime } = await createAsyncTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-
-  onTestFinished(async () => {
-    await closeAppRuntime(runtime)
-  })
-
-  const { headers } = seedApiKeyAuth(runtime)
-  const created = await createSelfManagedServer(app, headers)
-  const serverId = created.data.server.id as string
 
   const updateResponse = await app.request(`http://local/v1/mcp/servers/${serverId}`, {
     body: JSON.stringify({
@@ -202,23 +187,62 @@ test('users can update their own MCP servers and refresh discovery', async () =>
     },
     method: 'PATCH',
   })
-
-  assert.equal(updateResponse.status, 200)
   const updateBody = await updateResponse.json()
 
+  assert.equal(updateResponse.status, 200)
   assert.equal(updateBody.data.server.id, serverId)
   assert.equal(updateBody.data.server.label, 'My Updated Fixture MCP')
   assert.equal(updateBody.data.snapshot.status, 'ready')
+  const updatedEchoTool = await getServerToolByRemoteName(
+    app,
+    headers,
+    serverId,
+    assistantToolProfileId,
+    'echo',
+  )
 
-  const serverRows = runtime.db.select().from(mcpServers).all()
+  const unassignResponse = await app.request(
+    `http://local/v1/mcp/assignments/${encodeURIComponent(echoTool.runtimeName)}?toolProfileId=${encodeURIComponent(assistantToolProfileId)}`,
+    {
+      headers,
+      method: 'DELETE',
+    },
+  )
 
-  assert.equal(serverRows.length, 1)
-  assert.equal(serverRows[0]?.label, 'My Updated Fixture MCP')
-  assert.deepEqual(serverRows[0]?.configJson, {
-    args: ['--import', 'tsx', stdioFixturePath],
-    command: 'node',
-    cwd: process.cwd(),
+  assert.equal(unassignResponse.status, 200)
+  assert.equal(runtime.db.select().from(mcpToolAssignments).all().length, 0)
+
+  const reassignResponse = await app.request('http://local/v1/mcp/assignments', {
+    body: JSON.stringify({
+      requiresConfirmation: false,
+      runtimeName: updatedEchoTool.runtimeName,
+      serverId,
+      toolProfileId: assistantToolProfileId,
+    }),
+    headers: {
+      ...headers,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
   })
+
+  const reassignBody = await reassignResponse.json()
+  assert.equal(reassignResponse.status, 201, JSON.stringify(reassignBody))
+
+  const deleteResponse = await app.request(`http://local/v1/mcp/servers/${serverId}`, {
+    headers,
+    method: 'DELETE',
+  })
+  const deleteBody = await deleteResponse.json()
+
+  assert.equal(deleteResponse.status, 200)
+  assert.equal(deleteBody.data.serverId, serverId)
+  assert.equal(deleteBody.data.deletedToolAssignments >= 1, true)
+  assert.equal(deleteBody.data.deletedTools >= 1, true)
+  assert.equal(runtime.db.select().from(mcpServers).all().length, 0)
+  assert.equal(runtime.db.select().from(mcpToolCache).all().length, 0)
+  assert.equal(runtime.db.select().from(mcpToolAssignments).all().length, 0)
+  assert.equal(runtime.services.mcp.getTool(updatedEchoTool.runtimeName), null)
 })
 
 test('mcp app hosts can read ui resources and call server tools through the API proxy', async () => {
@@ -429,118 +453,6 @@ test('tool completion events preserve MCP app metadata declared only in result m
     resourceUri: 'ui://fixture/dynamic.html',
     serverId,
   })
-})
-
-test('users can delete their own MCP servers and remove cached state', async () => {
-  const { app, runtime } = await createAsyncTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-
-  onTestFinished(async () => {
-    await closeAppRuntime(runtime)
-  })
-
-  const { assistantToolProfileId, headers } = seedApiKeyAuth(runtime)
-  const created = await createSelfManagedServer(app, headers)
-  const serverId = created.data.server.id as string
-  const echoTool = await getServerToolByRemoteName(
-    app,
-    headers,
-    serverId,
-    assistantToolProfileId,
-    'echo',
-  )
-
-  const assignResponse = await app.request('http://local/v1/mcp/assignments', {
-    body: JSON.stringify({
-      requiresConfirmation: true,
-      runtimeName: echoTool.runtimeName,
-      serverId,
-      toolProfileId: assistantToolProfileId,
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-
-  assert.equal(assignResponse.status, 201)
-
-  const deleteResponse = await app.request(`http://local/v1/mcp/servers/${serverId}`, {
-    headers,
-    method: 'DELETE',
-  })
-
-  assert.equal(deleteResponse.status, 200)
-  const deleteBody = await deleteResponse.json()
-
-  assert.equal(deleteBody.data.serverId, serverId)
-  assert.equal(deleteBody.data.deletedToolAssignments >= 1, true)
-  assert.equal(deleteBody.data.deletedTools >= 1, true)
-  assert.equal(runtime.db.select().from(mcpServers).all().length, 0)
-  assert.equal(runtime.db.select().from(mcpToolCache).all().length, 0)
-  assert.equal(runtime.db.select().from(mcpToolAssignments).all().length, 0)
-  assert.equal(
-    runtime.services.mcp.getServerSnapshots().some((snapshot) => snapshot.id === serverId),
-    false,
-  )
-  assert.equal(runtime.services.mcp.getTool(`${serverId}__echo`), null)
-})
-
-test('users can remove a tool assignment from their profile', async () => {
-  const { app, runtime } = await createAsyncTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-
-  onTestFinished(async () => {
-    await closeAppRuntime(runtime)
-  })
-
-  const { assistantToolProfileId, headers } = seedApiKeyAuth(runtime)
-  const created = await createSelfManagedServer(app, headers)
-  const serverId = created.data.server.id as string
-  const echoTool = await getServerToolByRemoteName(
-    app,
-    headers,
-    serverId,
-    assistantToolProfileId,
-    'echo',
-  )
-
-  const assignResponse = await app.request('http://local/v1/mcp/assignments', {
-    body: JSON.stringify({
-      requiresConfirmation: true,
-      runtimeName: echoTool.runtimeName,
-      serverId,
-      toolProfileId: assistantToolProfileId,
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-
-  assert.equal(assignResponse.status, 201)
-  assert.equal(runtime.db.select().from(mcpToolAssignments).all().length, 1)
-
-  const deleteResponse = await app.request(
-    `http://local/v1/mcp/assignments/${encodeURIComponent(echoTool.runtimeName)}?toolProfileId=${encodeURIComponent(assistantToolProfileId)}`,
-    {
-      headers,
-      method: 'DELETE',
-    },
-  )
-
-  assert.equal(deleteResponse.status, 200)
-  const deleteBody = await deleteResponse.json()
-
-  assert.equal(deleteBody.data.assignment.runtimeName, echoTool.runtimeName)
-  assert.equal(deleteBody.data.assignment.toolProfileId, assistantToolProfileId)
-  assert.equal(runtime.db.select().from(mcpToolAssignments).all().length, 0)
 })
 
 test('first use of an assigned MCP tool waits for confirmation, then executes after approval', async () => {

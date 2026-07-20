@@ -29,7 +29,11 @@ const openRouterConfig = {
   timeoutMs: 60_000,
 } as const
 
-test('OpenAI request replays assistant history as output_text messages', () => {
+type ContractCase = { name: string; run: () => void }
+const contractCases: ContractCase[] = []
+const contractCase = (name: string, run: () => void) => contractCases.push({ name, run })
+
+contractCase('OpenAI request replays assistant history as output_text messages', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -66,7 +70,7 @@ test('OpenAI request replays assistant history as output_text messages', () => {
   })
 })
 
-test('OpenAI request forwards max reasoning effort for gpt-5.6-sol', () => {
+contractCase('OpenAI request forwards max reasoning effort for gpt-5.6-sol', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -89,7 +93,7 @@ test('OpenAI request forwards max reasoning effort for gpt-5.6-sol', () => {
   })
 })
 
-test('Google Interactions request omits legacy metadata labels', () => {
+contractCase('Google Interactions request omits legacy metadata labels', () => {
   const request: ResolvedAiInteractionRequest = {
     maxOutputTokens: 32,
     messages: [
@@ -111,7 +115,7 @@ test('Google Interactions request omits legacy metadata labels', () => {
   assert.equal(Object.hasOwn(params, 'previous_interaction_id'), false)
 })
 
-test('Google Interactions request sanitizes empty arrays in function results', () => {
+contractCase('Google Interactions request sanitizes empty arrays in function results', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -187,7 +191,7 @@ test('Google Interactions request sanitizes empty arrays in function results', (
   ])
 })
 
-test('provider request shapes pass through reasoning configuration', () => {
+contractCase('provider request shapes pass through reasoning configuration', () => {
   const openAiRequest: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -228,7 +232,7 @@ test('provider request shapes pass through reasoning configuration', () => {
   assert.equal(googleBody.thinking_summaries, 'auto')
 })
 
-test('provider request shapes default reasoning summary transport correctly', () => {
+contractCase('provider request shapes default reasoning summary transport correctly', () => {
   const openAiRequest: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -268,7 +272,7 @@ test('provider request shapes default reasoning summary transport correctly', ()
   assert.equal(googleBody.thinking_summaries, 'auto')
 })
 
-test('Google request maps reasoning none to thinking disabled', () => {
+contractCase('Google request maps reasoning none to thinking disabled', () => {
   const googleRequest: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -289,7 +293,7 @@ test('Google request maps reasoning none to thinking disabled', () => {
   assert.equal(googleBody.thinking_summaries, 'none')
 })
 
-test('OpenAI request uses the stable native web_search tool shape', () => {
+contractCase('OpenAI request uses the stable native web_search tool shape', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -313,7 +317,7 @@ test('OpenAI request uses the stable native web_search tool shape', () => {
   ])
 })
 
-test('OpenAI request rejects includes for unsupported response surfaces', () => {
+contractCase('OpenAI request rejects includes for unsupported response surfaces', () => {
   const request: ResolvedAiInteractionRequest = {
     include: ['file_search_call.results'],
     messages: [
@@ -332,7 +336,7 @@ test('OpenAI request rejects includes for unsupported response surfaces', () => 
   )
 })
 
-test('OpenRouter request rejects includes for unsupported response surfaces', () => {
+contractCase('OpenRouter request rejects includes for unsupported response surfaces', () => {
   const request: ResolvedAiInteractionRequest = {
     include: ['file_search_call.results'],
     messages: [
@@ -351,7 +355,7 @@ test('OpenRouter request rejects includes for unsupported response surfaces', ()
   )
 })
 
-test('OpenAI request maps shared replay and cache fields from the root request', () => {
+contractCase('OpenAI request maps shared replay and cache fields from the root request', () => {
   const request: ResolvedAiInteractionRequest = {
     include: ['reasoning.encrypted_content'],
     messages: [
@@ -375,7 +379,7 @@ test('OpenAI request maps shared replay and cache fields from the root request',
   assert.equal(body.safety_identifier, 'user_123')
 })
 
-test('OpenRouter request maps shared replay and cache fields from the root request', () => {
+contractCase('OpenRouter request maps shared replay and cache fields from the root request', () => {
   const request: ResolvedAiInteractionRequest = {
     include: ['reasoning.encrypted_content'],
     messages: [
@@ -399,45 +403,69 @@ test('OpenRouter request maps shared replay and cache fields from the root reque
   assert.equal(body.responsesRequest.safetyIdentifier, 'user_123')
 })
 
-test('OpenRouter request rejects provider routing controls in vendorOptions.openrouter', () => {
-  const request: ResolvedAiInteractionRequest = {
-    messages: [
-      {
-        content: [{ text: 'hello', type: 'text' }],
-        role: 'user',
-      },
-    ],
-    model: 'openai/gpt-5.4',
-    provider: 'openrouter',
-    vendorOptions: {
-      openrouter: {
-        provider: {
-          allowFallbacks: false,
+contractCase(
+  'OpenRouter request rejects provider routing controls in vendorOptions.openrouter',
+  () => {
+    const request: ResolvedAiInteractionRequest = {
+      messages: [
+        {
+          content: [{ text: 'hello', type: 'text' }],
+          role: 'user',
+        },
+      ],
+      model: 'openai/gpt-5.4',
+      provider: 'openrouter',
+      vendorOptions: {
+        openrouter: {
+          provider: {
+            allowFallbacks: false,
+          },
         },
       },
-    },
-  }
+    }
 
-  assert.throws(
-    () => createOpenRouterRequestBody(request, openRouterConfig, false),
-    /provider routing controls are not supported/,
-  )
-})
+    assert.throws(
+      () => createOpenRouterRequestBody(request, openRouterConfig, false),
+      /provider routing controls are not supported/,
+    )
+  },
+)
 
-test('OpenAI request disables strict mode for function tools with optional properties', () => {
-  const request: ResolvedAiInteractionRequest = {
-    messages: [
-      {
-        content: [{ text: 'Generate an image', type: 'text' }],
-        role: 'user',
-      },
-    ],
-    model: 'gpt-5.4',
-    provider: 'openai',
-    tools: [
+contractCase(
+  'OpenAI request disables strict mode for function tools with optional properties',
+  () => {
+    const request: ResolvedAiInteractionRequest = {
+      messages: [
+        {
+          content: [{ text: 'Generate an image', type: 'text' }],
+          role: 'user',
+        },
+      ],
+      model: 'gpt-5.4',
+      provider: 'openai',
+      tools: [
+        {
+          description: 'Generate an image',
+          kind: 'function',
+          name: 'generate_image',
+          parameters: {
+            additionalProperties: false,
+            properties: {
+              aspectRatio: { enum: ['1:1', '16:9'], type: 'string' },
+              prompt: { type: 'string' },
+            },
+            required: ['prompt'],
+            type: 'object',
+          },
+        },
+      ],
+    }
+
+    const body = createRequestBody(request, openAiConfig, false)
+
+    assert.deepEqual(body.tools, [
       {
         description: 'Generate an image',
-        kind: 'function',
         name: 'generate_image',
         parameters: {
           additionalProperties: false,
@@ -448,32 +476,14 @@ test('OpenAI request disables strict mode for function tools with optional prope
           required: ['prompt'],
           type: 'object',
         },
+        strict: null,
+        type: 'function',
       },
-    ],
-  }
+    ])
+  },
+)
 
-  const body = createRequestBody(request, openAiConfig, false)
-
-  assert.deepEqual(body.tools, [
-    {
-      description: 'Generate an image',
-      name: 'generate_image',
-      parameters: {
-        additionalProperties: false,
-        properties: {
-          aspectRatio: { enum: ['1:1', '16:9'], type: 'string' },
-          prompt: { type: 'string' },
-        },
-        required: ['prompt'],
-        type: 'object',
-      },
-      strict: null,
-      type: 'function',
-    },
-  ])
-})
-
-test('OpenAI request keeps strict mode for fully-required function schemas', () => {
+contractCase('OpenAI request keeps strict mode for fully-required function schemas', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -520,126 +530,132 @@ test('OpenAI request keeps strict mode for fully-required function schemas', () 
   ])
 })
 
-test('OpenAI request rejects invalid function tool names before sending the request', () => {
-  const request: ResolvedAiInteractionRequest = {
-    messages: [
-      {
-        content: [{ text: 'hello', type: 'text' }],
-        role: 'user',
-      },
-    ],
-    model: 'gpt-5.4',
-    provider: 'openai',
-    tools: [
-      {
-        kind: 'function',
-        name: 'valid_tool',
-        parameters: { type: 'object' },
-      },
-      {
-        kind: 'function',
-        name: 'legacy.tool',
-        parameters: { type: 'object' },
-      },
-    ],
-  }
+contractCase(
+  'OpenAI request rejects invalid function tool names before sending the request',
+  () => {
+    const request: ResolvedAiInteractionRequest = {
+      messages: [
+        {
+          content: [{ text: 'hello', type: 'text' }],
+          role: 'user',
+        },
+      ],
+      model: 'gpt-5.4',
+      provider: 'openai',
+      tools: [
+        {
+          kind: 'function',
+          name: 'valid_tool',
+          parameters: { type: 'object' },
+        },
+        {
+          kind: 'function',
+          name: 'legacy.tool',
+          parameters: { type: 'object' },
+        },
+      ],
+    }
 
-  assert.throws(
-    () => createRequestBody(request, openAiConfig, false),
-    /OpenAI function tool name at index 1 is invalid: "legacy\.tool"/,
-  )
-})
+    assert.throws(
+      () => createRequestBody(request, openAiConfig, false),
+      /OpenAI function tool name at index 1 is invalid: "legacy\.tool"/,
+    )
+  },
+)
 
-test('Google Interactions request replay preserves signatures on thoughts and thought parts', () => {
-  const request: ResolvedAiInteractionRequest = {
-    messages: [
+contractCase(
+  'Google Interactions request replay preserves signatures on thoughts and thought parts',
+  () => {
+    const request: ResolvedAiInteractionRequest = {
+      messages: [
+        {
+          content: [
+            {
+              text: 'Need to reason first.',
+              thought: true,
+              thoughtSignature: 'sig_reason_1',
+              type: 'text',
+            },
+            {
+              text: 'Final answer',
+              thoughtSignature: 'sig_text_1',
+              type: 'text',
+            },
+          ],
+          role: 'assistant',
+        },
+        {
+          content: [
+            {
+              argumentsJson: '{"q":"status"}',
+              callId: 'call_1',
+              name: 'lookup_status',
+              thoughtSignature: 'sig_call_1',
+              type: 'function_call',
+            },
+          ],
+          role: 'assistant',
+        },
+        {
+          content: [
+            {
+              id: 'sig_reasoning_item_1',
+              summary: [{ text: 'Internal thought replay.', type: 'summary_text' }],
+              text: 'Internal thought replay.',
+              thought: true,
+              type: 'reasoning',
+            },
+          ],
+          role: 'assistant',
+        },
+      ],
+      model: 'gemini-2.5-flash',
+      provider: 'google',
+    }
+
+    const input = buildInputForRequest(request.messages)
+
+    assert.deepEqual(input, [
       {
-        content: [
+        signature: 'sig_reason_1',
+        summary: [
           {
             text: 'Need to reason first.',
-            thought: true,
-            thoughtSignature: 'sig_reason_1',
             type: 'text',
           },
+        ],
+        type: 'thought',
+      },
+      {
+        content: [
           {
             text: 'Final answer',
-            thoughtSignature: 'sig_text_1',
             type: 'text',
           },
         ],
-        role: 'assistant',
+        type: 'model_output',
       },
       {
-        content: [
-          {
-            argumentsJson: '{"q":"status"}',
-            callId: 'call_1',
-            name: 'lookup_status',
-            thoughtSignature: 'sig_call_1',
-            type: 'function_call',
-          },
-        ],
-        role: 'assistant',
+        arguments: { q: 'status' },
+        id: 'call_1',
+        name: 'lookup_status',
+        type: 'function_call',
       },
       {
-        content: [
+        signature: 'sig_reasoning_item_1',
+        summary: [
           {
-            id: 'sig_reasoning_item_1',
-            summary: [{ text: 'Internal thought replay.', type: 'summary_text' }],
             text: 'Internal thought replay.',
-            thought: true,
-            type: 'reasoning',
+            type: 'text',
           },
         ],
-        role: 'assistant',
+        type: 'thought',
       },
-    ],
-    model: 'gemini-2.5-flash',
-    provider: 'google',
-  }
+    ])
+  },
+)
 
-  const input = buildInputForRequest(request.messages)
-
-  assert.deepEqual(input, [
-    {
-      signature: 'sig_reason_1',
-      summary: [
-        {
-          text: 'Need to reason first.',
-          type: 'text',
-        },
-      ],
-      type: 'thought',
-    },
-    {
-      content: [
-        {
-          text: 'Final answer',
-          type: 'text',
-        },
-      ],
-      type: 'model_output',
-    },
-    {
-      arguments: { q: 'status' },
-      id: 'call_1',
-      name: 'lookup_status',
-      type: 'function_call',
-    },
-    {
-      signature: 'sig_reasoning_item_1',
-      summary: [
-        {
-          text: 'Internal thought replay.',
-          type: 'text',
-        },
-      ],
-      type: 'thought',
-    },
-  ])
-})
-
-test('Google Interactions request groups tool-call replay into typed steps', () => {
+contractCase('Google Interactions request groups tool-call replay into typed steps', () => {
   const request: ResolvedAiInteractionRequest = {
     messages: [
       {
@@ -762,25 +778,50 @@ test('Google Interactions request groups tool-call replay into typed steps', () 
   ])
 })
 
-test('Google Interactions request rejects previous interaction ids and requires full replay', () => {
-  const request = {
-    messages: [
-      {
-        content: [{ text: 'hello', type: 'text' as const }],
-        role: 'user' as const,
+contractCase(
+  'Google Interactions request rejects previous interaction ids and requires full replay',
+  () => {
+    const request = {
+      messages: [
+        {
+          content: [{ text: 'hello', type: 'text' as const }],
+          role: 'user' as const,
+        },
+      ],
+      model: 'gemini-2.5-flash',
+      provider: 'google' as const,
+      vendorOptions: {
+        google: {
+          previousInteractionId: 'int_prev_1',
+        },
       },
-    ],
-    model: 'gemini-2.5-flash',
-    provider: 'google' as const,
-    vendorOptions: {
-      google: {
-        previousInteractionId: 'int_prev_1',
-      },
-    },
-  } as unknown as ResolvedAiInteractionRequest
+    } as unknown as ResolvedAiInteractionRequest
 
-  assert.throws(
-    () => ensureGoogleCompatibleRequest(request),
-    /forbids previousInteractionId; full durable replay is required/,
-  )
+    assert.throws(
+      () => ensureGoogleCompatibleRequest(request),
+      /forbids previousInteractionId; full durable replay is required/,
+    )
+  },
+)
+
+const runRequestContracts = (prefix: string) => {
+  for (const contract of contractCases.filter(({ name }) => name.startsWith(prefix))) {
+    assert.doesNotThrow(contract.run, contract.name)
+  }
+}
+
+test('OpenAI request shape contract matrix', () => {
+  runRequestContracts('OpenAI')
+})
+
+test('OpenRouter request shape contract matrix', () => {
+  runRequestContracts('OpenRouter')
+})
+
+test('Google request shape contract matrix', () => {
+  runRequestContracts('Google')
+})
+
+test('shared provider reasoning request contract matrix', () => {
+  runRequestContracts('provider')
 })

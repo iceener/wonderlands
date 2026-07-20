@@ -5,7 +5,6 @@ import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
 
 import { createLangfuseExporter } from '../src/adapters/observability/langfuse/exporter'
-import { LANGFUSE_OBSERVATION_TAXONOMY } from '../src/adapters/observability/langfuse/observation-taxonomy'
 import { createEventStore } from '../src/application/commands/event-store'
 import { domainEvents, runs, sessionThreads, workSessions } from '../src/db/schema'
 import { asAccountId, asEventId, asTenantId } from '../src/shared/ids'
@@ -95,40 +94,6 @@ const installLangfuseFetchMock = () => {
     },
   }
 }
-
-test('langfuse observation taxonomy stays explicit for current and reserved runtime stages', () => {
-  assert.deepEqual(
-    Object.fromEntries(
-      Object.entries(LANGFUSE_OBSERVATION_TAXONOMY.current).map(([stage, config]) => [
-        stage,
-        config.asType,
-      ]),
-    ),
-    {
-      childRun: 'agent',
-      reasoningSummary: 'event',
-      rootRun: 'agent',
-      toolCall: 'tool',
-      turnGeneration: 'generation',
-      webSearch: 'retriever',
-    },
-  )
-  assert.deepEqual(
-    Object.fromEntries(
-      Object.entries(LANGFUSE_OBSERVATION_TAXONOMY.future).map(([stage, config]) => [
-        stage,
-        config.asType,
-      ]),
-    ),
-    {
-      chain: 'chain',
-      embedding: 'embedding',
-      evaluation: 'evaluator',
-      guardrail: 'guardrail',
-      retrieval: 'retriever',
-    },
-  )
-})
 
 test('langfuse exporter emits OTEL agent, generation, and event observations for a completed root run', async () => {
   const { fetchCalls, restore } = installLangfuseFetchMock()

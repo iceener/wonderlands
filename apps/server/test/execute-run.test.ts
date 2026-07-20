@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict'
 import { eq } from 'drizzle-orm'
 import { test } from 'vitest'
-import { createRunRepository } from '../src/adapters/persistence/sqlite/runtime/run-repository'
-import { createCancelRunCommand } from '../src/application/commands/cancel-run'
-import { createInternalCommandContext } from '../src/application/commands/internal-command-context'
-import { executeRunTurnLoop } from '../src/application/runtime/execution/drive-run'
 import type { ToolContext } from '../src/application/tooling/tool-registry'
 import {
   contextSummaries,
@@ -13,7 +9,6 @@ import {
   fileLinks,
   files,
   items,
-  jobs,
   memoryRecordSources,
   memoryRecords,
   runDependencies,
@@ -23,7 +18,6 @@ import {
   usageLedger,
 } from '../src/db/schema'
 import type { AiInteractionRequest, AiInteractionResponse } from '../src/domain/ai/types'
-import { asAccountId, asRunId, asTenantId } from '../src/shared/ids'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
@@ -75,314 +69,194 @@ const registerFunctionTool = (
     name: input.name,
   })
 }
+test(
+  'execute run calls the AI interaction seam and persists assistant output, usage, and events',
+  async () => {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapRun(app, headers)
 
-const insertChildRun = (
-  runtime: ReturnType<typeof createTestHarness>['runtime'],
-  input: {
-    parentRunId: string
-    runId: string
-    task: string
-  },
-) => {
-  const parentRun = runtime.db
-    .select()
-    .from(runs)
-    .all()
-    .find((candidate) => candidate.id === input.parentRunId)
+    let capturedRequest: AiInteractionRequest | null = null
 
-  assert.ok(parentRun)
+    runtime.services.ai.interactions.generate = async (request) => {
+      capturedRequest = request
 
-  if (parentRun.status === 'pending') {
-    runtime.db
-      .update(runs)
-      .set({
-        completedAt: '2026-03-29T00:04:59.000Z',
-        resultJson: {
-          outputText: 'Parent run is already settled for child execution tests.',
-        },
+      return ok<AiInteractionResponse>({
+        messages: [
+          {
+            content: [
+              {
+                text: 'Start with run execution, then add SSE and retries.',
+                type: 'text',
+              },
+            ],
+            role: 'assistant',
+          },
+        ],
+        model: 'gpt-5.4',
+        output: [
+          {
+            content: [
+              {
+                text: 'Start with run execution, then add SSE and retries.',
+                type: 'text',
+              },
+            ],
+            role: 'assistant',
+            type: 'message',
+          },
+        ],
+        outputText: 'Start with run execution, then add SSE and retries.',
+        provider: 'openai',
+        providerRequestId: 'req_openai_123',
+        raw: { stub: true },
+        responseId: 'resp_openai_123',
         status: 'completed',
-        updatedAt: '2026-03-29T00:04:59.000Z',
-        version: parentRun.version + 1,
+        toolCalls: [],
+        usage: {
+          cachedTokens: 10,
+          inputTokens: 120,
+          outputTokens: 32,
+          reasoningTokens: 8,
+          totalTokens: 152,
+        },
       })
-      .where(eq(runs.id, input.parentRunId))
-      .run()
-  }
+    }
 
-  const childWorkItemId = `job_${input.runId}`
-  const rootJobId = parentRun.jobId ?? childWorkItemId
-
-  runtime.db
-    .insert(jobs)
-    .values({
-      assignedAgentId: parentRun.agentId,
-      assignedAgentRevisionId: parentRun.agentRevisionId,
-      completedAt: null,
-      createdAt: '2026-03-29T00:05:00.000Z',
-      currentRunId: input.runId,
-      id: childWorkItemId,
-      inputJson: null,
-      kind: 'task',
-      lastHeartbeatAt: null,
-      lastSchedulerSyncAt: null,
-      nextSchedulerCheckAt: null,
-      parentJobId: parentRun.jobId,
-      priority: 100,
-      queuedAt: null,
-      resultJson: null,
-      rootJobId,
-      sessionId: parentRun.sessionId,
-      statusReasonJson: {
-        reason: 'test.child_seed',
-        runId: input.runId,
+    const response = await app.request(`http://local/v1/runs/${bootstrap.data.runId}/execute`, {
+      body: JSON.stringify({
+        maxOutputTokens: 128,
+      }),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
       },
-      status: 'blocked',
-      tenantId: parentRun.tenantId,
-      threadId: parentRun.threadId,
-      title: input.task,
-      updatedAt: '2026-03-29T00:05:00.000Z',
-      version: 1,
+      method: 'POST',
     })
-    .run()
 
-  runtime.db
-    .insert(runs)
-    .values({
-      actorAccountId: parentRun.actorAccountId,
-      agentId: parentRun.agentId,
-      agentRevisionId: parentRun.agentRevisionId,
-      completedAt: null,
-      configSnapshot: {},
-      createdAt: '2026-03-29T00:05:00.000Z',
-      errorJson: null,
-      id: input.runId,
-      lastProgressAt: null,
-      parentRunId: input.parentRunId,
-      resultJson: null,
-      rootRunId: parentRun.rootRunId,
-      sessionId: parentRun.sessionId,
-      sourceCallId: null,
-      startedAt: null,
-      status: 'pending',
-      task: input.task,
-      tenantId: parentRun.tenantId,
-      targetKind: parentRun.targetKind,
-      threadId: null,
-      toolProfileId: parentRun.toolProfileId,
-      turnCount: 0,
-      updatedAt: '2026-03-29T00:05:00.000Z',
-      version: 1,
-      jobId: childWorkItemId,
-      workspaceId: parentRun.workspaceId,
-      workspaceRef: parentRun.workspaceRef,
+    const body = await response.json()
+
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.ok(capturedRequest)
+    assert.equal(capturedRequest?.maxOutputTokens, 128)
+    assert.equal(capturedRequest?.messages.length, 1)
+    assert.deepEqual(capturedRequest?.messages[0], {
+      content: [{ text: 'Plan the next milestone for the API backend', type: 'text' }],
+      role: 'user',
     })
-    .run()
-}
 
-const waitForAbort = async (signal?: AbortSignal): Promise<string> => {
-  if (!signal) {
-    return 'Run cancelled'
-  }
+    const runRow = runtime.db.select().from(runs).get()
+    const _failedResultJson = runRow?.resultJson as {
+      assistantMessageId?: string
+      outputText?: string
+    } | null
+    const itemRows = runtime.db.select().from(items).all()
+    const messageRows = runtime.db.select().from(sessionMessages).all()
+    const usageRows = runtime.db.select().from(usageLedger).all()
+    const eventRows = runtime.db.select().from(domainEvents).all()
+    const outboxRows = runtime.db.select().from(eventOutbox).all()
 
-  if (signal.aborted) {
-    return typeof signal.reason === 'string' ? signal.reason : 'Run cancelled'
-  }
-
-  return await new Promise<string>((resolve) => {
-    signal.addEventListener(
-      'abort',
-      () => {
-        resolve(typeof signal.reason === 'string' ? signal.reason : 'Run cancelled')
-      },
-      { once: true },
-    )
-  })
-}
-
-test('execute run calls the AI interaction seam and persists assistant output, usage, and events', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapRun(app, headers)
-
-  let capturedRequest: AiInteractionRequest | null = null
-
-  runtime.services.ai.interactions.generate = async (request) => {
-    capturedRequest = request
-
-    return ok<AiInteractionResponse>({
-      messages: [
-        {
-          content: [
-            {
-              text: 'Start with run execution, then add SSE and retries.',
-              type: 'text',
-            },
-          ],
-          role: 'assistant',
-        },
-      ],
+    assert.equal(runRow?.status, 'completed')
+    assert.equal(runRow?.version, 4)
+    assert.equal(runRow?.turnCount, 1)
+    assert.deepEqual(runRow?.resultJson, {
+      assistantMessageId: body.data.assistantMessageId,
       model: 'gpt-5.4',
-      output: [
-        {
-          content: [
-            {
-              text: 'Start with run execution, then add SSE and retries.',
-              type: 'text',
-            },
-          ],
-          role: 'assistant',
-          type: 'message',
-        },
-      ],
       outputText: 'Start with run execution, then add SSE and retries.',
       provider: 'openai',
       providerRequestId: 'req_openai_123',
-      raw: { stub: true },
       responseId: 'resp_openai_123',
-      status: 'completed',
-      toolCalls: [],
-      usage: {
-        cachedTokens: 10,
-        inputTokens: 120,
-        outputTokens: 32,
-        reasoningTokens: 8,
-        totalTokens: 152,
-      },
+      usage: body.data.usage,
     })
-  }
 
-  const response = await app.request(`http://local/v1/runs/${bootstrap.data.runId}/execute`, {
-    body: JSON.stringify({
-      maxOutputTokens: 128,
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
+    assert.equal(itemRows.length, 2)
+    assert.equal(itemRows[1]?.role, 'assistant')
+    assert.equal(itemRows[1]?.sequence, 2)
+    assert.deepEqual(itemRows[1]?.content, [
+      { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
+    ])
 
-  const body = await response.json()
+    assert.equal(messageRows.length, 2)
+    assert.equal(messageRows[1]?.authorKind, 'assistant')
+    assert.equal(messageRows[1]?.sequence, 2)
+    assert.deepEqual(messageRows[1]?.content, [
+      { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
+    ])
 
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.ok(capturedRequest)
-  assert.equal(capturedRequest?.maxOutputTokens, 128)
-  assert.equal(capturedRequest?.messages.length, 1)
-  assert.deepEqual(capturedRequest?.messages[0], {
-    content: [{ text: 'Plan the next milestone for the API backend', type: 'text' }],
-    role: 'user',
-  })
+    assert.equal(usageRows.length, 1)
+    assert.equal(usageRows[0]?.provider, 'openai')
+    assert.equal(usageRows[0]?.model, 'gpt-5.4')
+    assert.equal(usageRows[0]?.inputTokens, 120)
+    assert.equal(usageRows[0]?.outputTokens, 32)
+    assert.equal(usageRows[0]?.cachedTokens, 10)
+    assert.equal(usageRows[0]?.estimatedOutputTokens, 128)
+    assert.equal(typeof usageRows[0]?.estimatedInputTokens, 'number')
+    assert.equal((usageRows[0]?.estimatedInputTokens ?? 0) > 0, true)
 
-  const runRow = runtime.db.select().from(runs).get()
-  const _failedResultJson = runRow?.resultJson as {
-    assistantMessageId?: string
-    outputText?: string
-  } | null
-  const itemRows = runtime.db.select().from(items).all()
-  const messageRows = runtime.db.select().from(sessionMessages).all()
-  const usageRows = runtime.db.select().from(usageLedger).all()
-  const eventRows = runtime.db.select().from(domainEvents).all()
-  const outboxRows = runtime.db.select().from(eventOutbox).all()
+    const eventTypes = eventRows
+      .slice()
+      .sort((left, right) => left.eventNo - right.eventNo)
+      .map((event) => event.type)
 
-  assert.equal(runRow?.status, 'completed')
-  assert.equal(runRow?.version, 4)
-  assert.equal(runRow?.turnCount, 1)
-  assert.deepEqual(runRow?.resultJson, {
-    assistantMessageId: body.data.assistantMessageId,
-    model: 'gpt-5.4',
-    outputText: 'Start with run execution, then add SSE and retries.',
-    provider: 'openai',
-    providerRequestId: 'req_openai_123',
-    responseId: 'resp_openai_123',
-    usage: body.data.usage,
-  })
+    assert.deepEqual(eventTypes, [
+      'workspace.created',
+      'workspace.resolved',
+      'session.created',
+      'thread.created',
+      'message.posted',
+      'job.created',
+      'job.queued',
+      'run.created',
+      'run.started',
+      'turn.started',
+      'progress.reported',
+      'generation.started',
+      'progress.reported',
+      'stream.delta',
+      'stream.done',
+      'generation.completed',
+      'turn.completed',
+      'progress.reported',
+      'message.posted',
+      'run.completed',
+      'job.completed',
+      'progress.reported',
+    ])
+    const expectedOutboxRows = eventRows.reduce(
+      (total, event) =>
+        total + (event.category === 'telemetry' ? 1 : 2) + (event.type === 'run.completed' ? 1 : 0),
+      0,
+    )
 
-  assert.equal(itemRows.length, 2)
-  assert.equal(itemRows[1]?.role, 'assistant')
-  assert.equal(itemRows[1]?.sequence, 2)
-  assert.deepEqual(itemRows[1]?.content, [
-    { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
-  ])
+    assert.equal(outboxRows.length, expectedOutboxRows)
+    const telemetryTypes = new Set([
+      'generation.started',
+      'generation.completed',
+      'progress.reported',
+      'stream.delta',
+      'stream.done',
+      'turn.completed',
+      'turn.started',
+    ])
 
-  assert.equal(messageRows.length, 2)
-  assert.equal(messageRows[1]?.authorKind, 'assistant')
-  assert.equal(messageRows[1]?.sequence, 2)
-  assert.deepEqual(messageRows[1]?.content, [
-    { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
-  ])
-
-  assert.equal(usageRows.length, 1)
-  assert.equal(usageRows[0]?.provider, 'openai')
-  assert.equal(usageRows[0]?.model, 'gpt-5.4')
-  assert.equal(usageRows[0]?.inputTokens, 120)
-  assert.equal(usageRows[0]?.outputTokens, 32)
-  assert.equal(usageRows[0]?.cachedTokens, 10)
-  assert.equal(usageRows[0]?.estimatedOutputTokens, 128)
-  assert.equal(typeof usageRows[0]?.estimatedInputTokens, 'number')
-  assert.equal((usageRows[0]?.estimatedInputTokens ?? 0) > 0, true)
-
-  const eventTypes = eventRows
-    .slice()
-    .sort((left, right) => left.eventNo - right.eventNo)
-    .map((event) => event.type)
-
-  assert.deepEqual(eventTypes, [
-    'workspace.created',
-    'workspace.resolved',
-    'session.created',
-    'thread.created',
-    'message.posted',
-    'job.created',
-    'job.queued',
-    'run.created',
-    'run.started',
-    'turn.started',
-    'progress.reported',
-    'generation.started',
-    'progress.reported',
-    'stream.delta',
-    'stream.done',
-    'generation.completed',
-    'turn.completed',
-    'progress.reported',
-    'message.posted',
-    'run.completed',
-    'job.completed',
-    'progress.reported',
-  ])
-  const expectedOutboxRows = eventRows.reduce(
-    (total, event) =>
-      total + (event.category === 'telemetry' ? 1 : 2) + (event.type === 'run.completed' ? 1 : 0),
-    0,
-  )
-
-  assert.equal(outboxRows.length, expectedOutboxRows)
-  const telemetryTypes = new Set([
-    'generation.started',
-    'generation.completed',
-    'progress.reported',
-    'stream.delta',
-    'stream.done',
-    'turn.completed',
-    'turn.started',
-  ])
-
-  assert.equal(
-    eventRows
-      .filter((event) => telemetryTypes.has(event.type))
-      .every((event) => event.category === 'telemetry'),
-    true,
-  )
-  assert.equal(
-    eventRows
-      .filter((event) => !telemetryTypes.has(event.type))
-      .every((event) => event.category === 'domain'),
-    true,
-  )
-})
+    assert.equal(
+      eventRows
+        .filter((event) => telemetryTypes.has(event.type))
+        .every((event) => event.category === 'telemetry'),
+      true,
+    )
+    assert.equal(
+      eventRows
+        .filter((event) => !telemetryTypes.has(event.type))
+        .every((event) => event.category === 'domain'),
+      true,
+    )
+  },
+)
 
 test('execute run falls back to assistant message text when the provider omits outputText', async () => {
   const { app, runtime } = createTestHarness({
@@ -2862,4 +2736,3 @@ test('cancel run finalizes an abandoned cancelling run when no active handle exi
   assert.equal(cancelBody.data.status, 'cancelled')
   assert.equal(runRow?.status, 'cancelled')
 })
-

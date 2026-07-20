@@ -19,8 +19,6 @@ import type { RunRecord } from '../src/domain/runtime/run-repository'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createAsyncTestHarness } from './helpers/create-test-app'
 
-const stdioFixturePath = resolve(process.cwd(), 'test/fixtures/stdio-mcp-server.ts')
-
 const writeMcpServersFile = (contents: unknown): string => {
   const dir = mkdtempSync(resolve(tmpdir(), 'mcp-transports-'))
   const filePath = resolve(dir, 'servers.json')
@@ -364,4 +362,3 @@ test('MCP tool calls inject deterministic trace context into _meta', async () =>
     expectedTraceparent,
   )
 })
-

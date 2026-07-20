@@ -7,15 +7,9 @@ import { createInternalCommandContext } from '../src/application/commands/intern
 import { executeRunTurnLoop } from '../src/application/runtime/execution/drive-run'
 import type { ToolContext } from '../src/application/tooling/tool-registry'
 import {
-  contextSummaries,
   domainEvents,
-  eventOutbox,
-  fileLinks,
-  files,
   items,
   jobs,
-  memoryRecordSources,
-  memoryRecords,
   runDependencies,
   runs,
   sessionMessages,

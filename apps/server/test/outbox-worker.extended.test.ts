@@ -4,33 +4,9 @@ import { onTestFinished, test } from 'vitest'
 
 import { closeAppRuntime } from '../src/app/runtime'
 import { createEventStore } from '../src/application/commands/event-store'
-import { dispatchProjectionEvent } from '../src/application/events/projection-dispatcher'
-import {
-  domainEvents,
-  eventOutbox,
-  items,
-  runs,
-  sessionThreads,
-  workSessions,
-} from '../src/db/schema'
-import { err, ok } from '../src/shared/result'
+import { runs, sessionThreads, workSessions } from '../src/db/schema'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
-
-const readStreamChunk = async (
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  timeoutMs: number,
-) => {
-  const timeout = setTimeout(() => {
-    void reader.cancel('timeout')
-  }, timeoutMs)
-
-  try {
-    return await reader.read()
-  } finally {
-    clearTimeout(timeout)
-  }
-}
 
 const createManagedHarness = (env: NodeJS.ProcessEnv = {}) => {
   const harness = createTestHarness(env)
@@ -421,4 +397,3 @@ test('event outbox worker dispatches root run events to Langfuse when observabil
     })
   }
 }, 30_000)
-

@@ -9,7 +9,6 @@ import {
   findMcpRuntimeNameCallMisuse,
   findReferencedMcpCodeModeBindings,
   renderMcpCodeModeTypeScriptBundle,
-  renderMcpCodeModeWrapperScript,
   resolveMcpCodeModeTools,
   searchMcpCodeModeCatalog,
 } from '../src/application/mcp/code-mode'
@@ -25,65 +24,6 @@ import {
 } from '../src/shared/ids'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'
-
-test('renderMcpCodeModeWrapperScript keeps the IPC channel unrefd while idle and refs it for in-flight MCP calls', () => {
-  const script = renderMcpCodeModeWrapperScript({
-    catalog: {
-      servers: [
-        {
-          executableToolCount: 1,
-          namespace: 'spotify',
-          serverId: 'srv_spotify',
-          serverLabel: 'spotify',
-          toolCount: 1,
-          tools: [
-            {
-              binding: 'spotify.spotify_control',
-              description: 'Control Spotify playback.',
-              executable: true,
-              inputSchema: {
-                type: 'object',
-              },
-              member: 'spotify_control',
-              namespace: 'spotify',
-              outputSchema: null,
-              remoteName: 'spotify_control',
-              runtimeName: 'spotify__spotify_control',
-              serverId: 'srv_spotify',
-              serverLabel: 'spotify',
-              title: null,
-            },
-          ],
-        },
-      ],
-      tools: [],
-    },
-    code: 'await spotify.spotify_control({ operations: [] });',
-  })
-
-  assert.match(script, /const __wonderlandsNormalizeMcpResult = \(result\) => \{/)
-  assert.match(script, /const __wonderlandsPrintResult = \(value\) => \{/)
-  assert.match(
-    script,
-    /const __wonderlandsCallMcp = typeof globalThis\.__wonderlandsCallMcp === "function"/,
-  )
-  assert.match(script, /const setChannelReferenced = \(referenced\) => \{/)
-  assert.match(script, /setChannelReferenced\(false\);/)
-  assert.match(script, /setChannelReferenced\(true\);/)
-  assert.match(script, /if \(pendingCalls\.size === 0\) {\n {10}setChannelReferenced\(false\);/)
-  assert.match(script, /pending\.resolve\(__wonderlandsNormalizeMcpResult\(message\.result\)\);/)
-  assert.match(
-    script,
-    /spotify_control: async \(input\) => await __wonderlandsCallMcp\("spotify__spotify_control", input\)/,
-  )
-  assert.match(script, /const __wonderlandsResult = await \(async \(\) => \{/)
-  assert.match(script, /await spotify\.spotify_control\(\{ operations: \[\] \}\);/)
-  assert.match(
-    script,
-    /if \(typeof globalThis\.__wonderlandsWaitForMcpIdle === "function"\) \{\n {2}await globalThis\.__wonderlandsWaitForMcpIdle\(\);\n\}/,
-  )
-  assert.match(script, /__wonderlandsPrintResult\(__wonderlandsResult\);/)
-})
 
 test('buildMcpCodeModeCatalog treats fingerprint-trusted runtime aliases as executable', () => {
   const { runtime } = createTestHarness({

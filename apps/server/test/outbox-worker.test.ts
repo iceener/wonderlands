@@ -5,14 +5,7 @@ import { onTestFinished, test } from 'vitest'
 import { closeAppRuntime } from '../src/app/runtime'
 import { createEventStore } from '../src/application/commands/event-store'
 import { dispatchProjectionEvent } from '../src/application/events/projection-dispatcher'
-import {
-  domainEvents,
-  eventOutbox,
-  items,
-  runs,
-  sessionThreads,
-  workSessions,
-} from '../src/db/schema'
+import { domainEvents, eventOutbox, items } from '../src/db/schema'
 import { err, ok } from '../src/shared/result'
 import { seedApiKeyAuth } from './helpers/api-key-auth'
 import { createTestHarness } from './helpers/create-test-app'

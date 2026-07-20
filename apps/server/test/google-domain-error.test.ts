@@ -4,7 +4,11 @@ import { test } from 'vitest'
 
 import { toGoogleDomainError } from '../src/adapters/ai/google/google-domain-error'
 
-test('Google domain error maps SDK timeout statuses to timeout', () => {
+type ContractCase = { name: string; run: () => void }
+const contractCases: ContractCase[] = []
+const contractCase = (name: string, run: () => void) => contractCases.push({ name, run })
+
+contractCase('Google domain error maps SDK timeout statuses to timeout', () => {
   const domainError = toGoogleDomainError(
     new ApiError({
       message: 'gateway timeout',
@@ -18,7 +22,7 @@ test('Google domain error maps SDK timeout statuses to timeout', () => {
   })
 })
 
-test('Google domain error maps Interactions client HTTP errors by status', () => {
+contractCase('Google domain error maps Interactions client HTTP errors by status', () => {
   // The 2.x Interactions client raises its own APIError hierarchy that is not
   // an instance of the exported ApiError compatibility class.
   const badRequestError = Object.assign(new Error('400 Invalid request schema.'), {
@@ -42,7 +46,7 @@ test('Google domain error maps Interactions client HTTP errors by status', () =>
   })
 })
 
-test('Google domain error maps Interactions client user aborts to conflict', () => {
+contractCase('Google domain error maps Interactions client user aborts to conflict', () => {
   const abortError = Object.assign(new Error('Request was aborted.'), {
     name: 'APIUserAbortError',
   })
@@ -53,7 +57,7 @@ test('Google domain error maps Interactions client user aborts to conflict', () 
   })
 })
 
-test('Google domain error maps SDK connection timeout errors to timeout', () => {
+contractCase('Google domain error maps SDK connection timeout errors to timeout', () => {
   const timeoutError = Object.assign(new Error('Request timed out.'), {
     name: 'APIConnectionTimeoutError',
   })
@@ -66,7 +70,7 @@ test('Google domain error maps SDK connection timeout errors to timeout', () => 
   })
 })
 
-test('Google domain error preserves connection failures as provider errors', () => {
+contractCase('Google domain error preserves connection failures as provider errors', () => {
   const connectionError = Object.assign(new Error('socket hang up'), {
     name: 'APIConnectionError',
   })
@@ -78,4 +82,20 @@ test('Google domain error preserves connection failures as provider errors', () 
     provider: 'google',
     type: 'provider',
   })
+})
+
+const runErrorContracts = (interactionsClient: boolean) => {
+  for (const contract of contractCases.filter(
+    ({ name }) => name.includes('Interactions client') === interactionsClient,
+  )) {
+    assert.doesNotThrow(contract.run, contract.name)
+  }
+}
+
+test('Google SDK and connection error mapping matrix', () => {
+  runErrorContracts(false)
+})
+
+test('Google Interactions client error mapping matrix', () => {
+  runErrorContracts(true)
 })
