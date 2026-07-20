@@ -238,46 +238,49 @@ const createStreamableFixtureServer = async () => {
   }
 }
 
-test('MCP Streamable HTTP servers register tools and execute through ToolSpec', async () => {
-  const fixture = await createStreamableFixtureServer()
-  const originalFetch = globalThis.fetch
+test('MCP stdio servers register model-visible tools and execute through ToolSpec', async () => {
   const filePath = writeMcpServersFile([
     {
-      id: 'stream_fixture',
-      kind: 'streamable_http',
-      url: fixture.url,
+      args: ['--import', 'tsx', stdioFixturePath],
+      command: process.execPath,
+      id: 'stdio_fixture',
+      kind: 'stdio',
+      stderr: 'pipe',
     },
   ])
-
-  globalThis.fetch = fixture.fetch as typeof fetch
   const { runtime } = await createAsyncTestHarness({
     MCP_SERVERS_FILE: filePath,
   })
 
   onTestFinished(async () => {
-    globalThis.fetch = originalFetch
     rmSync(dirname(filePath), { force: true, recursive: true })
     await closeAppRuntime(runtime)
-    await fixture.close()
   })
 
   const { assistantToolProfileId, tenantId } = seedApiKeyAuth(runtime)
   assignMcpToolToProfile(runtime, {
-    runtimeName: 'stream_fixture__echo',
-    serverId: 'stream_fixture',
+    runtimeName: 'stdio_fixture__echo',
+    serverId: 'stdio_fixture',
     tenantId,
     toolProfileId: assistantToolProfileId,
   })
 
   assert.equal(runtime.services.mcp.getServerSnapshots()[0]?.status, 'ready')
-  assert.ok(runtime.services.tools.get('stream_fixture__echo'))
-  assert.equal(runtime.services.tools.get('stream_fixture__app_only'), null)
+  assert.ok(runtime.services.tools.get('stdio_fixture__echo'))
+  assert.equal(runtime.services.tools.get('stdio_fixture__app_only'), null)
   assert.equal(
-    runtime.services.mcp.getTool('stream_fixture__app_only')?.apps?.resourceUri,
+    runtime.services.mcp.getTool('stdio_fixture__app_only')?.apps?.resourceUri,
     'ui://fixture/app-only.html',
   )
+  assert.deepEqual(runtime.services.mcp.getTool('stdio_fixture__app_only')?.apps?.visibility, [
+    'app',
+  ])
+  assert.equal(
+    runtime.services.mcp.getTool('stdio_fixture__legacy_ui')?.apps?.resourceUri,
+    'ui://fixture/legacy.html',
+  )
 
-  const tool = runtime.services.tools.get('stream_fixture__echo')
+  const tool = runtime.services.tools.get('stdio_fixture__echo')
   assert.ok(tool)
 
   if (!tool) {
@@ -295,7 +298,7 @@ test('MCP Streamable HTTP servers register tools and execute through ToolSpec', 
 
   assert.equal(result.value.kind, 'immediate')
   assert.deepEqual(result.value.output, {
-    content: [{ text: 'stream:hello', type: 'text' }],
+    content: [{ text: 'echo:hello', type: 'text' }],
     meta: null,
     ok: true,
     structuredContent: {
@@ -304,64 +307,33 @@ test('MCP Streamable HTTP servers register tools and execute through ToolSpec', 
   })
 })
 
-test('MCP tool calls inject deterministic trace context into _meta', async () => {
-  const fixture = await createStreamableFixtureServer()
-  const originalFetch = globalThis.fetch
+test('MCP initialization degrades broken servers without blocking healthy ones', async () => {
   const filePath = writeMcpServersFile([
     {
-      id: 'stream_fixture',
-      kind: 'streamable_http',
-      url: fixture.url,
+      command: 'definitely-missing-mcp-command',
+      id: 'broken',
+      kind: 'stdio',
+    },
+    {
+      args: ['--import', 'tsx', stdioFixturePath],
+      command: process.execPath,
+      id: 'healthy',
+      kind: 'stdio',
+      stderr: 'pipe',
     },
   ])
-
-  globalThis.fetch = fixture.fetch as typeof fetch
   const { runtime } = await createAsyncTestHarness({
     MCP_SERVERS_FILE: filePath,
   })
 
   onTestFinished(async () => {
-    globalThis.fetch = originalFetch
     rmSync(dirname(filePath), { force: true, recursive: true })
     await closeAppRuntime(runtime)
-    await fixture.close()
   })
 
-  const { assistantToolProfileId, tenantId } = seedApiKeyAuth(runtime)
-  assignMcpToolToProfile(runtime, {
-    runtimeName: 'stream_fixture__inspect_meta',
-    serverId: 'stream_fixture',
-    tenantId,
-    toolProfileId: assistantToolProfileId,
-  })
+  const snapshots = runtime.services.mcp.getServerSnapshots()
 
-  const tool = runtime.services.tools.get('stream_fixture__inspect_meta')
-  assert.ok(tool)
-
-  if (!tool) {
-    return
-  }
-
-  const toolContext = createToolContext(runtime, assistantToolProfileId)
-  const result = await tool.execute(toolContext, {})
-
-  assert.ok(result.ok)
-
-  if (!result.ok) {
-    return
-  }
-
-  const expectedTraceparent = `00-${toLangfuseTraceId(toolContext.run.rootRunId)}-${toLangfuseObservationId(`tool:${toolContext.toolCallId}`)}-01`
-
-  assert.equal(result.value.kind, 'immediate')
-  assert.equal(fixture.getLastToolMeta()?.traceparent, expectedTraceparent)
-  assert.equal(
-    (
-      result.value.output as {
-        structuredContent?: { meta?: { traceparent?: string } | null }
-      }
-    ).structuredContent?.meta?.traceparent,
-    expectedTraceparent,
-  )
+  assert.equal(snapshots.find((snapshot) => snapshot.id === 'broken')?.status, 'degraded')
+  assert.equal(snapshots.find((snapshot) => snapshot.id === 'healthy')?.status, 'ready')
+  assert.ok(runtime.services.tools.get('healthy__echo'))
 })
-
