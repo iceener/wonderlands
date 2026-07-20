@@ -24,128 +24,110 @@ const toolBlock = (overrides: Partial<ToolInteractionBlock> = {}): ToolInteracti
   ...overrides,
 })
 
-describe('eventRunId', () => {
-  test('reads a string runId from the event payload', () => {
-    const streamDelta = event({
-      aggregateId: 'run_1',
-      aggregateType: 'run',
-      createdAt: at,
-      eventNo: 1,
-      id: asEventId('evt_1'),
-      payload: { delta: 'hi', runId: asRunId('run_1'), sessionId: 'ses_1', status: 'running' },
-      type: 'stream.delta',
-    })
-
-    expect(eventRunId(streamDelta)).toBe(asRunId('run_1'))
-  })
-
-  test('returns null when the payload has no runId field', () => {
-    const naming = event({
-      aggregateId: 'thr_1',
-      aggregateType: 'thread',
-      createdAt: at,
-      eventNo: 1,
-      id: asEventId('evt_naming'),
-      payload: { threadId: asThreadId('thr_1'), trigger: 'auto' },
-      type: 'thread.naming.requested',
-    })
-
-    expect(eventRunId(naming)).toBeNull()
-  })
+const streamDelta = event({
+  aggregateId: 'run_1',
+  aggregateType: 'run',
+  createdAt: at,
+  eventNo: 1,
+  id: asEventId('evt_1'),
+  payload: {
+    delta: 'hi',
+    runId: asRunId('run_1'),
+    sessionId: 'ses_1',
+    status: 'running',
+  },
+  type: 'stream.delta',
 })
 
-describe('eventThreadId', () => {
-  test('reads a string threadId from the event payload', () => {
-    const naming = event({
-      aggregateId: 'thr_1',
-      aggregateType: 'thread',
-      createdAt: at,
-      eventNo: 1,
-      id: asEventId('evt_naming'),
-      payload: { threadId: asThreadId('thr_1'), trigger: 'auto' },
-      type: 'thread.naming.requested',
-    })
-
-    expect(eventThreadId(naming)).toBe(asThreadId('thr_1'))
-  })
-
-  test('returns null when the payload has no threadId field', () => {
-    const memoryStarted = event({
-      aggregateId: 'run_1',
-      aggregateType: 'run',
-      createdAt: at,
-      eventNo: 1,
-      id: asEventId('evt_memory'),
-      payload: { runId: asRunId('run_1') },
-      type: 'memory.observation.started',
-    })
-
-    expect(eventThreadId(memoryStarted)).toBeNull()
-  })
+const naming = event({
+  aggregateId: 'thr_1',
+  aggregateType: 'thread',
+  createdAt: at,
+  eventNo: 1,
+  id: asEventId('evt_naming'),
+  payload: { threadId: asThreadId('thr_1'), trigger: 'auto' },
+  type: 'thread.naming.requested',
 })
 
-describe('isChildTranscriptEvent', () => {
-  test('treats transcript-shaped event types as child-transcript eligible', () => {
-    expect(isChildTranscriptEvent(event({ type: 'stream.delta' } as BackendEvent))).toBe(true)
-    expect(isChildTranscriptEvent(event({ type: 'tool.completed' } as BackendEvent))).toBe(true)
-    expect(isChildTranscriptEvent(event({ type: 'run.cancelled' } as BackendEvent))).toBe(true)
-  })
-
-  test('rejects run lifecycle and non-transcript event types', () => {
-    expect(isChildTranscriptEvent(event({ type: 'run.completed' } as BackendEvent))).toBe(false)
-    expect(isChildTranscriptEvent(event({ type: 'run.waiting' } as BackendEvent))).toBe(false)
-    expect(isChildTranscriptEvent(event({ type: 'thread.updated' } as BackendEvent))).toBe(false)
-  })
+const memoryStarted = event({
+  aggregateId: 'run_1',
+  aggregateType: 'run',
+  createdAt: at,
+  eventNo: 1,
+  id: asEventId('evt_memory'),
+  payload: { runId: asRunId('run_1') },
+  type: 'memory.observation.started',
 })
 
-describe('isDelegationParentBlock', () => {
-  test('identifies a delegate_to_agent tool block with a non-empty childRunId', () => {
-    const block: Block = toolBlock({ childRunId: 'run_child_1', name: 'delegate_to_agent' })
-
-    expect(isDelegationParentBlock(block)).toBe(true)
+describe('event identity', () => {
+  test.each([
+    ['run id from payload', eventRunId, streamDelta, asRunId('run_1')],
+    ['missing run id', eventRunId, naming, null],
+    ['thread id from payload', eventThreadId, naming, asThreadId('thr_1')],
+    ['missing thread id', eventThreadId, memoryStarted, null],
+  ] as const)('resolves %s', (_label, resolve, backendEvent, expected) => {
+    expect(resolve(backendEvent)).toBe(expected)
   })
 
-  test('rejects blocks missing childRunId, a blank childRunId, or the wrong tool name', () => {
-    expect(isDelegationParentBlock(toolBlock({ name: 'delegate_to_agent' }))).toBe(false)
-    expect(
-      isDelegationParentBlock(toolBlock({ name: 'delegate_to_agent', childRunId: '   ' })),
-    ).toBe(false)
-    expect(
-      isDelegationParentBlock(toolBlock({ name: 'weather.lookup', childRunId: 'run_child_1' })),
-    ).toBe(false)
-  })
-
-  test('rejects non tool_interaction blocks', () => {
-    const thinking: Block = {
-      content: 'hi',
-      createdAt: at,
-      id: 'thinking:1',
-      status: 'thinking',
-      title: 'reasoning',
-      type: 'thinking',
-    }
-
-    expect(isDelegationParentBlock(thinking)).toBe(false)
-  })
-})
-
-describe('doesEventSettleAssistantAttachments', () => {
-  test('flags terminal/settling event types', () => {
-    for (const type of [
-      'generation.completed',
-      'stream.done',
-      'run.cancelled',
-      'run.completed',
-      'run.failed',
-      'run.waiting',
-    ] as const) {
-      expect(doesEventSettleAssistantAttachments(event({ type } as BackendEvent))).toBe(true)
+  test.each([
+    ['transcript events', ['stream.delta', 'tool.completed', 'run.cancelled'], true],
+    ['lifecycle events', ['run.completed', 'run.waiting', 'thread.updated'], false],
+  ] as const)('classifies %s for child transcripts', (_label, types, expected) => {
+    for (const type of types) {
+      expect(isChildTranscriptEvent(event({ type } as BackendEvent))).toBe(expected)
     }
   })
 
-  test('does not flag mid-stream event types', () => {
-    for (const type of ['stream.delta', 'tool.called', 'run.started'] as const) {
-      expect(doesEventSettleAssistantAttachments(event({ type } as BackendEvent))).toBe(false)
+  test.each([
+    [
+      'delegation with child run',
+      toolBlock({ childRunId: 'run_child_1', name: 'delegate_to_agent' }),
+      true,
+    ],
+    [
+      'invalid delegation variants',
+      [
+        toolBlock({ name: 'delegate_to_agent' }),
+        toolBlock({ childRunId: '   ', name: 'delegate_to_agent' }),
+        toolBlock({ childRunId: 'run_child_1', name: 'weather.lookup' }),
+      ],
+      false,
+    ],
+    [
+      'non-tool block',
+      {
+        content: 'hi',
+        createdAt: at,
+        id: 'thinking:1',
+        status: 'thinking',
+        title: 'reasoning',
+        type: 'thinking',
+      } satisfies Block,
+      false,
+    ],
+  ] as const)('classifies %s as a delegation parent', (_label, blocks, expected) => {
+    for (const block of Array.isArray(blocks) ? blocks : [blocks]) {
+      expect(isDelegationParentBlock(block)).toBe(expected)
+    }
+  })
+
+  test.each([
+    [
+      'terminal events',
+      [
+        'generation.completed',
+        'stream.done',
+        'run.cancelled',
+        'run.completed',
+        'run.failed',
+        'run.waiting',
+      ],
+      true,
+    ],
+    ['mid-stream events', ['stream.delta', 'tool.called', 'run.started'], false],
+  ] as const)('classifies %s for attachment settlement', (_label, types, expected) => {
+    for (const type of types) {
+      expect(doesEventSettleAssistantAttachments(event({ type } as BackendEvent))).toBe(expected)
     }
   })
 })
