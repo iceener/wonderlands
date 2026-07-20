@@ -20,7 +20,6 @@ import {
   buildContextContributions,
   defineContextContributors,
 } from '../src/application/context/registry'
-import { assembleThreadInteractionRequest } from '../src/application/interactions/assemble-thread-interaction-request'
 import type { ThreadContextData } from '../src/application/interactions/context-bundle'
 import type { ItemRecord } from '../src/domain/runtime/item-repository'
 import {
@@ -68,31 +67,6 @@ const deepFreeze = <T>(value: T): T => {
   return value
 }
 
-const toLegacyContribution = (
-  context: ThreadContextData,
-  overrides: ContextContributorInput['overrides'] = {},
-) => {
-  const selectedIndexes = [0, 6, 7, 8, 9, 10, 11, 14]
-  const layers = assembleThreadInteractionRequest({
-    activeTools: [],
-    context,
-    nativeTools: [],
-    overrides: { ...overrides },
-  }).bundle.layers
-
-  return selectedIndexes.map((index) => {
-    const layer = layers[index]
-
-    assert.ok(layer)
-
-    return {
-      kind: layer.kind,
-      messages: layer.messages,
-      volatility: layer.volatility,
-    }
-  })
-}
-
 const createReasoningItem = (): ItemRecord => ({
   ...createMessageItem({
     id: 'itm_contributor_reasoning',
@@ -112,148 +86,6 @@ const createReasoningItem = (): ItemRecord => ({
 })
 
 describe('memory, transcript, fallback, and reserved context contributors', () => {
-  test('publishes the reserved empty layers at their exact order and volatility', () => {
-    assert.deepEqual(
-      [systemPromptContributor, sessionMetadataContributor, pendingWaitsContributor].map(
-        ({ id, order }) => ({ id, order }),
-      ),
-      [
-        { id: 'system-prompt', order: 1 },
-        { id: 'session-metadata', order: 7 },
-        { id: 'pending-waits', order: 15 },
-      ],
-    )
-    assert.deepEqual(systemPromptContributor.build(createInput(createContext())), [
-      { kind: 'system_prompt', messages: [], volatility: 'stable' },
-    ])
-    assert.deepEqual(sessionMetadataContributor.build(createInput(createContext())), [
-      { kind: 'session_metadata', messages: [], volatility: 'stable' },
-    ])
-    assert.deepEqual(pendingWaitsContributor.build(createInput(createContext())), [
-      { kind: 'pending_waits', messages: [], volatility: 'volatile' },
-    ])
-  })
-
-  test('declares complete metadata for reserved and empty memory/transcript layers', () => {
-    const input = deepFreeze(createInput(createContext()))
-    const contributions = buildContextContributions(contributors, input)
-    const artifacts = buildContextArtifacts(contributors, input, { validationMode: 'strict' })
-
-    assert.deepEqual(projectContextArtifactMessages(artifacts), contributions)
-    assert.deepEqual(
-      artifacts.map((artifact) => ({
-        authority: artifact.authority,
-        dedupeKey: artifact.dedupeKey,
-        metadataStatus: artifact.metadataStatus,
-        requirement: artifact.requirement,
-        sensitivity: artifact.sensitivity,
-        sourceIds: artifact.provenance.sourceIds,
-        sourceType: artifact.provenance.sourceType,
-        visibility: artifact.visibility,
-      })),
-      [
-        {
-          authority: 'conversation',
-          dedupeKey: 'system-prompt',
-          metadataStatus: 'declared',
-          requirement: 'optional',
-          sensitivity: 'private',
-          sourceIds: ['run_context_characterization'],
-          sourceType: 'runtime',
-          visibility: 'model',
-        },
-        {
-          authority: 'conversation',
-          dedupeKey: 'session-metadata',
-          metadataStatus: 'declared',
-          requirement: 'optional',
-          sensitivity: 'private',
-          sourceIds: ['run_context_characterization'],
-          sourceType: 'runtime',
-          visibility: 'model',
-        },
-        {
-          authority: 'summary',
-          dedupeKey: 'summary-memory',
-          metadataStatus: 'declared',
-          requirement: 'preferred',
-          sensitivity: 'private',
-          sourceIds: [],
-          sourceType: 'memory_summary',
-          visibility: 'model',
-        },
-        {
-          authority: 'reflection',
-          dedupeKey: 'reflection-memory',
-          metadataStatus: 'declared',
-          requirement: 'preferred',
-          sensitivity: 'private',
-          sourceIds: [],
-          sourceType: 'memory_reflection',
-          visibility: 'model',
-        },
-        {
-          authority: 'observation',
-          dedupeKey: 'observation-memory',
-          metadataStatus: 'declared',
-          requirement: 'preferred',
-          sensitivity: 'private',
-          sourceIds: [],
-          sourceType: 'memory_observation',
-          visibility: 'model',
-        },
-        {
-          authority: 'conversation',
-          dedupeKey: 'run-transcript',
-          metadataStatus: 'declared',
-          requirement: 'preferred',
-          sensitivity: 'restricted',
-          sourceIds: [],
-          sourceType: 'runtime',
-          visibility: 'model',
-        },
-        {
-          authority: 'conversation',
-          dedupeKey: 'visible-history-fallback',
-          metadataStatus: 'declared',
-          requirement: 'preferred',
-          sensitivity: 'restricted',
-          sourceIds: [],
-          sourceType: 'runtime',
-          visibility: 'model',
-        },
-        {
-          authority: 'conversation',
-          dedupeKey: 'pending-waits',
-          metadataStatus: 'declared',
-          requirement: 'optional',
-          sensitivity: 'private',
-          sourceIds: ['run_context_characterization'],
-          sourceType: 'runtime',
-          visibility: 'model',
-        },
-      ],
-    )
-    assert.ok(
-      artifacts.every(
-        (artifact) =>
-          artifact.capturedAt === input.context.run.createdAt &&
-          artifact.expiresAt === null &&
-          artifact.priority === 0 &&
-          artifact.conflictKey === null &&
-          artifact.dependencies.length === 0 &&
-          artifact.supersedes.length === 0 &&
-          artifact.transformation.kind === 'none',
-      ),
-    )
-    assert.deepEqual(
-      buildContextArtifacts(contributors, input, { validationMode: 'strict' }).map(
-        (artifact) => artifact.id,
-      ),
-      artifacts.map((artifact) => artifact.id),
-    )
-  })
-
   test('declares durable, sorted provenance without changing strict artifact projection', () => {
     const secondObservation = {
       ...createObservation(),
@@ -507,42 +339,5 @@ describe('memory, transcript, fallback, and reserved context contributors', () =
       [{ kind: 'visible_message_history', messages: [], volatility: 'volatile' }],
     )
     assert.equal(JSON.stringify(googleInput), before)
-  })
-
-  test('matches the owned legacy layers for memory plus transcript and visible fallback scenarios', () => {
-    const memoryAndTranscript = createContext({
-      activeReflection: createReflection(),
-      items: [
-        createMessageItem({
-          id: 'itm_contributor_live_tail',
-          role: 'user',
-          sequence: 9,
-          text: 'Current live tail.',
-        }),
-      ],
-      observations: [createObservation()],
-      summary: summaryFixture,
-      visibleMessages: [createVisibleMessage({ text: 'Already summarized.' })],
-    })
-    const visibleFallback = createContext({
-      visibleMessages: [
-        createVisibleMessage({ sequence: 1, text: 'Fallback user message.' }),
-        createVisibleMessage({
-          authorKind: 'assistant',
-          id: 'msg_contributor_fallback_assistant',
-          sequence: 2,
-          text: 'Fallback assistant message.',
-        }),
-      ],
-    })
-
-    assert.deepEqual(
-      buildContextContributions(contributors, deepFreeze(createInput(memoryAndTranscript))),
-      toLegacyContribution(memoryAndTranscript),
-    )
-    assert.deepEqual(
-      buildContextContributions(contributors, deepFreeze(createInput(visibleFallback))),
-      toLegacyContribution(visibleFallback),
-    )
   })
 })

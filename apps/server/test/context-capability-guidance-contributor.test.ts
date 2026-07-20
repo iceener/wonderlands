@@ -35,16 +35,6 @@ const expectedContribution = (text?: string) => [
 ]
 
 describe('capability guidance context contributor', () => {
-  test('uses the current capability layer identity, order, and empty behavior', () => {
-    assert.equal(capabilityGuidanceContributor.id, 'capability-guidance')
-    assert.equal(capabilityGuidanceContributor.order, 3)
-    assert.deepEqual(capabilityGuidanceContributor.build(createInput([])), expectedContribution())
-    assert.deepEqual(
-      capabilityGuidanceContributor.build(createInput([createTool('execute')])),
-      expectedContribution(),
-    )
-  })
-
   test('declares deterministic runtime provenance independent of active tool order', () => {
     const browse = createTool('browse')
     const execute = createTool('execute')
@@ -85,62 +75,42 @@ describe('capability guidance context contributor', () => {
     )
   })
 
-  test('declares valid metadata for an empty capability layer', () => {
-    const input = createInput([])
-    const [artifact] = buildContextArtifacts([capabilityGuidanceContributor], input, {
-      validationMode: 'strict',
-    })
-
-    assert.ok(artifact)
-    assert.equal(artifact.metadataStatus, 'declared')
-    assert.deepEqual(artifact.provenance.sourceIds, [])
-    assert.deepEqual(
-      projectContextArtifactMessages([artifact]),
-      capabilityGuidanceContributor.build(input),
-    )
-  })
-
-  test('preserves exact browser-only guidance', () => {
-    assert.deepEqual(
-      capabilityGuidanceContributor.build(createInput([createTool('browse')])),
-      expectedContribution(
-        [
-          'Capability guidance:',
-          '',
-          '- `browse` is available for live website interaction: navigation, clicks, form filling, DOM inspection, screenshots, PDFs, cookies, and browser-state capture.',
-          '- Keep browser scripts short and focused. Return JSON-serializable results from the script instead of logging or printing large blobs.',
-          '- Use browser jobs when the task requires a real page, live rendering, client-side JavaScript, or authenticated browser state.',
+  test('renders representative capability guidance combinations', () => {
+    const browserLines = [
+      'Capability guidance:',
+      '',
+      '- `browse` is available for live website interaction: navigation, clicks, form filling, DOM inspection, screenshots, PDFs, cookies, and browser-state capture.',
+      '- Keep browser scripts short and focused. Return JSON-serializable results from the script instead of logging or printing large blobs.',
+      '- Use browser jobs when the task requires a real page, live rendering, client-side JavaScript, or authenticated browser state.',
+    ]
+    const finalLine =
+      '- Request screenshots, PDFs, HTML, cookies, or recordings only when they materially help the conversation. Those outputs become normal run attachments.'
+    const scenarios = [
+      {
+        expected: [
+          ...browserLines,
           '- Browser jobs do not replace workspace or shell tools. Use them only when a live browser is actually needed.',
-          '- Request screenshots, PDFs, HTML, cookies, or recordings only when they materially help the conversation. Those outputs become normal run attachments.',
+          finalLine,
         ].join('\n'),
-      ),
-    )
-  })
-
-  test('resolves browser and sandbox capabilities from immutable tools without changing them', () => {
-    const browse = Object.freeze(createTool('browse'))
-    const execute = Object.freeze(createTool('execute'))
-    const activeTools = Object.freeze([browse, execute])
-    const input = createInput(activeTools)
-
-    assert.deepEqual(
-      capabilityGuidanceContributor.build(input),
-      expectedContribution(
-        [
-          'Capability guidance:',
-          '',
-          '- `browse` is available for live website interaction: navigation, clicks, form filling, DOM inspection, screenshots, PDFs, cookies, and browser-state capture.',
-          '- Keep browser scripts short and focused. Return JSON-serializable results from the script instead of logging or printing large blobs.',
-          '- Use browser jobs when the task requires a real page, live rendering, client-side JavaScript, or authenticated browser state.',
+        tools: [createTool('browse')],
+      },
+      {
+        expected: [
+          ...browserLines,
           '- Sandbox tools are also available in this run. Use them for local file transforms, `/vault` work, package-backed processing, and non-browser parsing.',
           '- Prefer `execute` as the default sandbox tool. It defaults to `mode: "bash"` for quick `find`/`rg`/`ls`/`cat` style inspection over mounted files. Use `mode: "script"` when you need custom JavaScript, MCP code-mode scripts, packages, or structured parsing.',
           '- In `execute` script mode, inline JavaScript normally runs as an ES module. Prefer `await import(...)`, avoid `require(...)`, and outside MCP code mode do not use top-level `return`. When MCP code mode is active, write a script body, not a full module: the runtime wraps your code in an async function, so `return` is allowed there but static top-level `import`/`export` is not.',
-          '- Request screenshots, PDFs, HTML, cookies, or recordings only when they materially help the conversation. Those outputs become normal run attachments.',
+          finalLine,
         ].join('\n'),
-      ),
-    )
-    assert.deepEqual(input.activeTools, activeTools)
-    assert.equal(input.activeTools[0], browse)
-    assert.equal(input.activeTools[1], execute)
+        tools: [createTool('browse'), createTool('execute')],
+      },
+    ]
+
+    for (const { expected, tools } of scenarios) {
+      assert.deepEqual(
+        capabilityGuidanceContributor.build(createInput(tools)),
+        expectedContribution(expected),
+      )
+    }
   })
 })

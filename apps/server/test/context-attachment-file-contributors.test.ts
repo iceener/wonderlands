@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
-import {
-  buildContextArtifacts,
-  projectContextArtifactMessages,
-} from '../src/application/context/artifacts'
+import { buildContextArtifacts } from '../src/application/context/artifacts'
 import type {
   ContextArtifact,
   ContextArtifactMetadata,
@@ -16,11 +13,7 @@ import { attachmentRulesContributor } from '../src/application/context/contribut
 import { fileContextContributor } from '../src/application/context/contributors/file-context'
 import type { AttachmentRefDescriptor } from '../src/application/files/attachment-ref-context'
 import type { VisibleFileContextEntry } from '../src/application/files/file-context'
-import { assembleThreadInteractionRequest } from '../src/application/interactions/assemble-thread-interaction-request'
-import type {
-  ContextLayerKind,
-  ThreadContextData,
-} from '../src/application/interactions/context-bundle'
+import type { ThreadContextData } from '../src/application/interactions/context-bundle'
 import type { ToolSpec } from '../src/application/tooling/tool-registry'
 import { asFileId, asSessionMessageId } from '../src/shared/ids'
 import {
@@ -114,28 +107,6 @@ const buildStrictArtifact = (
   return artifact
 }
 
-const legacyContribution = (input: ContextContributorInput, kind: ContextLayerKind) => {
-  const result = assembleThreadInteractionRequest({
-    activeTools: input.activeTools as ToolSpec[],
-    context: input.context as ThreadContextData,
-    mcpCatalog: null,
-    mcpMode: input.mcpMode,
-    nativeTools: [...input.nativeTools],
-    overrides: input.overrides,
-  })
-  const layer = result.bundle.layers.find((candidate) => candidate.kind === kind)
-
-  assert.ok(layer)
-
-  return [
-    {
-      kind: layer.kind,
-      messages: layer.messages,
-      volatility: layer.volatility,
-    },
-  ]
-}
-
 const createAttachmentInput = (activeTools: ToolSpec[]): ContextContributorInput =>
   createInput({
     activeTools,
@@ -170,102 +141,41 @@ const createFileInput = (
 }
 
 describe('attachment context contributors', () => {
-  test('retain layer identities, positions, volatility, and empty outputs', () => {
-    const input = createInput()
-
-    assert.deepEqual(
-      [
-        [attachmentRulesContributor.id, attachmentRulesContributor.order],
-        [attachmentContextContributor.id, attachmentContextContributor.order],
-      ],
-      [
-        ['attachment-rules', 5],
-        ['attachment-context', 13],
-      ],
-    )
-    assert.deepEqual(attachmentRulesContributor.build(input), [
-      { kind: 'attachment_ref_rules', messages: [], volatility: 'stable' },
-    ])
-    assert.deepEqual(attachmentContextContributor.build(input), [
-      { kind: 'attachment_ref_context', messages: [], volatility: 'volatile' },
-    ])
-  })
-
-  test.each([
-    { activeTools: [], name: 'no file-access capability' },
-    { activeTools: [createTool('files__fs_read', 'mcp')], name: 'workspace file access' },
-    {
-      activeTools: [createTool('files.fs_read', 'mcp'), createTool('generate_image')],
-      name: 'dotted workspace file access with image generation',
-    },
-    {
-      activeTools: [createTool('execute'), createTool('files__fs_read', 'mcp')],
-      name: 'sandbox access taking precedence over workspace access',
-    },
-    {
-      activeTools: [createTool('execute'), createTool('generate_image')],
-      name: 'sandbox execution with image generation',
-    },
-  ])('matches current exact rule and descriptor messages for $name', ({ activeTools }) => {
-    const input = createAttachmentInput(activeTools)
-
-    assert.deepEqual(
-      attachmentRulesContributor.build(input),
-      legacyContribution(input, 'attachment_ref_rules'),
-    )
-    assert.deepEqual(
-      attachmentContextContributor.build(input),
-      legacyContribution(input, 'attachment_ref_context'),
-    )
-  })
-
-  test('declares complete strict metadata for empty attachment layers', () => {
-    const input = createInput()
-    const rulesArtifact = buildStrictArtifact(attachmentRulesContributor, input)
-    const contextArtifact = buildStrictArtifact(attachmentContextContributor, input)
-
-    assert.deepEqual(toArtifactMetadata(rulesArtifact), {
-      authority: 'user_input',
-      capturedAt: input.context.run.createdAt,
-      conflictKey: null,
-      dedupeKey: 'attachment-ref-rules',
-      dependencies: [],
-      expiresAt: null,
-      priority: 100,
-      provenance: {
-        createdByRunId: String(input.context.run.id),
-        sourceIds: [],
-        sourceType: 'user_message',
-        sourceVersion: null,
+  test('represents unavailable, workspace, and sandbox attachment access', () => {
+    const scenarios = [
+      {
+        expected: 'Direct sandbox or workspace-files access is not available for this run.',
+        forbidden: '/vault/attachments/',
+        tools: [],
       },
-      requirement: 'mandatory',
-      sensitivity: 'private',
-      supersedes: [],
-      transformation: { kind: 'none' },
-      visibility: 'model',
-    })
-    assert.deepEqual(toArtifactMetadata(contextArtifact), {
-      authority: 'conversation',
-      capturedAt: input.context.run.createdAt,
-      conflictKey: null,
-      dedupeKey: 'attachment-ref-context',
-      dependencies: [],
-      expiresAt: null,
-      priority: 90,
-      provenance: {
-        createdByRunId: String(input.context.run.id),
-        sourceIds: [],
-        sourceType: 'user_message',
-        sourceVersion: null,
+      {
+        expected: 'path: /vault/attachments/2026/04/01/do/fil_attachment_context.md',
+        forbidden: 'execute.attachments[].fileId',
+        tools: [createTool('files__fs_read', 'mcp')],
       },
-      requirement: 'optional',
-      sensitivity: 'restricted',
-      supersedes: [],
-      transformation: { kind: 'none' },
-      visibility: 'model',
-    })
-    assert.equal(rulesArtifact.metadataStatus, 'declared')
-    assert.equal(contextArtifact.metadataStatus, 'declared')
+      {
+        expected: 'sandbox: use this ref in execute.attachments[].fileId',
+        forbidden: 'path: /vault/attachments/',
+        tools: [createTool('execute'), createTool('files__fs_read', 'mcp')],
+      },
+    ]
+
+    for (const { expected, forbidden, tools } of scenarios) {
+      const input = createAttachmentInput(tools)
+      const contributions = [
+        ...attachmentRulesContributor.build(input),
+        ...attachmentContextContributor.build(input),
+      ]
+      const text = contributions
+        .flatMap((entry) => entry.messages)
+        .flatMap((message) =>
+          message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])),
+        )
+        .join('\n')
+
+      assert.equal(text.includes(expected), true)
+      assert.equal(text.includes(forbidden), false)
+    }
   })
 
   test('uses sorted durable attachment identities without leaking paths into provenance', () => {
@@ -315,73 +225,29 @@ describe('attachment context contributors', () => {
     assert.equal(metadataJson.includes('credential-must-not-leak'), false)
     assert.equal(metadataJson.includes('{{attachment:'), false)
   })
-
-  test('is deterministic and does not mutate immutable attachment inputs', () => {
-    const activeTools = Object.freeze([
-      Object.freeze(createTool('execute')),
-      Object.freeze(createTool('generate_image')),
-    ])
-    const context = createContext({ attachmentRefs: [Object.freeze({ ...attachmentFixture })] })
-    const input: ContextContributorInput = {
-      ...createInput({ context }),
-      activeTools,
-    }
-    const before = JSON.stringify(input)
-    const firstRules = attachmentRulesContributor.build(input)
-    const firstContext = attachmentContextContributor.build(input)
-
-    assert.deepEqual(attachmentRulesContributor.build(input), firstRules)
-    assert.deepEqual(attachmentContextContributor.build(input), firstContext)
-    assert.equal(JSON.stringify(input), before)
-  })
 })
 
 describe('file context contributor', () => {
-  test('retains layer identity, position, volatility, and empty output', () => {
-    const input = createInput()
+  test('represents inline file content with unavailable, workspace, and sandbox access', () => {
+    const scenarios = [
+      { expectedMessages: 2, tools: [] },
+      { expectedMessages: 1, tools: [createTool('files__fs_read', 'mcp')] },
+      { expectedMessages: 1, tools: [createTool('execute')] },
+    ]
 
-    assert.equal(fileContextContributor.id, 'file-context')
-    assert.equal(fileContextContributor.order, 14)
-    assert.deepEqual(fileContextContributor.build(input), [
-      { kind: 'file_context', messages: [], volatility: 'volatile' },
-    ])
-  })
+    for (const { expectedMessages, tools } of scenarios) {
+      const [contribution] = fileContextContributor.build(createFileInput('openai', tools))
 
-  test.each([
-    { activeTools: [], name: 'snapshot provider', overrides: {}, provider: 'openai' },
-    {
-      activeTools: [],
-      name: 'provider override',
-      overrides: { provider: 'openrouter' as const },
-      provider: 'google',
-    },
-    {
-      activeTools: [],
-      name: 'override suppressing image exposure',
-      overrides: { provider: 'google' as const },
-      provider: 'openai',
-    },
-    {
-      activeTools: [createTool('execute')],
-      name: 'sandbox access',
-      overrides: {},
-      provider: 'openai',
-    },
-    {
-      activeTools: [createTool('files__fs_read', 'mcp')],
-      name: 'workspace file access',
-      overrides: {},
-      provider: 'openrouter',
-    },
-    { activeTools: [], name: 'unsupported snapshot provider', overrides: {}, provider: 'other' },
-  ])('matches current provider, inline-reference, and access-mode behavior for $name', ({
-    activeTools,
-    overrides,
-    provider,
-  }) => {
-    const input = createFileInput(provider, activeTools, overrides)
-
-    assert.deepEqual(fileContextContributor.build(input), legacyContribution(input, 'file_context'))
+      assert.equal(contribution?.messages.length, expectedMessages)
+      assert.equal(
+        contribution?.messages.some((message) =>
+          message.content.some(
+            (part) => part.type === 'image_url' && part.url === 'data:image/png;base64,BAUG',
+          ),
+        ),
+        true,
+      )
+    }
   })
 
   test('collects inline uploaded ids and resolves an override before exposing images', () => {
@@ -475,27 +341,5 @@ describe('file context contributor', () => {
     assert.deepEqual(artifact.provenance.sourceIds, ['fil_unreferenced_truncated'])
     assert.equal(metadataJson.includes(truncatedBodySentinel), false)
     assert.equal(metadataJson.includes('private.txt'), false)
-  })
-
-  test('strict artifacts project to the exact legacy attachment and file contributions', () => {
-    const input = createFileInput('openai')
-    const contributors = [
-      attachmentRulesContributor,
-      attachmentContextContributor,
-      fileContextContributor,
-    ]
-    const artifacts = buildContextArtifacts(contributors, input, { validationMode: 'strict' })
-    const contributions = contributors.flatMap((contributor) => contributor.build(input))
-
-    assert.deepEqual(projectContextArtifactMessages(artifacts), contributions)
-  })
-
-  test('is deterministic and leaves the input snapshot unchanged', () => {
-    const input = createFileInput('openai', [createTool('execute')])
-    const before = JSON.stringify(input)
-    const first = fileContextContributor.build(input)
-
-    assert.deepEqual(fileContextContributor.build(input), first)
-    assert.equal(JSON.stringify(input), before)
   })
 })

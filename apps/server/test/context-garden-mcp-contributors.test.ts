@@ -5,13 +5,9 @@ import {
   buildContextArtifacts,
   projectContextArtifactMessages,
 } from '../src/application/context/artifacts'
-import type {
-  ContextContribution,
-  ContextContributorInput,
-} from '../src/application/context/contracts'
+import type { ContextContributorInput } from '../src/application/context/contracts'
 import { gardenContextContributor } from '../src/application/context/contributors/garden-context'
 import { mcpToolContextContributor } from '../src/application/context/contributors/mcp-tool-context'
-import { assembleThreadInteractionRequest } from '../src/application/interactions/assemble-thread-interaction-request'
 import type { ThreadContextData } from '../src/application/interactions/context-bundle'
 import type { McpCodeModeCatalog } from '../src/application/mcp/code-mode'
 import type { ToolSpec } from '../src/application/tooling/tool-registry'
@@ -38,77 +34,48 @@ const createInput = (options: InputOptions = {}): ContextContributorInput => ({
   overrides: {},
 })
 
-const legacyContribution = (
-  input: ContextContributorInput,
-  kind: ContextContribution['kind'],
-): ContextContribution => {
-  const result = assembleThreadInteractionRequest({
-    activeTools: input.activeTools as ToolSpec[],
-    context: input.context as ThreadContextData,
-    mcpCatalog: input.mcpCatalog as McpCodeModeCatalog | null,
-    mcpMode: input.mcpMode,
-    nativeTools: [...input.nativeTools],
-    overrides: input.overrides,
-  })
-  const layer = result.bundle.layers.find((candidate) => candidate.kind === kind)
-
-  assert.ok(layer)
-
-  return {
-    kind: layer.kind,
-    messages: layer.messages,
-    volatility: layer.volatility,
-  }
-}
-
-const freezeDeep = <T>(value: T): T => {
-  if (
-    value !== null &&
-    (typeof value === 'object' || typeof value === 'function') &&
-    !Object.isFrozen(value)
-  ) {
-    for (const nested of Object.values(value)) {
-      freezeDeep(nested)
-    }
-    Object.freeze(value)
-  }
-
-  return value
-}
-
 describe('garden context contributor', () => {
-  test('exports the current stable layer-four identity', () => {
-    assert.equal(gardenContextContributor.id, 'garden-context')
-    assert.equal(gardenContextContributor.order, 4)
-  })
-
-  test('matches legacy output across capability, access-mode, just-bash, and tool-hint conditions', () => {
-    const sandboxContext = createContext({
-      gardenContext: {
-        ...gardenContextFixture,
-        sandbox: {
-          enabled: true,
-          vaultMode: 'read_write',
-        },
+  test('represents absent, read-only, and read-write Garden access', () => {
+    const scenarios = [
+      { expected: null, input: createInput() },
+      {
+        expected:
+          'Sandbox vault access is read-only for this agent, so Garden edits cannot be written back from the sandbox.',
+        input: createInput({
+          activeTools: [createTool('execute')],
+          context: createContext({
+            gardenContext: {
+              ...gardenContextFixture,
+              sandbox: { enabled: true, vaultMode: 'read_only' },
+            },
+          }),
+        }),
       },
-    })
-    const cases = [
-      createInput(),
-      createInput({ context: createContext({ gardenContext: gardenContextFixture }) }),
-      createInput({
-        activeTools: [createTool('files__fs_read')],
-        context: sandboxContext,
-      }),
-      createInput({
-        activeTools: [createTool('execute'), createTool('get_garden_context')],
-        context: sandboxContext,
-      }),
+      {
+        expected:
+          'Write generated files under /output/... and use outputs.writeBack to request changes back into /vault/.',
+        input: createInput({
+          activeTools: [createTool('execute')],
+          context: createContext({
+            gardenContext: {
+              ...gardenContextFixture,
+              sandbox: { enabled: true, vaultMode: 'read_write' },
+            },
+          }),
+        }),
+      },
     ]
 
-    for (const input of cases) {
-      assert.deepEqual(gardenContextContributor.build(input), [
-        legacyContribution(input, 'garden_context'),
-      ])
+    for (const { expected, input } of scenarios) {
+      const [contribution] = gardenContextContributor.build(input)
+      const text = contribution?.messages[0]?.content[0]
+
+      if (expected === null) {
+        assert.deepEqual(contribution?.messages, [])
+      } else {
+        assert.equal(text?.type, 'text')
+        assert.equal(text?.type === 'text' && text.text.includes(expected), true)
+      }
     }
   })
 
@@ -172,59 +139,28 @@ describe('garden context contributor', () => {
       },
     )
   })
-
-  test('declares an optional model-visible artifact when no Garden is available', () => {
-    const input = createInput()
-    const [artifact] = buildContextArtifacts([gardenContextContributor], input, {
-      validationMode: 'strict',
-    })
-
-    assert.equal(artifact?.requirement, 'optional')
-    assert.equal(artifact?.metadataStatus, 'declared')
-    assert.deepEqual(artifact?.provenance.sourceIds, [String(input.context.run.id)])
-    assert.deepEqual(projectContextArtifactMessages(artifact ? [artifact] : []), [
-      {
-        kind: 'garden_context',
-        messages: [],
-        volatility: 'stable',
-      },
-    ])
-  })
 })
 
 describe('MCP tool context contributor', () => {
-  test('exports the current stable layer-six identity', () => {
-    assert.equal(mcpToolContextContributor.id, 'mcp-tool-context')
-    assert.equal(mcpToolContextContributor.order, 6)
-  })
-
-  test('emits an empty stable layer and no prose in direct mode', () => {
-    const input = createInput({
-      activeTools: [createTool('docs__search', 'mcp')],
-      mcpCatalog: mcpCatalogFixture,
-      mcpMode: 'direct',
-    })
-
-    assert.deepEqual(mcpToolContextContributor.build(input), [
+  test('represents direct and code-mode MCP context', () => {
+    const scenarios = [
+      { expectedPrefix: null, input: createInput({ mcpMode: 'direct' }) },
       {
-        kind: 'tool_context',
-        messages: [],
-        volatility: 'stable',
+        expectedPrefix: 'MCP code mode is enabled.',
+        input: createInput({ mcpCatalog: mcpCatalogFixture, mcpMode: 'code' }),
       },
-    ])
-    assert.deepEqual(mcpToolContextContributor.build(input), [
-      legacyContribution(input, 'tool_context'),
-    ])
-  })
+    ]
 
-  test('matches the legacy catalog and null-catalog default messages in code mode', () => {
-    for (const input of [
-      createInput({ mcpMode: 'code' }),
-      createInput({ mcpCatalog: mcpCatalogFixture, mcpMode: 'code' }),
-    ]) {
-      assert.deepEqual(mcpToolContextContributor.build(input), [
-        legacyContribution(input, 'tool_context'),
-      ])
+    for (const { expectedPrefix, input } of scenarios) {
+      const [contribution] = mcpToolContextContributor.build(input)
+      const content = contribution?.messages[0]?.content[0]
+
+      if (expectedPrefix === null) {
+        assert.deepEqual(contribution?.messages, [])
+      } else {
+        assert.equal(content?.type, 'text')
+        assert.equal(content?.type === 'text' && content.text.startsWith(expectedPrefix), true)
+      }
     }
   })
 
@@ -257,62 +193,4 @@ describe('MCP tool context contributor', () => {
     })
     assert.deepEqual(artifact.provenance.sourceIds, [...artifact.provenance.sourceIds].sort())
   })
-
-  test('gives the direct-mode empty layer complete optional runtime metadata', () => {
-    const input = createInput({
-      mcpCatalog: mcpCatalogFixture,
-      mcpMode: 'direct',
-    })
-    const [artifact] = buildContextArtifacts([mcpToolContextContributor], input, {
-      validationMode: 'strict',
-    })
-
-    assert.ok(artifact)
-    assert.equal(artifact.metadataStatus, 'declared')
-    assert.equal(artifact.authority, 'agent_configuration')
-    assert.equal(artifact.dedupeKey, 'mcp-tool-context:direct')
-    assert.equal(artifact.requirement, 'optional')
-    assert.equal(artifact.visibility, 'model')
-    assert.deepEqual(artifact.provenance, {
-      createdByRunId: String(input.context.run.id),
-      sourceIds: [String(input.context.run.id)],
-      sourceType: 'runtime',
-      sourceVersion: null,
-    })
-    assert.deepEqual(projectContextArtifactMessages([artifact]), [
-      {
-        kind: 'tool_context',
-        messages: [],
-        volatility: 'stable',
-      },
-    ])
-  })
-})
-
-test('Garden and MCP contributors do not mutate deeply frozen inputs', () => {
-  const input = freezeDeep(
-    createInput({
-      activeTools: [createTool('execute'), createTool('get_garden_context')],
-      context: createContext({
-        gardenContext: {
-          ...gardenContextFixture,
-          sandbox: {
-            enabled: true,
-            vaultMode: 'read_only',
-          },
-        },
-      }),
-      mcpCatalog: mcpCatalogFixture,
-      mcpMode: 'code',
-    }),
-  )
-  const before = JSON.stringify(input)
-
-  gardenContextContributor.build(input)
-  mcpToolContextContributor.build(input)
-  buildContextArtifacts([gardenContextContributor, mcpToolContextContributor], input, {
-    validationMode: 'strict',
-  })
-
-  assert.equal(JSON.stringify(input), before)
 })

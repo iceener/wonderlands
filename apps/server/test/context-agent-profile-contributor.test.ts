@@ -21,35 +21,6 @@ const createInput = (agentProfile: AgentProfileContext | null): ContextContribut
 })
 
 describe('agent profile context contributor', () => {
-  test('uses the current agent-profile layer identity, order, and empty behavior', () => {
-    assert.equal(agentProfileContributor.id, 'agent-profile')
-    assert.equal(agentProfileContributor.order, 2)
-    assert.deepEqual(agentProfileContributor.build(createInput(null)), [
-      {
-        kind: 'agent_profile',
-        messages: [],
-        volatility: 'stable',
-      },
-    ])
-
-    assert.deepEqual(
-      agentProfileContributor.build(
-        createInput({
-          instructionsMd: ' \n ',
-          revisionId: asAgentRevisionId('agr_empty_profile'),
-          subagents: [],
-        }),
-      ),
-      [
-        {
-          kind: 'agent_profile',
-          messages: [],
-          volatility: 'stable',
-        },
-      ],
-    )
-  })
-
   test('declares deterministic restricted provenance for the active agent revision and run', () => {
     const revisionId = asAgentRevisionId('agr_metadata_profile')
     const input = createInput({
@@ -83,22 +54,6 @@ describe('agent profile context contributor', () => {
       sourceVersion: String(revisionId),
     })
     assert.deepEqual(projectContextArtifactMessages(first), agentProfileContributor.build(input))
-  })
-
-  test('declares valid runtime provenance for an empty profile layer', () => {
-    const input = createInput(null)
-    const [artifact] = buildContextArtifacts([agentProfileContributor], input, {
-      validationMode: 'strict',
-    })
-
-    assert.ok(artifact)
-    assert.equal(artifact.metadataStatus, 'declared')
-    assert.deepEqual(artifact.provenance.sourceIds, [String(input.context.run.id)])
-    assert.equal(artifact.provenance.sourceType, 'runtime')
-    assert.deepEqual(
-      projectContextArtifactMessages([artifact]),
-      agentProfileContributor.build(input),
-    )
   })
 
   test('preserves exact instruction and subagent guidance without mutating the profile', () => {

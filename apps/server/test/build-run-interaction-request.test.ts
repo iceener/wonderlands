@@ -74,87 +74,72 @@ const createFunctionCallOutputItem = (
   type: 'function_call_output',
 })
 
-test('toItemMessages replays reasoning items using provider item ids', () => {
-  const messages = toItemMessages(
-    [
-      createReasoningItem('itm_local_reasoning', {
-        encryptedContent: 'enc_reasoning',
-        provider: 'openai',
-        providerItemId: 'rs_reasoning_123',
-      }),
-    ],
-    { provider: 'openai' },
-  )
-
-  assert.deepEqual(messages, [
+test('toItemMessages replays only provider-safe reasoning forms', () => {
+  const scenarios = [
     {
-      content: [
+      expected: [
         {
-          encryptedContent: 'enc_reasoning',
-          id: 'rs_reasoning_123',
-          summary: [{ text: 'Need tool output first.', type: 'summary_text' }],
-          type: 'reasoning',
+          content: [
+            {
+              encryptedContent: 'enc_reasoning',
+              id: 'rs_reasoning_123',
+              summary: [{ text: 'Need tool output first.', type: 'summary_text' }],
+              type: 'reasoning',
+            },
+          ],
+          role: 'assistant',
         },
       ],
-      role: 'assistant',
-    },
-  ])
-})
-
-test('toItemMessages skips legacy reasoning items without provider ids', () => {
-  const messages = toItemMessages(
-    [
-      createReasoningItem('itm_legacy_reasoning', {
-        encryptedContent: 'enc_reasoning',
-        provider: 'openai',
-      }),
-    ],
-    { provider: 'openai' },
-  )
-
-  assert.deepEqual(messages, [])
-})
-
-test('toItemMessages omits reasoning replay for non-openai providers', () => {
-  const messages = toItemMessages(
-    [
-      createReasoningItem('itm_google_reasoning', {
+      item: createReasoningItem('itm_openai_reasoning', {
         encryptedContent: 'enc_reasoning',
         provider: 'openai',
         providerItemId: 'rs_reasoning_123',
       }),
-    ],
-    { provider: 'google' },
-  )
-
-  assert.deepEqual(messages, [])
-})
-
-test('toItemMessages replays Gemini thought signatures for google providers', () => {
-  const messages = toItemMessages(
-    [
-      createReasoningItem('itm_google_reasoning', {
+      provider: 'openai' as const,
+    },
+    {
+      expected: [],
+      item: createReasoningItem('itm_legacy_reasoning', {
+        encryptedContent: 'enc_reasoning',
+        provider: 'openai',
+      }),
+      provider: 'openai' as const,
+    },
+    {
+      expected: [],
+      item: createReasoningItem('itm_cross_provider_reasoning', {
+        encryptedContent: 'enc_reasoning',
+        provider: 'openai',
+        providerItemId: 'rs_reasoning_123',
+      }),
+      provider: 'google' as const,
+    },
+    {
+      expected: [
+        {
+          content: [
+            {
+              id: 'thought_sig_123',
+              summary: [{ text: 'Need tool output first.', type: 'summary_text' }],
+              text: 'Need tool output first.',
+              thought: true,
+              type: 'reasoning',
+            },
+          ],
+          role: 'assistant',
+        },
+      ],
+      item: createReasoningItem('itm_google_reasoning', {
         provider: 'google',
         providerItemId: 'thought_sig_123',
       }),
-    ],
-    { provider: 'google' },
-  )
-
-  assert.deepEqual(messages, [
-    {
-      content: [
-        {
-          id: 'thought_sig_123',
-          summary: [{ text: 'Need tool output first.', type: 'summary_text' }],
-          text: 'Need tool output first.',
-          thought: true,
-          type: 'reasoning',
-        },
-      ],
-      role: 'assistant',
+      provider: 'google' as const,
     },
-  ])
+  ]
+
+  for (const { expected, item, provider } of scenarios) {
+    assert.deepEqual(toItemMessages([item], { provider }), expected)
+  }
 })
 
 test('toItemMessages maps delegated child-run envelopes to compact parent replay output', () => {

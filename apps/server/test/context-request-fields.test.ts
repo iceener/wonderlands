@@ -9,7 +9,6 @@ import {
   resolveRequestedProvider,
   resolveRequestedReasoning,
   resolveRequestedTemperature,
-  toFallbackTaskMessages,
   toInteractionRequestMetadata,
   toSortedActiveMcpToolNames,
 } from '../src/application/context/request-fields'
@@ -49,75 +48,97 @@ const selectRequestFields = (
 })
 
 describe('request routing fields', () => {
-  test('prefers every provided override over the run config snapshot, including numeric zero', () => {
-    const context = withConfig({
-      maxOutputTokens: 8_192,
-      model: 'configured-model',
-      modelAlias: 'configured-alias',
-      provider: 'openai',
-      reasoning: { effort: 'medium' },
-      temperature: 0.8,
-    })
-    const overrides = {
-      maxOutputTokens: 0,
-      model: 'override-model',
-      modelAlias: 'override-alias',
-      provider: 'google' as const,
-      reasoning: { effort: 'high' as const, summary: 'concise' as const },
-      temperature: 0,
-    }
+  test('applies override, snapshot, and invalid-value precedence', () => {
+    const configuredReasoning = { effort: 'xhigh', summary: 'detailed' }
+    const invalidReasoning = [null, 'high', {}, { effort: 'invalid' }, { effort: 'max' }]
+    const scenarios = [
+      {
+        context: withConfig({
+          maxOutputTokens: 8_192,
+          model: 'configured-model',
+          modelAlias: 'configured-alias',
+          provider: 'openai',
+          reasoning: { effort: 'medium' },
+          temperature: 0.8,
+        }),
+        expected: {
+          maxOutputTokens: 0,
+          model: 'override-model',
+          modelAlias: 'override-alias',
+          provider: 'google',
+          reasoning: { effort: 'high', summary: 'concise' },
+          temperature: 0,
+        },
+        overrides: {
+          maxOutputTokens: 0,
+          model: 'override-model',
+          modelAlias: 'override-alias',
+          provider: 'google' as const,
+          reasoning: { effort: 'high' as const, summary: 'concise' as const },
+          temperature: 0,
+        },
+      },
+      {
+        context: withConfig({
+          maxOutputTokens: 4_096,
+          model: 'configured-model',
+          modelAlias: 'configured-alias',
+          provider: 'openrouter',
+          reasoning: configuredReasoning,
+          temperature: 0.25,
+        }),
+        expected: {
+          maxOutputTokens: 4_096,
+          model: 'configured-model',
+          modelAlias: 'configured-alias',
+          provider: 'openrouter',
+          reasoning: configuredReasoning,
+          temperature: 0.25,
+        },
+        expectedReasoningReference: configuredReasoning,
+        overrides: {},
+      },
+      ...invalidReasoning.map((reasoning) => ({
+        context: withConfig({
+          maxOutputTokens: '4096',
+          model: '',
+          modelAlias: 42,
+          provider: 'unsupported',
+          reasoning,
+          temperature: '0.5',
+        }),
+        expected: {
+          maxOutputTokens: undefined,
+          model: undefined,
+          modelAlias: undefined,
+          provider: null,
+          reasoning: undefined,
+          temperature: undefined,
+        },
+        overrides: {},
+      })),
+    ]
 
-    assert.equal(resolveRequestedProvider(context, overrides), 'google')
-    assert.equal(resolveRequestedModel(context, overrides), 'override-model')
-    assert.equal(resolveRequestedModelAlias(context, overrides), 'override-alias')
-    assert.deepEqual(resolveRequestedReasoning(context, overrides), {
-      effort: 'high',
-      summary: 'concise',
-    })
-    assert.equal(resolveRequestedMaxOutputTokens(context, overrides), 0)
-    assert.equal(resolveRequestedTemperature(context, overrides), 0)
-  })
+    for (const { context, expected, expectedReasoningReference, overrides } of scenarios) {
+      const resolvedReasoning = resolveRequestedReasoning(context, overrides)
 
-  test('uses valid config snapshot values when overrides are absent', () => {
-    const reasoning = { effort: 'xhigh', summary: 'detailed' }
-    const context = withConfig({
-      maxOutputTokens: 4_096,
-      model: 'configured-model',
-      modelAlias: 'configured-alias',
-      provider: 'openrouter',
-      reasoning,
-      temperature: 0.25,
-    })
-
-    assert.equal(resolveRequestedProvider(context, {}), 'openrouter')
-    assert.equal(resolveRequestedModel(context, {}), 'configured-model')
-    assert.equal(resolveRequestedModelAlias(context, {}), 'configured-alias')
-    assert.strictEqual(resolveRequestedReasoning(context, {}), reasoning)
-    assert.equal(resolveRequestedMaxOutputTokens(context, {}), 4_096)
-    assert.equal(resolveRequestedTemperature(context, {}), 0.25)
-  })
-
-  test('preserves defaults and the current reasoning snapshot whitelist for invalid values', () => {
-    for (const reasoning of [null, 'high', {}, { effort: 'invalid' }, { effort: 'max' }]) {
-      const context = withConfig({
-        maxOutputTokens: '4096',
-        model: '',
-        modelAlias: 42,
-        provider: 'unsupported',
-        reasoning,
-        temperature: '0.5',
-      })
-
-      assert.equal(resolveRequestedProvider(context, {}), null)
-      assert.equal(resolveRequestedModel(context, {}), undefined)
-      assert.equal(resolveRequestedModelAlias(context, {}), undefined)
-      assert.equal(resolveRequestedReasoning(context, {}), undefined)
-      assert.equal(resolveRequestedMaxOutputTokens(context, {}), undefined)
-      assert.equal(resolveRequestedTemperature(context, {}), undefined)
+      assert.deepEqual(
+        {
+          maxOutputTokens: resolveRequestedMaxOutputTokens(context, overrides),
+          model: resolveRequestedModel(context, overrides),
+          modelAlias: resolveRequestedModelAlias(context, overrides),
+          provider: resolveRequestedProvider(context, overrides),
+          reasoning: resolvedReasoning,
+          temperature: resolveRequestedTemperature(context, overrides),
+        },
+        expected,
+      )
+      if (expectedReasoningReference) {
+        assert.strictEqual(resolvedReasoning, expectedReasoningReference)
+      }
     }
   })
 })
-
 describe('request metadata and fallback', () => {
   test('sorts active MCP names without mutating input and emits deterministic filtered metadata', () => {
     const tools = Object.freeze([
@@ -156,25 +177,6 @@ describe('request metadata and fallback', () => {
       tenantId: 'ten_context_characterization',
       threadId: 'thr_context_characterization',
     })
-  })
-
-  test('constructs a fresh fallback user message from the unchanged task', () => {
-    const context = createContext()
-    const run = Object.freeze({ ...context.run, configSnapshot: Object.freeze({}) })
-    const immutableContext = Object.freeze({ ...context, run })
-
-    const first = toFallbackTaskMessages(immutableContext)
-    const second = toFallbackTaskMessages(immutableContext)
-
-    assert.deepEqual(first, [
-      {
-        content: [{ text: 'Run the characterization task', type: 'text' }],
-        role: 'user',
-      },
-    ])
-    assert.deepEqual(second, first)
-    assert.notStrictEqual(second, first)
-    assert.equal(immutableContext.run.task, 'Run the characterization task')
   })
 })
 

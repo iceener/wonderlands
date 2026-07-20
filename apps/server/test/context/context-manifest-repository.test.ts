@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest'
 
 import { createContextManifestRepository } from '../../src/adapters/persistence/sqlite/context/context-manifest-repository'
-import type { ContextManifest } from '../../src/application/context/manifest'
 import { createDrizzleSqliteDatabase, openSqliteDatabase } from '../../src/db/sqlite-adapter'
 import type {
   CreateContextManifestInput,
@@ -93,8 +92,6 @@ const buildManifest = (
   version: 'context/v2',
 })
 
-const toPersistenceManifest = (manifest: ContextManifest): RedactedContextManifest => manifest
-
 const buildInput = (turn: number, id = `ctxm_${turn}`): CreateContextManifestInput => {
   const manifest = buildManifest(turn)
   return {
@@ -120,11 +117,6 @@ describe('context manifest repository', () => {
     while (handles.length > 0) {
       handles.pop()?.close()
     }
-  })
-
-  test('keeps the application manifest structurally compatible with the persistence port', () => {
-    const applicationManifest = buildManifest(1) as ContextManifest
-    expect(toPersistenceManifest(applicationManifest).version).toBe('context/v2')
   })
 
   test('creates idempotently and rejects a changed replay for the same attempted turn', () => {
@@ -191,25 +183,28 @@ describe('context manifest repository', () => {
     })
   })
 
-  test.each([
-    ['raw payload', { payload: { role: 'user' } }],
-    ['message collection', { messages: ['raw message'] }],
-    ['credential key', { apiKey: 'credential-value' }],
-    ['data URL', { fields: ['data:image/png;base64,AAAA'] }],
-  ])('rejects %s in manifest JSON before persistence', (_label, unsafeEntry) => {
-    const handle = createTestDatabase()
-    handles.push(handle)
-    const repository = createContextManifestRepository(handle.db)
-    const input = buildInput(1)
-    const unsafeManifest = {
-      ...input.manifest,
-      selected: [unsafeEntry],
-    } as unknown as RedactedContextManifest
+  test('rejects unsafe manifest JSON before persistence', () => {
+    const unsafeEntries = [
+      { payload: { role: 'user' } },
+      { messages: ['raw message'] },
+      { apiKey: 'credential-value' },
+      { fields: ['data:image/png;base64,AAAA'] },
+    ]
 
-    const result = repository.create(scope, { ...input, manifest: unsafeManifest })
+    for (const [index, unsafeEntry] of unsafeEntries.entries()) {
+      const handle = createTestDatabase()
+      handles.push(handle)
+      const repository = createContextManifestRepository(handle.db)
+      const input = buildInput(index + 1)
+      const unsafeManifest = {
+        ...input.manifest,
+        selected: [unsafeEntry],
+      } as unknown as RedactedContextManifest
 
-    expect(result).toMatchObject({ error: { type: 'validation' }, ok: false })
-    const listed = repository.list(scope)
-    expect(listed).toEqual({ ok: true, value: [] })
+      const result = repository.create(scope, { ...input, manifest: unsafeManifest })
+
+      expect(result).toMatchObject({ error: { type: 'validation' }, ok: false })
+      expect(repository.list(scope)).toEqual({ ok: true, value: [] })
+    }
   })
 })

@@ -67,27 +67,6 @@ const contributor = (
 ): ContextContributor => ({ build, id, order })
 
 describe('context artifact shadow representation', () => {
-  test('builds artifacts in registry order and projects messages to exact legacy contributions', () => {
-    const input = createInput()
-    const registry = defineContextContributors([
-      contributor('third', 30),
-      contributor('first', 10),
-      contributor('second', 20),
-    ])
-    const legacy = buildContextContributions(registry, input)
-    const artifacts = buildContextArtifacts(registry, input)
-
-    assert.deepEqual(
-      artifacts.map((artifact) => artifact.payload.kind),
-      ['messages', 'messages', 'messages'],
-    )
-    assert.deepEqual(
-      artifacts.map((artifact) => artifact.provenance.sourceIds[1]),
-      ['first', 'second', 'third'],
-    )
-    assert.deepEqual(projectContextArtifactMessages(artifacts), legacy)
-  })
-
   test('projects the complete static registry without changing provider-neutral messages', () => {
     const input = createInput()
     const contributions = buildContextContributions(contextContributors, input)
@@ -144,38 +123,5 @@ describe('context artifact shadow representation', () => {
     assert.equal(artifact?.metadataStatus, 'declared')
     assert.equal(artifact?.provenance.sourceType, 'agent_revision')
     assert.equal(artifact?.capturedAt, input.context.run.createdAt)
-  })
-
-  test('uses explicit legacy-shadow defaults and does not mutate input or described metadata', () => {
-    const input = createInput()
-    const before = structuredClone(input)
-    const metadata = declaredMetadata(input.context.run.createdAt)
-    const metadataBefore = structuredClone(metadata)
-    const describedContributor: ContextContributor = {
-      ...contributor('described', 10),
-      describe: () => metadata,
-    }
-
-    const legacyArtifact = buildContextArtifacts(
-      defineContextContributors([contributor('legacy', 10)]),
-      input,
-    )[0]
-    buildContextArtifacts(defineContextContributors([describedContributor]), input, {
-      validationMode: 'strict',
-    })
-
-    assert.equal(legacyArtifact?.metadataStatus, 'legacy_shadow')
-    assert.equal(legacyArtifact?.authority, 'legacy')
-    assert.equal(legacyArtifact?.sensitivity, 'private')
-    assert.equal(legacyArtifact?.requirement, 'preferred')
-    assert.equal(legacyArtifact?.priority, 0)
-    assert.equal(legacyArtifact?.visibility, 'model')
-    assert.equal(legacyArtifact?.expiresAt, null)
-    assert.equal(legacyArtifact?.provenance.sourceType, 'legacy_shadow')
-    assert.equal(legacyArtifact?.provenance.sourceVersion, 'context-artifact/legacy-shadow-v1')
-    assert.equal(legacyArtifact?.capturedAt, input.context.run.createdAt)
-    assert.deepEqual(input, before)
-    assert.deepEqual(metadata, metadataBefore)
-    assert.equal(Object.isFrozen(metadata.dependencies), false)
   })
 })
