@@ -68,21 +68,18 @@ describe('deriveAvailableModels', () => {
 })
 
 describe('pickPreferredModel', () => {
-  test('prefers gpt-5.4 when it is available', () => {
-    expect(pickPreferredModel(['default', 'gemini-2.5-flash', 'gpt-5.4'], null)).toBe('gpt-5.4')
+  test('preserves backend default so agent model settings are not overridden', () => {
+    expect(pickPreferredModel(['default', 'gemini-2.5-flash', 'gpt-5.4'], null)).toBe('default')
   })
 
-  test('falls back to the catalog default model when gpt-5.4 is unavailable', () => {
+  test('uses the catalog default model when the inherited default option is absent', () => {
     expect(
-      pickPreferredModel(
-        ['default', 'gemini-2.5-flash'],
-        catalog({ defaultModel: 'gemini-2.5-flash' }),
-      ),
+      pickPreferredModel(['gemini-2.5-flash'], catalog({ defaultModel: 'gemini-2.5-flash' })),
     ).toBe('gemini-2.5-flash')
   })
 
-  test('falls back to the first non-default available model with no catalog', () => {
-    expect(pickPreferredModel(['default', 'gemini-2.5-flash'], null)).toBe('gemini-2.5-flash')
+  test('falls back to the first available model with no catalog', () => {
+    expect(pickPreferredModel(['gemini-2.5-flash'], null)).toBe('gemini-2.5-flash')
   })
 
   test('falls back to the backend default when nothing else is available', () => {
@@ -149,21 +146,18 @@ describe('deriveAvailableReasoningModes', () => {
 })
 
 describe('pickPreferredReasoningMode', () => {
-  test('prefers medium when available', () => {
+  test('preserves default reasoning so agent reasoning settings are not overridden', () => {
     const options = [
       { id: 'default', label: 'default' },
       { id: 'medium', label: 'Medium' },
       { id: 'high', label: 'High' },
     ]
 
-    expect(pickPreferredReasoningMode(options)).toBe('medium')
+    expect(pickPreferredReasoningMode(options)).toBe('default')
   })
 
-  test('falls back to the first explicit mode when medium is unavailable', () => {
-    const options = [
-      { id: 'default', label: 'default' },
-      { id: 'high', label: 'High' },
-    ]
+  test('falls back to the first available mode when default is unavailable', () => {
+    const options = [{ id: 'high', label: 'High' }]
 
     expect(pickPreferredReasoningMode(options)).toBe('high')
   })

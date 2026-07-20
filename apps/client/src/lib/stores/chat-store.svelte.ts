@@ -396,7 +396,6 @@ export const createChatStore = (dependencies: ChatStoreDependencies = {}) => {
 
   const preferencesState = createChatPreferencesState<ViewLease>({
     defaultModelValue: BACKEND_DEFAULT_MODEL_VALUE as ChatModel,
-    defaultReasoningValue: BACKEND_DEFAULT_REASONING_VALUE as ChatReasoningMode,
     deriveAvailableModels,
     deriveAvailableReasoningModes,
     getAccountPreferences: getAccountPreferencesImpl,

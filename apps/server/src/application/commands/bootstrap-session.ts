@@ -369,6 +369,12 @@ export const createBootstrapSessionCommand = () => ({
       const agentBinding = resolveRootRunAgentBinding(context.db, context.tenantScope, {
         agentId: targetSelection.agentId,
         useAccountDefaultAgent: targetSelection.useAccountDefaultAgent,
+        overrides: {
+          model: input.model ?? null,
+          modelAlias: input.modelAlias ?? null,
+          provider: input.provider ?? null,
+          reasoning: input.reasoning ?? null,
+        },
       })
 
       if (!agentBinding.ok) {

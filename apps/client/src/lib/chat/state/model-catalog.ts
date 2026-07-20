@@ -7,9 +7,6 @@ import type {
 import { BACKEND_DEFAULT_MODEL, BACKEND_DEFAULT_REASONING } from '@wonderlands/contracts/chat'
 import type { ChatReasoningModeOption } from '../types'
 
-const PREFERRED_DEFAULT_MODEL = 'gpt-5.4' as const
-const PREFERRED_DEFAULT_REASONING = 'medium' as const
-
 export const deriveAvailableModels = (catalog: BackendModelsCatalog): ChatModel[] => {
   const availableModels: ChatModel[] = [BACKEND_DEFAULT_MODEL]
   const seenModels = new Set<string>([BACKEND_DEFAULT_MODEL])
@@ -30,8 +27,8 @@ export const pickPreferredModel = (
   availableModels: readonly ChatModel[],
   catalog: BackendModelsCatalog | null,
 ): ChatModel => {
-  if (availableModels.includes(PREFERRED_DEFAULT_MODEL as ChatModel)) {
-    return PREFERRED_DEFAULT_MODEL as ChatModel
+  if (availableModels.includes(BACKEND_DEFAULT_MODEL as ChatModel)) {
+    return BACKEND_DEFAULT_MODEL as ChatModel
   }
 
   const catalogDefaultModel = catalog?.defaultModel as ChatModel | undefined
@@ -95,15 +92,9 @@ export const deriveAvailableReasoningModes = (
 export const pickPreferredReasoningMode = (
   availableReasoningModes: readonly ChatReasoningModeOption[],
 ): ChatReasoningMode => {
-  const explicitModes = availableReasoningModes.filter(
-    (mode) => mode.id !== BACKEND_DEFAULT_REASONING,
-  )
-
-  if (explicitModes.length === 1 && explicitModes[0]?.id === 'none') {
+  if (availableReasoningModes.some((mode) => mode.id === BACKEND_DEFAULT_REASONING)) {
     return BACKEND_DEFAULT_REASONING as ChatReasoningMode
   }
 
-  return (availableReasoningModes.find((mode) => mode.id === PREFERRED_DEFAULT_REASONING)?.id ??
-    explicitModes[0]?.id ??
-    BACKEND_DEFAULT_REASONING) as ChatReasoningMode
+  return (availableReasoningModes[0]?.id ?? BACKEND_DEFAULT_REASONING) as ChatReasoningMode
 }

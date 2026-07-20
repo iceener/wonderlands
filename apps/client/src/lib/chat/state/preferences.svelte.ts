@@ -6,13 +6,8 @@ import type {
 } from '@wonderlands/contracts/chat'
 import type { ChatReasoningModeOption, ConversationTargetMode } from '../types'
 
-interface RefreshReasoningOptions {
-  preferExplicitDefault?: boolean
-}
-
 interface PreferencesStateDependencies<Lease> {
   defaultModelValue: ChatModel
-  defaultReasoningValue: ChatReasoningMode
   deriveAvailableModels: (catalog: BackendModelsCatalog) => ChatModel[]
   deriveAvailableReasoningModes: (
     catalog: BackendModelsCatalog | null,
@@ -35,7 +30,6 @@ interface PreferencesStateDependencies<Lease> {
 
 export const createChatPreferencesState = <Lease>({
   defaultModelValue,
-  defaultReasoningValue,
   deriveAvailableModels,
   deriveAvailableReasoningModes,
   getAccountPreferences,
@@ -83,21 +77,10 @@ export const createChatPreferencesState = <Lease>({
     targetMode = 'default'
   }
 
-  const reconcileReasoningMode = (options: RefreshReasoningOptions = {}) => {
+  const reconcileReasoningMode = () => {
     const nextAvailableReasoningModes = deriveAvailableReasoningModes(modelsCatalog, chatModel)
 
-    if (
-      chatReasoningMode !== defaultReasoningValue &&
-      nextAvailableReasoningModes.some((mode) => mode.id === chatReasoningMode)
-    ) {
-      return
-    }
-
-    if (
-      chatReasoningMode === defaultReasoningValue &&
-      !options.preferExplicitDefault &&
-      nextAvailableReasoningModes.some((mode) => mode.id === chatReasoningMode)
-    ) {
+    if (nextAvailableReasoningModes.some((mode) => mode.id === chatReasoningMode)) {
       return
     }
 
@@ -151,13 +134,11 @@ export const createChatPreferencesState = <Lease>({
     modelsCatalog = catalog
     availableModels = nextAvailableModels
 
-    if (chatModel === defaultModelValue || !nextAvailableModels.includes(chatModel)) {
+    if (!nextAvailableModels.includes(chatModel)) {
       chatModel = pickPreferredModel(nextAvailableModels, catalog)
     }
 
-    reconcileReasoningMode({
-      preferExplicitDefault: chatReasoningMode === defaultReasoningValue,
-    })
+    reconcileReasoningMode()
   }
 
   return {

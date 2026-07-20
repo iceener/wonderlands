@@ -58,12 +58,15 @@ export const resolveRuntimeSettingsFromAgentRevision = (
 ): AgentRuntimeSettings => {
   const modelConfig = isPlainObject(revision.modelConfigJson) ? revision.modelConfigJson : {}
   const toolProfileId = getGrantedToolProfileId(revision) ?? fallbackToolProfileId
+  const explicitModel = overrides?.model ?? null
+  const explicitModelAlias = overrides?.modelAlias ?? null
 
   return {
     toolProfileId,
     resolvedConfigSnapshot: {
-      model: overrides?.model ?? null,
-      modelAlias: overrides?.modelAlias ?? getOptionalString(modelConfig, 'modelAlias'),
+      model: explicitModel,
+      modelAlias:
+        explicitModelAlias ?? (explicitModel ? null : getOptionalString(modelConfig, 'modelAlias')),
       provider:
         overrides?.provider ??
         (isModelProvider(modelConfig.provider) ? modelConfig.provider : null),

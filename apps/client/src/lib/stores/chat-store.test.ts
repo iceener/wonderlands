@@ -306,7 +306,7 @@ const completedInteraction = (overrides: Record<string, unknown> = {}) => ({
 describe('createChatStore', () => {
   test.each([
     {
-      name: 'prefers explicit configured defaults',
+      name: 'keeps backend defaults so the selected agent controls model settings',
       verify: async () => {
         const catalog: BackendModelsCatalog = {
           aliases: [
@@ -373,21 +373,16 @@ describe('createChatStore', () => {
           'gemini-2.5-flash',
           'gpt-5.4',
         ])
-        expect(store.chatModel).toBe('gpt-5.4')
-        expect(store.chatReasoningMode).toBe('medium')
+        expect(store.chatModel).toBe(BACKEND_DEFAULT_MODEL)
+        expect(store.chatReasoningMode).toBe('default')
         expect(store.availableReasoningModes).toEqual([
           { id: 'default', label: 'default' },
           { id: 'none', label: 'No reasoning' },
-          { id: 'minimal', label: 'Minimal' },
-          { id: 'low', label: 'Low' },
-          { id: 'medium', label: 'Medium' },
-          { id: 'high', label: 'High' },
-          { id: 'xhigh', label: 'Very high' },
         ])
       },
     },
     {
-      name: 'falls back when the preferred model is unavailable',
+      name: 'keeps backend defaults when only one provider is configured',
       verify: async () => {
         const catalog: BackendModelsCatalog = {
           aliases: [
@@ -428,7 +423,7 @@ describe('createChatStore', () => {
 
         await store.hydrate()
 
-        expect(store.chatModel).toBe('gemini-2.5-flash')
+        expect(store.chatModel).toBe(BACKEND_DEFAULT_MODEL)
         expect(store.chatReasoningMode).toBe('default')
         expect(store.availableReasoningModes).toEqual([
           { id: 'default', label: 'default' },
@@ -1926,7 +1921,7 @@ describe('createChatStore', () => {
     expect(store.messages.at(-1)?.text).toBe('Polled completion.')
   })
 
-  test('forwards hydrated model and explicit reasoning selections', async () => {
+  test('forwards only explicit model and reasoning selections', async () => {
     {
       const interactionCalls: Array<Record<string, unknown>> = []
       const catalog: BackendModelsCatalog = {
@@ -2126,8 +2121,6 @@ describe('createChatStore', () => {
 
       expect(interactionCalls).toEqual([
         {
-          model: 'gpt-5.4',
-          provider: 'openai',
           reasoning: {
             effort: 'high',
           },

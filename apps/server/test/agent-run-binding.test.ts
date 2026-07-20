@@ -207,6 +207,61 @@ test('bootstrap session binds the root run to an explicit active agent revision'
   })
 })
 
+test('bootstrap session applies an explicit model without retaining a conflicting agent alias', async () => {
+  const { app, runtime } = createTestHarness({
+    AUTH_MODE: 'api_key',
+    NODE_ENV: 'test',
+  })
+  const { accountId, headers } = seedApiKeyAuth(runtime)
+
+  seedActiveAgent(runtime, {
+    accountId,
+    agentId: 'agt_alice',
+    modelAlias: 'gpt-5.6',
+    name: 'Alice',
+    provider: 'openai',
+    reasoning: {
+      effort: 'high',
+    },
+    revisionId: 'agr_alice_v1',
+    slug: 'alice',
+  })
+
+  const response = await app.request('http://local/v1/sessions/bootstrap', {
+    body: JSON.stringify({
+      initialMessage: 'Use an explicit model for this run',
+      model: 'gpt-5.4',
+      provider: 'openai',
+      target: {
+        agentId: 'agt_alice',
+        kind: 'agent',
+      },
+    }),
+    headers: {
+      ...headers,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  })
+  const body = await response.json()
+
+  assert.equal(response.status, 201)
+  assert.equal(body.ok, true)
+
+  const runRow = runtime.db.select().from(runs).where(eq(runs.id, body.data.runId)).get()
+
+  assert.deepEqual(runRow?.configSnapshot, {
+    apiBasePath: '/api',
+    model: 'gpt-5.4',
+    modelAlias: null,
+    provider: 'openai',
+    reasoning: {
+      effort: 'high',
+    },
+    version: 'v1',
+  })
+})
+
 test('thread interaction falls back to the current account default agent when target is omitted', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',
