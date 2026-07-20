@@ -973,3 +973,18 @@ test('buildSandboxBashWrapperScript mounts read-only roots at their virtual moun
     true,
   )
 })
+
+test('buildSandboxBashWrapperScript tolerates only post-copy chmod permission failures', () => {
+  const script = buildSandboxBashWrapperScript({
+    cwd: '/vault/wonderlands',
+    mountVault: true,
+    network: { mode: 'off' },
+    script: 'cp public/image.jpg /output/image.jpg',
+    vaultWritable: false,
+  })
+
+  assert.match(script, /class SandboxMountableFs extends MountableFs/)
+  assert.match(script, /async crossMountCopy\(source, target, options\)/)
+  assert.match(script, /!isNodePermissionDenied\(error\) \|\| !\(await this\.exists\(target\)\)/)
+  assert.match(script, /const fs = new SandboxMountableFs/)
+})

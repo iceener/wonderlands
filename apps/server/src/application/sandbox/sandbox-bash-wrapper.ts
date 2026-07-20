@@ -41,7 +41,61 @@ export const buildSandboxBashWrapperScript = (input: {
   return `
 import { Bash, InMemoryFs, MountableFs, OverlayFs, ReadWriteFs } from "just-bash";
 
-const fs = new MountableFs({ base: new InMemoryFs() });
+const isNodePermissionDenied = (error) => {
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  return code === "ERR_ACCESS_DENIED" || message.includes("ERR_ACCESS_DENIED") || message.includes("Access to this API has been restricted");
+};
+
+const joinVirtualPath = (parent, child) =>
+  parent === "/" ? "/" + child : parent.replace(/\\/+$/, "") + "/" + child;
+
+// just-bash preserves mode bits after a cross-mount copy. Node's permission model can
+// reject that optional chmod even though the destination was safely written inside the
+// sandbox. Keep normal chmod behavior, but tolerate only this post-copy metadata failure.
+class SandboxMountableFs extends MountableFs {
+  async crossMountCopy(source, target, options) {
+    const sourceStat = await this.lstat(source);
+
+    if (sourceStat.isFile) {
+      const body = await this.readFileBuffer(source);
+      await this.writeFile(target, body);
+
+      try {
+        await this.chmod(target, sourceStat.mode);
+      } catch (error) {
+        if (!isNodePermissionDenied(error) || !(await this.exists(target))) {
+          throw error;
+        }
+      }
+      return;
+    }
+
+    if (sourceStat.isDirectory) {
+      if (!options?.recursive) {
+        throw new Error("cp: " + source + " is a directory (not copied)");
+      }
+
+      await this.mkdir(target, { recursive: true });
+      const entries = await this.readdir(source);
+      for (const entry of entries) {
+        await this.crossMountCopy(
+          joinVirtualPath(source, entry),
+          joinVirtualPath(target, entry),
+          options,
+        );
+      }
+      return;
+    }
+
+    if (sourceStat.isSymbolicLink) {
+      const linkTarget = await this.readlink(source);
+      await this.symlink(linkTarget, target);
+    }
+  }
+}
+
+const fs = new SandboxMountableFs({ base: new InMemoryFs() });
 fs.mount("/input", new OverlayFs({ root: "/input", mountPoint: "/", readOnly: true }));
 fs.mount("/work", new ReadWriteFs({ root: "/work" }));
 fs.mount("/output", new ReadWriteFs({ root: "/output" }));
