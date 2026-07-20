@@ -188,149 +188,150 @@ test('patch account preferences route switches the default target between agent 
   assert.equal(resetPreferences?.shortcutBindings, null)
 })
 
-test('patch account preferences route stores normalized shortcut overrides and returns only overrides', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
+test('account preference shortcut overrides validate, normalize, and reset bindings', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
 
-  const response = await app.request('http://local/v1/account/preferences', {
-    body: JSON.stringify({
-      shortcutBindings: {
-        'chat.new-conversation': ' cmd + shift + n ',
-        'settings.cycle-model': '',
-      },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
-  const body = await response.json()
-
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.deepEqual(body.data.shortcutBindings, {
-    'chat.new-conversation': 'Mod+Shift+N',
-    'settings.cycle-model': null,
-  })
-
-  const storedPreferences = runtime.db.select().from(accountPreferences).get()
-  assert.deepEqual(JSON.parse(storedPreferences?.shortcutBindings ?? '{}'), {
-    'chat.new-conversation': 'Mod+Shift+N',
-    'settings.cycle-model': null,
-  })
-})
-
-test('patch account preferences route rejects unknown or conflicting shortcut bindings', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-
-  const unknownActionResponse = await app.request('http://local/v1/account/preferences', {
-    body: JSON.stringify({
-      shortcutBindings: {
-        'chat.not-real': 'Mod+Shift+N',
-      },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
-  const unknownActionBody = await unknownActionResponse.json()
-
-  assert.equal(unknownActionResponse.status, 400)
-  assert.equal(unknownActionBody.error.type, 'validation')
-  assert.match(unknownActionBody.error.message, /not rebindable/i)
-
-  const conflictResponse = await app.request('http://local/v1/account/preferences', {
-    body: JSON.stringify({
-      shortcutBindings: {
-        'chat.new-conversation': 'Mod+K',
-      },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
-  const conflictBody = await conflictResponse.json()
-
-  assert.equal(conflictResponse.status, 400)
-  assert.equal(conflictBody.error.type, 'validation')
-  assert.match(conflictBody.error.message, /palette\.toggle/)
-})
-
-test('shortcut reset route removes selected overrides or clears them all', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-
-  const updateResponse = await app.request('http://local/v1/account/preferences', {
-    body: JSON.stringify({
-      shortcutBindings: {
-        'chat.new-conversation': 'Mod+Shift+N',
-        'settings.cycle-model': null,
-      },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
-
-  assert.equal(updateResponse.status, 200)
-
-  const resetOneResponse = await app.request(
-    'http://local/v1/account/preferences/shortcuts/reset',
-    {
+    const response = await app.request('http://local/v1/account/preferences', {
       body: JSON.stringify({
-        actionIds: ['chat.new-conversation'],
+        shortcutBindings: {
+          'chat.new-conversation': ' cmd + shift + n ',
+          'settings.cycle-model': '',
+        },
       }),
       headers: {
         ...headers,
         'content-type': 'application/json',
       },
-      method: 'POST',
-    },
-  )
-  const resetOneBody = await resetOneResponse.json()
+      method: 'PATCH',
+    })
+    const body = await response.json()
 
-  assert.equal(resetOneResponse.status, 200)
-  assert.deepEqual(resetOneBody.data.shortcutBindings, {
-    'settings.cycle-model': null,
-  })
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.deepEqual(body.data.shortcutBindings, {
+      'chat.new-conversation': 'Mod+Shift+N',
+      'settings.cycle-model': null,
+    })
 
-  const resetAllResponse = await app.request(
-    'http://local/v1/account/preferences/shortcuts/reset',
-    {
-      body: JSON.stringify({}),
+    const storedPreferences = runtime.db.select().from(accountPreferences).get()
+    assert.deepEqual(JSON.parse(storedPreferences?.shortcutBindings ?? '{}'), {
+      'chat.new-conversation': 'Mod+Shift+N',
+      'settings.cycle-model': null,
+    })
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+
+    const unknownActionResponse = await app.request('http://local/v1/account/preferences', {
+      body: JSON.stringify({
+        shortcutBindings: {
+          'chat.not-real': 'Mod+Shift+N',
+        },
+      }),
       headers: {
         ...headers,
         'content-type': 'application/json',
       },
-      method: 'POST',
-    },
-  )
-  const resetAllBody = await resetAllResponse.json()
+      method: 'PATCH',
+    })
+    const unknownActionBody = await unknownActionResponse.json()
 
-  assert.equal(resetAllResponse.status, 200)
-  assert.deepEqual(resetAllBody.data.shortcutBindings, {})
+    assert.equal(unknownActionResponse.status, 400)
+    assert.equal(unknownActionBody.error.type, 'validation')
+    assert.match(unknownActionBody.error.message, /not rebindable/i)
 
-  const storedPreferences = runtime.db.select().from(accountPreferences).get()
-  assert.equal(storedPreferences?.shortcutBindings, null)
+    const conflictResponse = await app.request('http://local/v1/account/preferences', {
+      body: JSON.stringify({
+        shortcutBindings: {
+          'chat.new-conversation': 'Mod+K',
+        },
+      }),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
+      },
+      method: 'PATCH',
+    })
+    const conflictBody = await conflictResponse.json()
+
+    assert.equal(conflictResponse.status, 400)
+    assert.equal(conflictBody.error.type, 'validation')
+    assert.match(conflictBody.error.message, /palette\.toggle/)
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+
+    const updateResponse = await app.request('http://local/v1/account/preferences', {
+      body: JSON.stringify({
+        shortcutBindings: {
+          'chat.new-conversation': 'Mod+Shift+N',
+          'settings.cycle-model': null,
+        },
+      }),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
+      },
+      method: 'PATCH',
+    })
+
+    assert.equal(updateResponse.status, 200)
+
+    const resetOneResponse = await app.request(
+      'http://local/v1/account/preferences/shortcuts/reset',
+      {
+        body: JSON.stringify({
+          actionIds: ['chat.new-conversation'],
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const resetOneBody = await resetOneResponse.json()
+
+    assert.equal(resetOneResponse.status, 200)
+    assert.deepEqual(resetOneBody.data.shortcutBindings, {
+      'settings.cycle-model': null,
+    })
+
+    const resetAllResponse = await app.request(
+      'http://local/v1/account/preferences/shortcuts/reset',
+      {
+        body: JSON.stringify({}),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const resetAllBody = await resetAllResponse.json()
+
+    assert.equal(resetAllResponse.status, 200)
+    assert.deepEqual(resetAllBody.data.shortcutBindings, {})
+
+    const storedPreferences = runtime.db.select().from(accountPreferences).get()
+    assert.equal(storedPreferences?.shortcutBindings, null)
+  }
 })
-
 test('bootstrap session respects an explicit assistant target even when the account default target is an agent', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',

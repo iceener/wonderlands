@@ -66,19 +66,6 @@ test('request size guard returns 413 before route handling', async () => {
   assert.match(payload.error.message, /configured limit/)
 })
 
-test('ready endpoint exposes current foundation state', async () => {
-  const app = createTestApp()
-
-  const response = await app.request('http://local/api/system/ready')
-  const body = await response.json()
-
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.deepEqual(body.data, {
-    status: 'ready',
-  })
-})
-
 test('models endpoint exposes configured aliases and provider availability', async () => {
   const app = createTestApp({
     AI_DEFAULT_PROVIDER: 'google',

@@ -399,51 +399,52 @@ test('post thread message appends a visible user message without creating a run'
   assert.equal(eventRows.at(-1)?.type, 'message.posted')
 })
 
-test('get thread route returns the latest root work item read model', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
+test('thread detail and listing expose the latest root work item read model', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
 
-  const response = await app.request(`http://local/v1/threads/${bootstrap.data.threadId}`, {
-    headers,
-    method: 'GET',
-  })
-  const body = await response.json()
+    const response = await app.request(`http://local/v1/threads/${bootstrap.data.threadId}`, {
+      headers,
+      method: 'GET',
+    })
+    const body = await response.json()
 
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.equal(body.data.id, bootstrap.data.threadId)
-  assert.equal(body.data.rootJob?.currentRunId, bootstrap.data.runId)
-  assert.equal(body.data.rootJob?.status, 'queued')
-  assert.equal(body.data.rootJob?.parentJobId, null)
-  assert.equal(body.data.rootJob?.edges.length, 0)
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.equal(body.data.id, bootstrap.data.threadId)
+    assert.equal(body.data.rootJob?.currentRunId, bootstrap.data.runId)
+    assert.equal(body.data.rootJob?.status, 'queued')
+    assert.equal(body.data.rootJob?.parentJobId, null)
+    assert.equal(body.data.rootJob?.edges.length, 0)
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
+
+    const response = await app.request('http://local/v1/threads?limit=5', {
+      headers,
+    })
+    const body = await response.json()
+    const listedThread = body.data.threads.find(
+      (thread: { id: string }) => thread.id === bootstrap.data.threadId,
+    )
+
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.equal(listedThread?.rootJob?.currentRunId, bootstrap.data.runId)
+    assert.equal(listedThread?.rootJob?.status, 'queued')
+  }
 })
-
-test('list threads includes the latest root work item read model when present', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-
-  const response = await app.request('http://local/v1/threads?limit=5', {
-    headers,
-  })
-  const body = await response.json()
-  const listedThread = body.data.threads.find(
-    (thread: { id: string }) => thread.id === bootstrap.data.threadId,
-  )
-
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.equal(listedThread?.rootJob?.currentRunId, bootstrap.data.runId)
-  assert.equal(listedThread?.rootJob?.status, 'queued')
-})
-
 test('list threads is scoped to the current account, including admin callers', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',
@@ -787,627 +788,594 @@ test('list thread activity is account-scoped, root-only, ordered, and derives ap
   assert.equal(adminBody.data.threads[0]?.activity.state, 'running')
 })
 
-test('list thread activity respects completed_within_minutes=0', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-  const completedAt = minutesAgo(runtime.services.clock.nowIso(), 5)
+test('seen activity tracks completed and failed root-run generations', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { accountId, headers, tenantId } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
+    const completedAt = minutesAgo(runtime.services.clock.nowIso(), 5)
 
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      completedAt,
-      status: 'completed',
-      updatedAt: completedAt,
-    },
-    runPatch: {
-      completedAt,
-      lastProgressAt: completedAt,
-      status: 'completed',
-      updatedAt: completedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const response = await app.request(
-    'http://local/v1/threads/activity?completed_within_minutes=0',
-    {
-      headers,
-    },
-  )
-  const body = await response.json()
-
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.deepEqual(body.data.threads, [])
-})
-
-test('marking thread activity seen hides the current completed generation', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { accountId, headers, tenantId } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-  const completedAt = minutesAgo(runtime.services.clock.nowIso(), 5)
-
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      completedAt,
-      status: 'completed',
-      updatedAt: completedAt,
-    },
-    runPatch: {
-      completedAt,
-      lastProgressAt: completedAt,
-      status: 'completed',
-      updatedAt: completedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const seenResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
-    {
-      headers,
-      method: 'POST',
-    },
-  )
-
-  assert.equal(seenResponse.status, 204)
-
-  const seenRow = runtime.db
-    .select()
-    .from(accountThreadActivitySeen)
-    .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
-    .get()
-
-  assert.deepEqual(seenRow, {
-    accountId,
-    seenCompletedAt: completedAt,
-    seenCompletedRunId: bootstrap.data.runId,
-    tenantId,
-    threadId: bootstrap.data.threadId,
-    updatedAt: seenRow?.updatedAt,
-  })
-  assert.ok(typeof seenRow?.updatedAt === 'string' && seenRow.updatedAt.length > 0)
-
-  const activityResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const activityBody = await activityResponse.json()
-
-  assert.equal(activityResponse.status, 200)
-  assert.equal(activityBody.ok, true)
-  assert.deepEqual(activityBody.data.threads, [])
-})
-
-test('seen completed activity reappears after a new root run completes', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-  const firstCompletedAt = minutesAgo(runtime.services.clock.nowIso(), 10)
-
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      completedAt: firstCompletedAt,
-      status: 'completed',
-      updatedAt: firstCompletedAt,
-    },
-    runPatch: {
-      completedAt: firstCompletedAt,
-      lastProgressAt: firstCompletedAt,
-      status: 'completed',
-      updatedAt: firstCompletedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const seenResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
-    {
-      headers,
-      method: 'POST',
-    },
-  )
-
-  assert.equal(seenResponse.status, 204)
-
-  const hiddenActivityResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const hiddenActivityBody = await hiddenActivityResponse.json()
-
-  assert.equal(hiddenActivityResponse.status, 200)
-  assert.equal(hiddenActivityBody.ok, true)
-  assert.deepEqual(hiddenActivityBody.data.threads, [])
-
-  const secondInteractionResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
-    {
-      body: JSON.stringify({
-        text: 'Continue from the finished result with a narrower plan.',
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
+    updateRootThreadActivity(runtime, {
+      jobPatch: {
+        completedAt,
+        status: 'completed',
+        updatedAt: completedAt,
       },
-      method: 'POST',
-    },
-  )
-  const secondInteractionBody = await secondInteractionResponse.json()
-
-  assert.equal(secondInteractionResponse.status, 202)
-  assert.notEqual(secondInteractionBody.data.runId, bootstrap.data.runId)
-
-  const activeActivityResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const activeActivityBody = await activeActivityResponse.json()
-
-  assert.equal(activeActivityResponse.status, 200)
-  assert.equal(activeActivityBody.ok, true)
-  assert.deepEqual(
-    activeActivityBody.data.threads.map((thread: { id: string }) => thread.id),
-    [bootstrap.data.threadId],
-  )
-  assert.equal(activeActivityBody.data.threads[0]?.activity.state, 'pending')
-
-  const secondCompletedAt = minutesAgo(runtime.services.clock.nowIso(), 1)
-
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      completedAt: secondCompletedAt,
-      status: 'completed',
-      updatedAt: secondCompletedAt,
-    },
-    runPatch: {
-      completedAt: secondCompletedAt,
-      lastProgressAt: secondCompletedAt,
-      status: 'completed',
-      updatedAt: secondCompletedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const completedAgainResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const completedAgainBody = await completedAgainResponse.json()
-
-  assert.equal(completedAgainResponse.status, 200)
-  assert.equal(completedAgainBody.ok, true)
-  assert.deepEqual(
-    completedAgainBody.data.threads.map((thread: { id: string }) => thread.id),
-    [bootstrap.data.threadId],
-  )
-  assert.deepEqual(completedAgainBody.data.threads[0]?.activity, {
-    completedAt: secondCompletedAt,
-    label: 'Done',
-    state: 'completed',
-    updatedAt: secondCompletedAt,
-  })
-
-  const seenRow = runtime.db
-    .select()
-    .from(accountThreadActivitySeen)
-    .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
-    .get()
-
-  assert.equal(seenRow?.seenCompletedRunId, bootstrap.data.runId)
-})
-
-test('seen failed activity is hidden until a later failed run creates a new generation', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-  const firstFailedAt = minutesAgo(runtime.services.clock.nowIso(), 10)
-
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      status: 'blocked',
-      updatedAt: firstFailedAt,
-    },
-    runPatch: {
-      completedAt: firstFailedAt,
-      lastProgressAt: firstFailedAt,
-      status: 'failed',
-      updatedAt: firstFailedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const seenResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
-    {
-      headers,
-      method: 'POST',
-    },
-  )
-
-  assert.equal(seenResponse.status, 204)
-
-  const hiddenActivityResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const hiddenActivityBody = await hiddenActivityResponse.json()
-
-  assert.equal(hiddenActivityResponse.status, 200)
-  assert.equal(hiddenActivityBody.ok, true)
-  assert.deepEqual(hiddenActivityBody.data.threads, [])
-
-  const secondInteractionResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
-    {
-      body: JSON.stringify({
-        text: 'Retry the failed image request with a corrected schema.',
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
+      runPatch: {
+        completedAt,
+        lastProgressAt: completedAt,
+        status: 'completed',
+        updatedAt: completedAt,
       },
-      method: 'POST',
-    },
-  )
-  const secondInteractionBody = await secondInteractionResponse.json()
-
-  assert.equal(secondInteractionResponse.status, 202)
-  assert.notEqual(secondInteractionBody.data.runId, bootstrap.data.runId)
-
-  const secondFailedAt = minutesAgo(runtime.services.clock.nowIso(), 1)
-
-  updateRootThreadActivity(runtime, {
-    jobPatch: {
-      status: 'blocked',
-      updatedAt: secondFailedAt,
-    },
-    runPatch: {
-      completedAt: secondFailedAt,
-      lastProgressAt: secondFailedAt,
-      status: 'failed',
-      updatedAt: secondFailedAt,
-    },
-    threadId: bootstrap.data.threadId,
-  })
-
-  const failedAgainResponse = await app.request('http://local/v1/threads/activity', {
-    headers,
-  })
-  const failedAgainBody = await failedAgainResponse.json()
-
-  assert.equal(failedAgainResponse.status, 200)
-  assert.equal(failedAgainBody.ok, true)
-  assert.deepEqual(
-    failedAgainBody.data.threads.map((thread: { id: string }) => thread.id),
-    [bootstrap.data.threadId],
-  )
-  assert.deepEqual(failedAgainBody.data.threads[0]?.activity, {
-    completedAt: null,
-    label: 'Failed',
-    state: 'failed',
-    updatedAt: secondFailedAt,
-  })
-
-  const seenRow = runtime.db
-    .select()
-    .from(accountThreadActivitySeen)
-    .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
-    .get()
-
-  assert.equal(seenRow?.seenCompletedRunId, bootstrap.data.runId)
-})
-
-test('post thread message reopens the latest completed root work item once when new information arrives', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-
-  runtime.services.ai.interactions.generate = async () =>
-    ok({
-      messages: [
-        {
-          content: [
-            { text: 'Bootstrap run completed before the follow-up message.', type: 'text' },
-          ],
-          role: 'assistant',
-        },
-      ],
-      model: 'gpt-5.4',
-      output: [
-        {
-          content: [
-            { text: 'Bootstrap run completed before the follow-up message.', type: 'text' },
-          ],
-          role: 'assistant',
-          providerMessageId: 'msg_bootstrap_completed',
-          type: 'message',
-        },
-      ],
-      outputText: 'Bootstrap run completed before the follow-up message.',
-      provider: 'openai',
-      providerRequestId: 'req_bootstrap_completed',
-      raw: { stub: true },
-      responseId: 'resp_bootstrap_completed',
-      status: 'completed',
-      toolCalls: [],
-      usage: {
-        cachedTokens: 0,
-        inputTokens: 64,
-        outputTokens: 14,
-        reasoningTokens: 0,
-        totalTokens: 78,
-      },
+      threadId: bootstrap.data.threadId,
     })
 
-  const executeResponse = await app.request(
-    `http://local/v1/runs/${bootstrap.data.runId}/execute`,
-    {
-      body: JSON.stringify({}),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
+    const seenResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
+      {
+        headers,
+        method: 'POST',
       },
-      method: 'POST',
-    },
-  )
-
-  assert.equal(executeResponse.status, 200)
-
-  const firstMessageResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
-    {
-      body: JSON.stringify({
-        text: 'Use that completed result, but continue with a narrower delivery plan.',
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    },
-  )
-  const firstMessageBody = await firstMessageResponse.json()
-
-  assert.equal(firstMessageResponse.status, 201)
-
-  const secondMessageResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
-    {
-      body: JSON.stringify({
-        text: 'Do not reopen the same work item twice while it is already ready.',
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    },
-  )
-
-  assert.equal(secondMessageResponse.status, 201)
-
-  const rootJob = runtime.db
-    .select()
-    .from(jobs)
-    .all()
-    .find(
-      (workItem) => workItem.threadId === bootstrap.data.threadId && workItem.parentJobId === null,
     )
-  const reopenedEvents = runtime.db
-    .select()
-    .from(domainEvents)
-    .all()
-    .filter((event) => event.type === 'job.requeued')
 
-  assert.equal(rootJob?.status, 'queued')
-  assert.equal(rootJob?.completedAt, null)
-  assert.equal(
-    (rootJob?.statusReasonJson as { reason?: string } | null)?.reason,
-    'new_user_message',
-  )
-  assert.equal(
-    (rootJob?.statusReasonJson as { messageId?: string } | null)?.messageId,
-    firstMessageBody.data.messageId,
-  )
-  assert.equal(reopenedEvents.length, 1)
-  assert.equal(
-    (reopenedEvents[0]?.payload as { messageId?: string } | null)?.messageId,
-    firstMessageBody.data.messageId,
-  )
-})
+    assert.equal(seenResponse.status, 204)
 
-test('thread interaction reuses an already reopened root work item when resuming from a posted message', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
+    const seenRow = runtime.db
+      .select()
+      .from(accountThreadActivitySeen)
+      .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
+      .get()
 
-  runtime.services.ai.interactions.generate = async () =>
-    ok({
-      messages: [
-        {
-          content: [
-            { text: 'Bootstrap run completed before reusing the graph root.', type: 'text' },
-          ],
-          role: 'assistant',
-        },
-      ],
-      model: 'gpt-5.4',
-      output: [
-        {
-          content: [
-            { text: 'Bootstrap run completed before reusing the graph root.', type: 'text' },
-          ],
-          role: 'assistant',
-          providerMessageId: 'msg_graph_root_bootstrap',
-          type: 'message',
-        },
-      ],
-      outputText: 'Bootstrap run completed before reusing the graph root.',
-      provider: 'openai',
-      providerRequestId: 'req_graph_root_bootstrap',
-      raw: { stub: true },
-      responseId: 'resp_graph_root_bootstrap',
-      status: 'completed',
-      toolCalls: [],
-      usage: {
-        cachedTokens: 0,
-        inputTokens: 64,
-        outputTokens: 14,
-        reasoningTokens: 0,
-        totalTokens: 78,
-      },
+    assert.deepEqual(seenRow, {
+      accountId,
+      seenCompletedAt: completedAt,
+      seenCompletedRunId: bootstrap.data.runId,
+      tenantId,
+      threadId: bootstrap.data.threadId,
+      updatedAt: seenRow?.updatedAt,
     })
+    assert.ok(typeof seenRow?.updatedAt === 'string' && seenRow.updatedAt.length > 0)
 
-  const bootstrapExecute = await app.request(
-    `http://local/v1/runs/${bootstrap.data.runId}/execute`,
-    {
-      body: JSON.stringify({}),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    },
-  )
-
-  assert.equal(bootstrapExecute.status, 200)
-
-  const messageResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
-    {
-      body: JSON.stringify({
-        text: 'Use the reopened root instead of creating a new one.',
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    },
-  )
-  const messageBody = await messageResponse.json()
-
-  assert.equal(messageResponse.status, 201)
-
-  runtime.services.ai.interactions.generate = async (request) => {
-    assert.equal(request.messages.at(-1)?.role, 'user')
-    assert.deepEqual(request.messages.at(-1)?.content, [
-      { text: 'Use the reopened root instead of creating a new one.', type: 'text' },
-    ])
-
-    return ok({
-      messages: [
-        {
-          content: [{ text: 'The interaction reused the reopened work item.', type: 'text' }],
-          role: 'assistant',
-        },
-      ],
-      model: 'gpt-5.4',
-      output: [
-        {
-          content: [{ text: 'The interaction reused the reopened work item.', type: 'text' }],
-          role: 'assistant',
-          providerMessageId: 'msg_graph_root_reuse',
-          type: 'message',
-        },
-      ],
-      outputText: 'The interaction reused the reopened work item.',
-      provider: 'openai',
-      providerRequestId: 'req_graph_root_reuse',
-      raw: { stub: true },
-      responseId: 'resp_graph_root_reuse',
-      status: 'completed',
-      toolCalls: [],
-      usage: {
-        cachedTokens: 0,
-        inputTokens: 66,
-        outputTokens: 16,
-        reasoningTokens: 0,
-        totalTokens: 82,
-      },
+    const activityResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
     })
+    const activityBody = await activityResponse.json()
+
+    assert.equal(activityResponse.status, 200)
+    assert.equal(activityBody.ok, true)
+    assert.deepEqual(activityBody.data.threads, [])
   }
 
-  const interactionResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
-    {
-      body: JSON.stringify({
-        messageId: messageBody.data.messageId,
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
+    const firstCompletedAt = minutesAgo(runtime.services.clock.nowIso(), 10)
+
+    updateRootThreadActivity(runtime, {
+      jobPatch: {
+        completedAt: firstCompletedAt,
+        status: 'completed',
+        updatedAt: firstCompletedAt,
       },
-      method: 'POST',
-    },
-  )
-  const interactionBody = await interactionResponse.json()
-
-  assert.equal(interactionResponse.status, 202)
-
-  const interactionExecute = await app.request(
-    `http://local/v1/runs/${interactionBody.data.runId}/execute`,
-    {
-      body: JSON.stringify({}),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
+      runPatch: {
+        completedAt: firstCompletedAt,
+        lastProgressAt: firstCompletedAt,
+        status: 'completed',
+        updatedAt: firstCompletedAt,
       },
-      method: 'POST',
-    },
-  )
+      threadId: bootstrap.data.threadId,
+    })
 
-  assert.equal(interactionExecute.status, 200)
-
-  const workItemRows = runtime.db
-    .select()
-    .from(jobs)
-    .all()
-    .filter(
-      (workItem) => workItem.threadId === bootstrap.data.threadId && workItem.parentJobId === null,
+    const seenResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
+      {
+        headers,
+        method: 'POST',
+      },
     )
-  const rootJob = workItemRows[0]
-  const createdEvents = runtime.db
-    .select()
-    .from(domainEvents)
-    .all()
-    .filter((event) => event.type === 'job.created')
-  const reopenedEvents = runtime.db
-    .select()
-    .from(domainEvents)
-    .all()
-    .filter((event) => event.type === 'job.requeued')
-  const runRows = runtime.db.select().from(runs).all()
-  const bootstrapRun = runRows.find((run) => run.id === bootstrap.data.runId)
-  const interactionRun = runRows.find((run) => run.id === interactionBody.data.runId)
 
-  assert.equal(workItemRows.length, 1)
-  assert.equal(rootJob?.id, bootstrapRun?.jobId)
-  assert.equal(rootJob?.id, interactionRun?.jobId)
-  assert.equal(rootJob?.currentRunId, interactionBody.data.runId)
-  assert.equal(rootJob?.status, 'completed')
-  assert.equal(createdEvents.length, 1)
-  assert.equal(reopenedEvents.length, 1)
-  assert.equal(
-    (reopenedEvents[0]?.payload as { messageId?: string } | null)?.messageId,
-    messageBody.data.messageId,
-  )
+    assert.equal(seenResponse.status, 204)
+
+    const hiddenActivityResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
+    })
+    const hiddenActivityBody = await hiddenActivityResponse.json()
+
+    assert.equal(hiddenActivityResponse.status, 200)
+    assert.equal(hiddenActivityBody.ok, true)
+    assert.deepEqual(hiddenActivityBody.data.threads, [])
+
+    const secondInteractionResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
+      {
+        body: JSON.stringify({
+          text: 'Continue from the finished result with a narrower plan.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const secondInteractionBody = await secondInteractionResponse.json()
+
+    assert.equal(secondInteractionResponse.status, 202)
+    assert.notEqual(secondInteractionBody.data.runId, bootstrap.data.runId)
+
+    const activeActivityResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
+    })
+    const activeActivityBody = await activeActivityResponse.json()
+
+    assert.equal(activeActivityResponse.status, 200)
+    assert.equal(activeActivityBody.ok, true)
+    assert.deepEqual(
+      activeActivityBody.data.threads.map((thread: { id: string }) => thread.id),
+      [bootstrap.data.threadId],
+    )
+    assert.equal(activeActivityBody.data.threads[0]?.activity.state, 'pending')
+
+    const secondCompletedAt = minutesAgo(runtime.services.clock.nowIso(), 1)
+
+    updateRootThreadActivity(runtime, {
+      jobPatch: {
+        completedAt: secondCompletedAt,
+        status: 'completed',
+        updatedAt: secondCompletedAt,
+      },
+      runPatch: {
+        completedAt: secondCompletedAt,
+        lastProgressAt: secondCompletedAt,
+        status: 'completed',
+        updatedAt: secondCompletedAt,
+      },
+      threadId: bootstrap.data.threadId,
+    })
+
+    const completedAgainResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
+    })
+    const completedAgainBody = await completedAgainResponse.json()
+
+    assert.equal(completedAgainResponse.status, 200)
+    assert.equal(completedAgainBody.ok, true)
+    assert.deepEqual(
+      completedAgainBody.data.threads.map((thread: { id: string }) => thread.id),
+      [bootstrap.data.threadId],
+    )
+    assert.deepEqual(completedAgainBody.data.threads[0]?.activity, {
+      completedAt: secondCompletedAt,
+      label: 'Done',
+      state: 'completed',
+      updatedAt: secondCompletedAt,
+    })
+
+    const seenRow = runtime.db
+      .select()
+      .from(accountThreadActivitySeen)
+      .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
+      .get()
+
+    assert.equal(seenRow?.seenCompletedRunId, bootstrap.data.runId)
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
+    const firstFailedAt = minutesAgo(runtime.services.clock.nowIso(), 10)
+
+    updateRootThreadActivity(runtime, {
+      jobPatch: {
+        status: 'blocked',
+        updatedAt: firstFailedAt,
+      },
+      runPatch: {
+        completedAt: firstFailedAt,
+        lastProgressAt: firstFailedAt,
+        status: 'failed',
+        updatedAt: firstFailedAt,
+      },
+      threadId: bootstrap.data.threadId,
+    })
+
+    const seenResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/activity/seen`,
+      {
+        headers,
+        method: 'POST',
+      },
+    )
+
+    assert.equal(seenResponse.status, 204)
+
+    const hiddenActivityResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
+    })
+    const hiddenActivityBody = await hiddenActivityResponse.json()
+
+    assert.equal(hiddenActivityResponse.status, 200)
+    assert.equal(hiddenActivityBody.ok, true)
+    assert.deepEqual(hiddenActivityBody.data.threads, [])
+
+    const secondInteractionResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
+      {
+        body: JSON.stringify({
+          text: 'Retry the failed image request with a corrected schema.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const secondInteractionBody = await secondInteractionResponse.json()
+
+    assert.equal(secondInteractionResponse.status, 202)
+    assert.notEqual(secondInteractionBody.data.runId, bootstrap.data.runId)
+
+    const secondFailedAt = minutesAgo(runtime.services.clock.nowIso(), 1)
+
+    updateRootThreadActivity(runtime, {
+      jobPatch: {
+        status: 'blocked',
+        updatedAt: secondFailedAt,
+      },
+      runPatch: {
+        completedAt: secondFailedAt,
+        lastProgressAt: secondFailedAt,
+        status: 'failed',
+        updatedAt: secondFailedAt,
+      },
+      threadId: bootstrap.data.threadId,
+    })
+
+    const failedAgainResponse = await app.request('http://local/v1/threads/activity', {
+      headers,
+    })
+    const failedAgainBody = await failedAgainResponse.json()
+
+    assert.equal(failedAgainResponse.status, 200)
+    assert.equal(failedAgainBody.ok, true)
+    assert.deepEqual(
+      failedAgainBody.data.threads.map((thread: { id: string }) => thread.id),
+      [bootstrap.data.threadId],
+    )
+    assert.deepEqual(failedAgainBody.data.threads[0]?.activity, {
+      completedAt: null,
+      label: 'Failed',
+      state: 'failed',
+      updatedAt: secondFailedAt,
+    })
+
+    const seenRow = runtime.db
+      .select()
+      .from(accountThreadActivitySeen)
+      .where(eq(accountThreadActivitySeen.threadId, bootstrap.data.threadId))
+      .get()
+
+    assert.equal(seenRow?.seenCompletedRunId, bootstrap.data.runId)
+  }
 })
+test('posting new information reopens and then reuses the latest root work item', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
 
+    runtime.services.ai.interactions.generate = async () =>
+      ok({
+        messages: [
+          {
+            content: [
+              { text: 'Bootstrap run completed before the follow-up message.', type: 'text' },
+            ],
+            role: 'assistant',
+          },
+        ],
+        model: 'gpt-5.4',
+        output: [
+          {
+            content: [
+              { text: 'Bootstrap run completed before the follow-up message.', type: 'text' },
+            ],
+            role: 'assistant',
+            providerMessageId: 'msg_bootstrap_completed',
+            type: 'message',
+          },
+        ],
+        outputText: 'Bootstrap run completed before the follow-up message.',
+        provider: 'openai',
+        providerRequestId: 'req_bootstrap_completed',
+        raw: { stub: true },
+        responseId: 'resp_bootstrap_completed',
+        status: 'completed',
+        toolCalls: [],
+        usage: {
+          cachedTokens: 0,
+          inputTokens: 64,
+          outputTokens: 14,
+          reasoningTokens: 0,
+          totalTokens: 78,
+        },
+      })
+
+    const executeResponse = await app.request(
+      `http://local/v1/runs/${bootstrap.data.runId}/execute`,
+      {
+        body: JSON.stringify({}),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+
+    assert.equal(executeResponse.status, 200)
+
+    const firstMessageResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
+      {
+        body: JSON.stringify({
+          text: 'Use that completed result, but continue with a narrower delivery plan.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const firstMessageBody = await firstMessageResponse.json()
+
+    assert.equal(firstMessageResponse.status, 201)
+
+    const secondMessageResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
+      {
+        body: JSON.stringify({
+          text: 'Do not reopen the same work item twice while it is already ready.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+
+    assert.equal(secondMessageResponse.status, 201)
+
+    const rootJob = runtime.db
+      .select()
+      .from(jobs)
+      .all()
+      .find(
+        (workItem) =>
+          workItem.threadId === bootstrap.data.threadId && workItem.parentJobId === null,
+      )
+    const reopenedEvents = runtime.db
+      .select()
+      .from(domainEvents)
+      .all()
+      .filter((event) => event.type === 'job.requeued')
+
+    assert.equal(rootJob?.status, 'queued')
+    assert.equal(rootJob?.completedAt, null)
+    assert.equal(
+      (rootJob?.statusReasonJson as { reason?: string } | null)?.reason,
+      'new_user_message',
+    )
+    assert.equal(
+      (rootJob?.statusReasonJson as { messageId?: string } | null)?.messageId,
+      firstMessageBody.data.messageId,
+    )
+    assert.equal(reopenedEvents.length, 1)
+    assert.equal(
+      (reopenedEvents[0]?.payload as { messageId?: string } | null)?.messageId,
+      firstMessageBody.data.messageId,
+    )
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
+
+    runtime.services.ai.interactions.generate = async () =>
+      ok({
+        messages: [
+          {
+            content: [
+              { text: 'Bootstrap run completed before reusing the graph root.', type: 'text' },
+            ],
+            role: 'assistant',
+          },
+        ],
+        model: 'gpt-5.4',
+        output: [
+          {
+            content: [
+              { text: 'Bootstrap run completed before reusing the graph root.', type: 'text' },
+            ],
+            role: 'assistant',
+            providerMessageId: 'msg_graph_root_bootstrap',
+            type: 'message',
+          },
+        ],
+        outputText: 'Bootstrap run completed before reusing the graph root.',
+        provider: 'openai',
+        providerRequestId: 'req_graph_root_bootstrap',
+        raw: { stub: true },
+        responseId: 'resp_graph_root_bootstrap',
+        status: 'completed',
+        toolCalls: [],
+        usage: {
+          cachedTokens: 0,
+          inputTokens: 64,
+          outputTokens: 14,
+          reasoningTokens: 0,
+          totalTokens: 78,
+        },
+      })
+
+    const bootstrapExecute = await app.request(
+      `http://local/v1/runs/${bootstrap.data.runId}/execute`,
+      {
+        body: JSON.stringify({}),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+
+    assert.equal(bootstrapExecute.status, 200)
+
+    const messageResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
+      {
+        body: JSON.stringify({
+          text: 'Use the reopened root instead of creating a new one.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const messageBody = await messageResponse.json()
+
+    assert.equal(messageResponse.status, 201)
+
+    runtime.services.ai.interactions.generate = async (request) => {
+      assert.equal(request.messages.at(-1)?.role, 'user')
+      assert.deepEqual(request.messages.at(-1)?.content, [
+        { text: 'Use the reopened root instead of creating a new one.', type: 'text' },
+      ])
+
+      return ok({
+        messages: [
+          {
+            content: [{ text: 'The interaction reused the reopened work item.', type: 'text' }],
+            role: 'assistant',
+          },
+        ],
+        model: 'gpt-5.4',
+        output: [
+          {
+            content: [{ text: 'The interaction reused the reopened work item.', type: 'text' }],
+            role: 'assistant',
+            providerMessageId: 'msg_graph_root_reuse',
+            type: 'message',
+          },
+        ],
+        outputText: 'The interaction reused the reopened work item.',
+        provider: 'openai',
+        providerRequestId: 'req_graph_root_reuse',
+        raw: { stub: true },
+        responseId: 'resp_graph_root_reuse',
+        status: 'completed',
+        toolCalls: [],
+        usage: {
+          cachedTokens: 0,
+          inputTokens: 66,
+          outputTokens: 16,
+          reasoningTokens: 0,
+          totalTokens: 82,
+        },
+      })
+    }
+
+    const interactionResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/interactions`,
+      {
+        body: JSON.stringify({
+          messageId: messageBody.data.messageId,
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+    const interactionBody = await interactionResponse.json()
+
+    assert.equal(interactionResponse.status, 202)
+
+    const interactionExecute = await app.request(
+      `http://local/v1/runs/${interactionBody.data.runId}/execute`,
+      {
+        body: JSON.stringify({}),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
+
+    assert.equal(interactionExecute.status, 200)
+
+    const workItemRows = runtime.db
+      .select()
+      .from(jobs)
+      .all()
+      .filter(
+        (workItem) =>
+          workItem.threadId === bootstrap.data.threadId && workItem.parentJobId === null,
+      )
+    const rootJob = workItemRows[0]
+    const createdEvents = runtime.db
+      .select()
+      .from(domainEvents)
+      .all()
+      .filter((event) => event.type === 'job.created')
+    const reopenedEvents = runtime.db
+      .select()
+      .from(domainEvents)
+      .all()
+      .filter((event) => event.type === 'job.requeued')
+    const runRows = runtime.db.select().from(runs).all()
+    const bootstrapRun = runRows.find((run) => run.id === bootstrap.data.runId)
+    const interactionRun = runRows.find((run) => run.id === interactionBody.data.runId)
+
+    assert.equal(workItemRows.length, 1)
+    assert.equal(rootJob?.id, bootstrapRun?.jobId)
+    assert.equal(rootJob?.id, interactionRun?.jobId)
+    assert.equal(rootJob?.currentRunId, interactionBody.data.runId)
+    assert.equal(rootJob?.status, 'completed')
+    assert.equal(createdEvents.length, 1)
+    assert.equal(reopenedEvents.length, 1)
+    assert.equal(
+      (reopenedEvents[0]?.payload as { messageId?: string } | null)?.messageId,
+      messageBody.data.messageId,
+    )
+  }
+})
 test('patch thread message edits in place, replaces attachments, prunes later history, and reruns from the preserved root work item', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',
@@ -1800,192 +1768,196 @@ test('patch thread message edits in place, replaces attachments, prunes later hi
   assert.equal(rerunRow?.jobId, rootJobBeforeEdit?.id)
 })
 
-test('list threads returns the most recently updated active account threads', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers, tenantId } = seedApiKeyAuth(runtime)
-
-  runtime.db
-    .insert(tenants)
-    .values({
-      createdAt: '2026-03-29T00:00:00.000Z',
-      id: 'ten_other',
-      name: 'Other Tenant',
-      slug: 'other-tenant',
-      status: 'active',
-      updatedAt: '2026-03-29T00:00:00.000Z',
+test('thread listing orders recent account threads and searches titles and messages', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
     })
-    .run()
+    const { headers, tenantId } = seedApiKeyAuth(runtime)
 
-  runtime.db
-    .insert(workSessions)
-    .values([
-      {
+    runtime.db
+      .insert(tenants)
+      .values({
         createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'ses_newer',
+        id: 'ten_other',
+        name: 'Other Tenant',
+        slug: 'other-tenant',
         status: 'active',
-        tenantId,
-        title: 'Newer session',
-        updatedAt: '2026-03-30T10:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'ses_older',
-        status: 'active',
-        tenantId,
-        title: 'Older session',
-        updatedAt: '2026-03-29T10:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'ses_deleted',
-        status: 'active',
-        tenantId,
-        title: 'Deleted session',
-        updatedAt: '2026-03-30T11:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: null,
-        id: 'ses_other',
-        status: 'active',
-        tenantId: 'ten_other',
-        title: 'Other tenant session',
-        updatedAt: '2026-03-30T12:00:00.000Z',
-      },
-    ])
-    .run()
+        updatedAt: '2026-03-29T00:00:00.000Z',
+      })
+      .run()
 
-  runtime.db
-    .insert(sessionThreads)
-    .values([
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'thr_newer',
-        parentThreadId: null,
-        sessionId: 'ses_newer',
-        status: 'active',
-        tenantId,
-        title: 'Newest thread',
-        updatedAt: '2026-03-30T12:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'thr_older',
-        parentThreadId: null,
-        sessionId: 'ses_older',
-        status: 'active',
-        tenantId,
-        title: 'Older thread',
-        updatedAt: '2026-03-29T12:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: 'acc_test',
-        id: 'thr_deleted',
-        parentThreadId: null,
-        sessionId: 'ses_deleted',
-        status: 'deleted',
-        tenantId,
-        title: 'Deleted thread',
-        updatedAt: '2026-03-30T13:00:00.000Z',
-      },
-      {
-        createdAt: '2026-03-29T00:00:00.000Z',
-        createdByAccountId: null,
-        id: 'thr_other',
-        parentThreadId: null,
-        sessionId: 'ses_other',
-        status: 'active',
-        tenantId: 'ten_other',
-        title: 'Other tenant thread',
-        updatedAt: '2026-03-30T14:00:00.000Z',
-      },
-    ])
-    .run()
+    runtime.db
+      .insert(workSessions)
+      .values([
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'ses_newer',
+          status: 'active',
+          tenantId,
+          title: 'Newer session',
+          updatedAt: '2026-03-30T10:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'ses_older',
+          status: 'active',
+          tenantId,
+          title: 'Older session',
+          updatedAt: '2026-03-29T10:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'ses_deleted',
+          status: 'active',
+          tenantId,
+          title: 'Deleted session',
+          updatedAt: '2026-03-30T11:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: null,
+          id: 'ses_other',
+          status: 'active',
+          tenantId: 'ten_other',
+          title: 'Other tenant session',
+          updatedAt: '2026-03-30T12:00:00.000Z',
+        },
+      ])
+      .run()
 
-  const response = await app.request('http://local/v1/threads?limit=2', {
-    headers,
-  })
-  const body = await response.json()
+    runtime.db
+      .insert(sessionThreads)
+      .values([
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'thr_newer',
+          parentThreadId: null,
+          sessionId: 'ses_newer',
+          status: 'active',
+          tenantId,
+          title: 'Newest thread',
+          updatedAt: '2026-03-30T12:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'thr_older',
+          parentThreadId: null,
+          sessionId: 'ses_older',
+          status: 'active',
+          tenantId,
+          title: 'Older thread',
+          updatedAt: '2026-03-29T12:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: 'acc_test',
+          id: 'thr_deleted',
+          parentThreadId: null,
+          sessionId: 'ses_deleted',
+          status: 'deleted',
+          tenantId,
+          title: 'Deleted thread',
+          updatedAt: '2026-03-30T13:00:00.000Z',
+        },
+        {
+          createdAt: '2026-03-29T00:00:00.000Z',
+          createdByAccountId: null,
+          id: 'thr_other',
+          parentThreadId: null,
+          sessionId: 'ses_other',
+          status: 'active',
+          tenantId: 'ten_other',
+          title: 'Other tenant thread',
+          updatedAt: '2026-03-30T14:00:00.000Z',
+        },
+      ])
+      .run()
 
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.deepEqual(
-    body.data.threads.map((thread: { id: string }) => thread.id),
-    ['thr_newer', 'thr_older'],
-  )
-})
+    const response = await app.request('http://local/v1/threads?limit=2', {
+      headers,
+    })
+    const body = await response.json()
 
-test('list threads uses FTS to search both thread titles and message contents', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.deepEqual(
+      body.data.threads.map((thread: { id: string }) => thread.id),
+      ['thr_newer', 'thr_older'],
+    )
+  }
 
-  const renameResponse = await app.request(`http://local/v1/threads/${bootstrap.data.threadId}`, {
-    body: JSON.stringify({
-      title: 'Release checklist',
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { headers } = seedApiKeyAuth(runtime)
+    const bootstrap = await bootstrapThread(app, headers)
 
-  assert.equal(renameResponse.status, 200)
-
-  const postResponse = await app.request(
-    `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
-    {
+    const renameResponse = await app.request(`http://local/v1/threads/${bootstrap.data.threadId}`, {
       body: JSON.stringify({
-        text: 'Remember the zebra migration before release.',
+        title: 'Release checklist',
       }),
       headers: {
         ...headers,
         'content-type': 'application/json',
       },
-      method: 'POST',
-    },
-  )
+      method: 'PATCH',
+    })
 
-  assert.equal(postResponse.status, 201)
+    assert.equal(renameResponse.status, 200)
 
-  const titleSearchResponse = await app.request('http://local/v1/threads?limit=5&query=checklist', {
-    headers,
-  })
-  const titleSearchBody = await titleSearchResponse.json()
+    const postResponse = await app.request(
+      `http://local/v1/threads/${bootstrap.data.threadId}/messages`,
+      {
+        body: JSON.stringify({
+          text: 'Remember the zebra migration before release.',
+        }),
+        headers: {
+          ...headers,
+          'content-type': 'application/json',
+        },
+        method: 'POST',
+      },
+    )
 
-  assert.equal(titleSearchResponse.status, 200)
-  assert.equal(titleSearchBody.ok, true)
-  assert.deepEqual(
-    titleSearchBody.data.threads.map((thread: { id: string }) => thread.id),
-    [bootstrap.data.threadId],
-  )
+    assert.equal(postResponse.status, 201)
 
-  const messageSearchResponse = await app.request('http://local/v1/threads?limit=5&query=zebra', {
-    headers,
-  })
-  const messageSearchBody = await messageSearchResponse.json()
+    const titleSearchResponse = await app.request(
+      'http://local/v1/threads?limit=5&query=checklist',
+      {
+        headers,
+      },
+    )
+    const titleSearchBody = await titleSearchResponse.json()
 
-  assert.equal(messageSearchResponse.status, 200)
-  assert.equal(messageSearchBody.ok, true)
-  assert.deepEqual(
-    messageSearchBody.data.threads.map((thread: { id: string }) => thread.id),
-    [bootstrap.data.threadId],
-  )
+    assert.equal(titleSearchResponse.status, 200)
+    assert.equal(titleSearchBody.ok, true)
+    assert.deepEqual(
+      titleSearchBody.data.threads.map((thread: { id: string }) => thread.id),
+      [bootstrap.data.threadId],
+    )
+
+    const messageSearchResponse = await app.request('http://local/v1/threads?limit=5&query=zebra', {
+      headers,
+    })
+    const messageSearchBody = await messageSearchResponse.json()
+
+    assert.equal(messageSearchResponse.status, 200)
+    assert.equal(messageSearchBody.ok, true)
+    assert.deepEqual(
+      messageSearchBody.data.threads.map((thread: { id: string }) => thread.id),
+      [bootstrap.data.threadId],
+    )
+  }
 })
-
 test('thread budget route returns the current thread estimate plus the latest provider usage', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',
@@ -2157,54 +2129,6 @@ test('thread memory route allows inline observation and reflection edits', async
   )
   assert.equal(memoryBody.data.reflection?.kind, 'reflection')
   assert.equal(memoryBody.data.reflection?.content.reflection, '## Edited reflection')
-})
-
-test('rename thread updates the title for an accessible thread', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { headers } = seedApiKeyAuth(runtime)
-  const bootstrap = await bootstrapThread(app, headers)
-
-  const response = await app.request(`http://local/v1/threads/${bootstrap.data.threadId}`, {
-    body: JSON.stringify({
-      title: 'Renamed conversation',
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PATCH',
-  })
-  const body = await response.json()
-
-  assert.equal(response.status, 200)
-  assert.equal(body.ok, true)
-  assert.equal(body.data.id, bootstrap.data.threadId)
-  assert.equal(body.data.title, 'Renamed conversation')
-
-  const threadRow = runtime.db
-    .select()
-    .from(sessionThreads)
-    .where(eq(sessionThreads.id, bootstrap.data.threadId))
-    .get()
-  const updatedEvent = runtime.db
-    .select()
-    .from(domainEvents)
-    .all()
-    .findLast((event) => event.type === 'thread.updated')
-
-  assert.equal(threadRow?.title, 'Renamed conversation')
-  assert.equal(threadRow?.titleSource, 'manual')
-  assert.equal(threadRow?.status, 'active')
-  assert.deepEqual(updatedEvent?.payload, {
-    sessionId: bootstrap.data.sessionId,
-    threadId: bootstrap.data.threadId,
-    title: 'Renamed conversation',
-    titleSource: 'manual',
-    updatedAt: updatedEvent?.payload.updatedAt,
-  })
 })
 
 test('regenerate thread title queues a background naming request for the latest root run', async () => {

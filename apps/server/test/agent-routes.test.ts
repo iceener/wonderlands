@@ -115,202 +115,203 @@ const seedAgent = (
     .run()
 }
 
-test('agent routes create, list, update, and export markdown through revisioned APIs', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { accountId, headers, tenantId } = seedApiKeyAuth(runtime)
-
-  runtime.db
-    .insert(toolProfiles)
-    .values({
-      accountId,
-      createdAt: '2026-03-30T05:10:00.000Z',
-      id: 'tpf_research_test',
-      name: 'Research tools',
-      scope: 'account_private',
-      status: 'active',
-      tenantId,
-      updatedAt: '2026-03-30T05:10:00.000Z',
+test('agent routes cover the owned agent lifecycle through revisioned APIs', async () => {
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
     })
-    .run()
+    const { accountId, headers, tenantId } = seedApiKeyAuth(runtime)
 
-  const createResponse = await app.request('http://local/v1/agents', {
-    body: JSON.stringify(baseCreatePayload),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-  const createBody = await createResponse.json()
+    runtime.db
+      .insert(toolProfiles)
+      .values({
+        accountId,
+        createdAt: '2026-03-30T05:10:00.000Z',
+        id: 'tpf_research_test',
+        name: 'Research tools',
+        scope: 'account_private',
+        status: 'active',
+        tenantId,
+        updatedAt: '2026-03-30T05:10:00.000Z',
+      })
+      .run()
 
-  assert.equal(createResponse.status, 201)
-  assert.equal(createBody.ok, true)
-  assert.equal(createBody.data.name, 'Alpha')
-  assert.equal(createBody.data.description, 'Coordinates planning and execution work.')
-  assert.equal(createBody.data.slug, 'alpha')
-  assert.equal(createBody.data.activeRevision.version, 1)
-  assert.equal(createBody.data.activeRevision.toolProfileId, 'tpf_assistant_test')
+    const createResponse = await app.request('http://local/v1/agents', {
+      body: JSON.stringify(baseCreatePayload),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
+      },
+      method: 'POST',
+    })
+    const createBody = await createResponse.json()
 
-  const listResponse = await app.request('http://local/v1/agents', {
-    headers,
-  })
-  const listBody = await listResponse.json()
+    assert.equal(createResponse.status, 201)
+    assert.equal(createBody.ok, true)
+    assert.equal(createBody.data.name, 'Alpha')
+    assert.equal(createBody.data.description, 'Coordinates planning and execution work.')
+    assert.equal(createBody.data.slug, 'alpha')
+    assert.equal(createBody.data.activeRevision.version, 1)
+    assert.equal(createBody.data.activeRevision.toolProfileId, 'tpf_assistant_test')
 
-  assert.equal(listResponse.status, 200)
-  assert.equal(listBody.data.length, 1)
-  assert.equal(listBody.data[0]?.id, createBody.data.id)
-  assert.equal(listBody.data[0]?.activeRevisionVersion, 1)
-
-  const markdownResponse = await app.request(
-    `http://local/v1/agents/${createBody.data.id}/markdown`,
-    {
+    const listResponse = await app.request('http://local/v1/agents', {
       headers,
-    },
-  )
-  const markdownBody = await markdownResponse.json()
-
-  assert.equal(markdownResponse.status, 200)
-  assert.equal(markdownBody.data.agentId, createBody.data.id)
-  assert.equal(markdownBody.data.revisionId, createBody.data.activeRevision.id)
-
-  const parsedMarkdown = parseAgentMarkdown(markdownBody.data.markdown)
-
-  assert.equal(parsedMarkdown.ok, true)
-  assert.equal(parsedMarkdown.value.frontmatter.name, 'Alpha')
-  assert.equal(
-    parsedMarkdown.value.frontmatter.description,
-    'Coordinates planning and execution work.',
-  )
-  assert.equal(parsedMarkdown.value.frontmatter.slug, 'alpha')
-  assert.equal(parsedMarkdown.value.frontmatter.tools?.toolProfileId, 'tpf_assistant_test')
-
-  const updateResponse = await app.request(`http://local/v1/agents/${createBody.data.id}`, {
-    body: JSON.stringify({
-      ...baseCreatePayload,
-      description: 'Writes directly and keeps drafts tight.',
-      instructionsMd: 'You are Bravo.\n\nWrite directly.',
-      name: 'Bravo',
-      revisionId: createBody.data.activeRevision.id,
-      slug: 'bravo',
-      tools: {
-        native: ['suspend_run'],
-        toolProfileId: 'tpf_research_test',
-      },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'PUT',
-  })
-  const updateBody = await updateResponse.json()
-
-  assert.equal(updateResponse.status, 200)
-  assert.equal(updateBody.ok, true)
-  assert.equal(updateBody.data.name, 'Bravo')
-  assert.equal(updateBody.data.description, 'Writes directly and keeps drafts tight.')
-  assert.equal(updateBody.data.slug, 'bravo')
-  assert.equal(updateBody.data.activeRevision.version, 2)
-  assert.equal(updateBody.data.activeRevision.instructionsMd, 'You are Bravo.\n\nWrite directly.')
-  assert.equal(updateBody.data.activeRevision.toolProfileId, 'tpf_research_test')
-})
-
-test('agent routes soft-delete owned agents and active lists hide them', async () => {
-  const { app, runtime } = createTestHarness({
-    AUTH_MODE: 'api_key',
-    NODE_ENV: 'test',
-  })
-  const { accountId, headers, tenantId } = seedApiKeyAuth(runtime, {
-    accountId: 'acc_owner',
-  })
-
-  seedAgent(runtime, {
-    activeRevisionId: 'agr_owned',
-    agentId: 'agt_owned',
-    createdByAccountId: accountId,
-    name: 'Owned Agent',
-    ownerAccountId: accountId,
-    revisionId: 'agr_owned',
-    slug: 'owned-agent',
-    sourceMarkdown:
-      '---\nname: Owned Agent\nschema: agent/v1\nslug: owned-agent\nvisibility: account_private\nkind: primary\n---\nOwned.',
-    tenantId,
-    visibility: 'account_private',
-  })
-
-  runtime.db
-    .update(accountPreferences)
-    .set({
-      defaultAgentId: 'agt_owned',
-      defaultTargetKind: 'agent',
-      updatedAt: '2026-03-30T04:30:00.000Z',
     })
-    .where(eq(accountPreferences.accountId, accountId))
-    .run()
+    const listBody = await listResponse.json()
 
-  const deleteResponse = await app.request('http://local/v1/agents/agt_owned', {
-    headers,
-    method: 'DELETE',
-  })
-  const deleteBody = await deleteResponse.json()
+    assert.equal(listResponse.status, 200)
+    assert.equal(listBody.data.length, 1)
+    assert.equal(listBody.data[0]?.id, createBody.data.id)
+    assert.equal(listBody.data[0]?.activeRevisionVersion, 1)
 
-  assert.equal(deleteResponse.status, 200)
-  assert.equal(deleteBody.ok, true)
-  assert.deepEqual(deleteBody.data, {
-    agentId: 'agt_owned',
-    deleted: true,
-  })
-
-  const deletedAgent = runtime.db.select().from(agents).where(eq(agents.id, 'agt_owned')).get()
-  assert.equal(deletedAgent?.status, 'deleted')
-
-  const remainingDefault = runtime.db
-    .select()
-    .from(accountPreferences)
-    .where(eq(accountPreferences.defaultAgentId, 'agt_owned'))
-    .get()
-  assert.equal(remainingDefault, undefined)
-
-  const activeListResponse = await app.request('http://local/v1/agents?status=active', {
-    headers,
-  })
-  const activeListBody = await activeListResponse.json()
-
-  assert.equal(activeListResponse.status, 200)
-  assert.deepEqual(activeListBody.data, [])
-
-  const recreateResponse = await app.request('http://local/v1/agents', {
-    body: JSON.stringify({
-      description: 'Replacement agent after a soft delete.',
-      instructionsMd: 'You are the replacement agent.',
-      kind: 'primary',
-      model: {
-        modelAlias: 'gpt-5.4',
-        provider: 'openai',
+    const markdownResponse = await app.request(
+      `http://local/v1/agents/${createBody.data.id}/markdown`,
+      {
+        headers,
       },
-      name: 'Owned Agent Replacement',
+    )
+    const markdownBody = await markdownResponse.json()
+
+    assert.equal(markdownResponse.status, 200)
+    assert.equal(markdownBody.data.agentId, createBody.data.id)
+    assert.equal(markdownBody.data.revisionId, createBody.data.activeRevision.id)
+
+    const parsedMarkdown = parseAgentMarkdown(markdownBody.data.markdown)
+
+    assert.equal(parsedMarkdown.ok, true)
+    assert.equal(parsedMarkdown.value.frontmatter.name, 'Alpha')
+    assert.equal(
+      parsedMarkdown.value.frontmatter.description,
+      'Coordinates planning and execution work.',
+    )
+    assert.equal(parsedMarkdown.value.frontmatter.slug, 'alpha')
+    assert.equal(parsedMarkdown.value.frontmatter.tools?.toolProfileId, 'tpf_assistant_test')
+
+    const updateResponse = await app.request(`http://local/v1/agents/${createBody.data.id}`, {
+      body: JSON.stringify({
+        ...baseCreatePayload,
+        description: 'Writes directly and keeps drafts tight.',
+        instructionsMd: 'You are Bravo.\n\nWrite directly.',
+        name: 'Bravo',
+        revisionId: createBody.data.activeRevision.id,
+        slug: 'bravo',
+        tools: {
+          native: ['suspend_run'],
+          toolProfileId: 'tpf_research_test',
+        },
+      }),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
+      },
+      method: 'PUT',
+    })
+    const updateBody = await updateResponse.json()
+
+    assert.equal(updateResponse.status, 200)
+    assert.equal(updateBody.ok, true)
+    assert.equal(updateBody.data.name, 'Bravo')
+    assert.equal(updateBody.data.description, 'Writes directly and keeps drafts tight.')
+    assert.equal(updateBody.data.slug, 'bravo')
+    assert.equal(updateBody.data.activeRevision.version, 2)
+    assert.equal(updateBody.data.activeRevision.instructionsMd, 'You are Bravo.\n\nWrite directly.')
+    assert.equal(updateBody.data.activeRevision.toolProfileId, 'tpf_research_test')
+  }
+
+  {
+    const { app, runtime } = createTestHarness({
+      AUTH_MODE: 'api_key',
+      NODE_ENV: 'test',
+    })
+    const { accountId, headers, tenantId } = seedApiKeyAuth(runtime, {
+      accountId: 'acc_owner',
+    })
+
+    seedAgent(runtime, {
+      activeRevisionId: 'agr_owned',
+      agentId: 'agt_owned',
+      createdByAccountId: accountId,
+      name: 'Owned Agent',
+      ownerAccountId: accountId,
+      revisionId: 'agr_owned',
       slug: 'owned-agent',
+      sourceMarkdown:
+        '---\nname: Owned Agent\nschema: agent/v1\nslug: owned-agent\nvisibility: account_private\nkind: primary\n---\nOwned.',
+      tenantId,
       visibility: 'account_private',
-      workspace: {
-        strategy: 'isolated_run',
+    })
+
+    runtime.db
+      .update(accountPreferences)
+      .set({
+        defaultAgentId: 'agt_owned',
+        defaultTargetKind: 'agent',
+        updatedAt: '2026-03-30T04:30:00.000Z',
+      })
+      .where(eq(accountPreferences.accountId, accountId))
+      .run()
+
+    const deleteResponse = await app.request('http://local/v1/agents/agt_owned', {
+      headers,
+      method: 'DELETE',
+    })
+    const deleteBody = await deleteResponse.json()
+
+    assert.equal(deleteResponse.status, 200)
+    assert.equal(deleteBody.ok, true)
+    assert.deepEqual(deleteBody.data, {
+      agentId: 'agt_owned',
+      deleted: true,
+    })
+
+    const deletedAgent = runtime.db.select().from(agents).where(eq(agents.id, 'agt_owned')).get()
+    assert.equal(deletedAgent?.status, 'deleted')
+
+    const remainingDefault = runtime.db
+      .select()
+      .from(accountPreferences)
+      .where(eq(accountPreferences.defaultAgentId, 'agt_owned'))
+      .get()
+    assert.equal(remainingDefault, undefined)
+
+    const activeListResponse = await app.request('http://local/v1/agents?status=active', {
+      headers,
+    })
+    const activeListBody = await activeListResponse.json()
+
+    assert.equal(activeListResponse.status, 200)
+    assert.deepEqual(activeListBody.data, [])
+
+    const recreateResponse = await app.request('http://local/v1/agents', {
+      body: JSON.stringify({
+        description: 'Replacement agent after a soft delete.',
+        instructionsMd: 'You are the replacement agent.',
+        kind: 'primary',
+        model: {
+          modelAlias: 'gpt-5.4',
+          provider: 'openai',
+        },
+        name: 'Owned Agent Replacement',
+        slug: 'owned-agent',
+        visibility: 'account_private',
+        workspace: {
+          strategy: 'isolated_run',
+        },
+      }),
+      headers: {
+        ...headers,
+        'content-type': 'application/json',
       },
-    }),
-    headers: {
-      ...headers,
-      'content-type': 'application/json',
-    },
-    method: 'POST',
-  })
-  const recreateBody = await recreateResponse.json()
+      method: 'POST',
+    })
+    const recreateBody = await recreateResponse.json()
 
-  assert.equal(recreateResponse.status, 201)
-  assert.equal(recreateBody.ok, true)
-  assert.equal(recreateBody.data.slug, 'owned-agent')
+    assert.equal(recreateResponse.status, 201)
+    assert.equal(recreateBody.ok, true)
+    assert.equal(recreateBody.data.slug, 'owned-agent')
+  }
 })
-
 test('agent routes hide deleted subagents from detail and markdown export', async () => {
   const { app, runtime } = createTestHarness({
     AUTH_MODE: 'api_key',

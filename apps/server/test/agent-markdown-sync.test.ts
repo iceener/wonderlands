@@ -214,112 +214,113 @@ test('agent markdown preserves sandbox engine, package runtime, and shell policy
   assert.equal(reparsed.value.instructionsMd, document.instructionsMd)
 })
 
-test('agent sync import creates a new agent revision and exports stable markdown', () => {
-  const { runtime } = createTestHarness()
+test('agent sync import creates and updates immutable revisions', async () => {
+  {
+    const { runtime } = createTestHarness()
 
-  seedTenantAccount(runtime)
+    seedTenantAccount(runtime)
 
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
 
-  const imported = service.importMarkdown(createScope(), {
-    markdown: baseMarkdown,
-  })
+    const imported = service.importMarkdown(createScope(), {
+      markdown: baseMarkdown,
+    })
 
-  assert.equal(imported.ok, true)
-  assert.equal(imported.value.created, true)
-  assert.equal(imported.value.agent.id, 'agt_alpha')
-  assert.equal(imported.value.agent.activeRevisionId, 'agr_alpha_v1')
-  assert.equal(imported.value.revision.version, 1)
-  assert.deepEqual(
-    runtime.db
-      .select()
-      .from(domainEvents)
-      .all()
-      .slice()
-      .sort((left, right) => left.eventNo - right.eventNo)
-      .map((event) => event.type),
-    ['agent.created', 'agent.revision.created'],
-  )
+    assert.equal(imported.ok, true)
+    assert.equal(imported.value.created, true)
+    assert.equal(imported.value.agent.id, 'agt_alpha')
+    assert.equal(imported.value.agent.activeRevisionId, 'agr_alpha_v1')
+    assert.equal(imported.value.revision.version, 1)
+    assert.deepEqual(
+      runtime.db
+        .select()
+        .from(domainEvents)
+        .all()
+        .slice()
+        .sort((left, right) => left.eventNo - right.eventNo)
+        .map((event) => event.type),
+      ['agent.created', 'agent.revision.created'],
+    )
 
-  const exported = service.exportMarkdown(createScope(), {
-    agentId: imported.value.agent.id,
-  })
+    const exported = service.exportMarkdown(createScope(), {
+      agentId: imported.value.agent.id,
+    })
 
-  assert.equal(exported.ok, true)
-  assert.equal(exported.value.markdown, imported.value.markdown)
+    assert.equal(exported.ok, true)
+    assert.equal(exported.value.markdown, imported.value.markdown)
+  }
+
+  {
+    const { runtime } = createTestHarness()
+
+    seedTenantAccount(runtime)
+
+    const service = createAgentSyncService({
+      createId: createIdFactory(
+        'agt_alpha',
+        'agr_alpha_v1',
+        'agr_alpha_v2',
+        'agt_missing',
+        'agr_missing',
+      ),
+      db: runtime.db,
+      now: () => testNow,
+    })
+
+    const created = service.importMarkdown(createScope(), {
+      markdown: baseMarkdown,
+    })
+
+    assert.equal(created.ok, true)
+
+    const parsedCreated = parseAgentMarkdown(created.value.markdown)
+
+    assert.equal(parsedCreated.ok, true)
+
+    const updatedMarkdown = serializeAgentMarkdown({
+      ...parsedCreated.value,
+      frontmatter: {
+        ...parsedCreated.value.frontmatter,
+        name: 'Bravo',
+        slug: 'bravo',
+      },
+      instructionsMd: 'You are Bravo.\n\nWrite directly.',
+    })
+
+    const updated = service.importMarkdown(createScope(), {
+      markdown: updatedMarkdown,
+    })
+
+    assert.equal(updated.ok, true)
+    assert.equal(updated.value.created, false)
+    assert.equal(updated.value.agent.slug, 'bravo')
+    assert.equal(updated.value.agent.name, 'Bravo')
+    assert.equal(updated.value.revision.id, 'agr_alpha_v2')
+    assert.equal(updated.value.revision.version, 2)
+
+    const exported = service.exportMarkdown(createScope(), {
+      agentId: updated.value.agent.id,
+    })
+
+    assert.equal(exported.ok, true)
+
+    const parsedExport = parseAgentMarkdown(exported.value.markdown)
+
+    assert.equal(parsedExport.ok, true)
+    assert.equal(
+      parsedExport.value.frontmatter.description,
+      'Coordinates planning and execution work.',
+    )
+    assert.equal(parsedExport.value.frontmatter.name, 'Bravo')
+    assert.equal(parsedExport.value.frontmatter.slug, 'bravo')
+    assert.equal(parsedExport.value.frontmatter.revisionId, 'agr_alpha_v2')
+    assert.equal(parsedExport.value.instructionsMd, 'You are Bravo.\n\nWrite directly.')
+  }
 })
-
-test('agent sync import updates metadata and creates a new immutable revision', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory(
-      'agt_alpha',
-      'agr_alpha_v1',
-      'agr_alpha_v2',
-      'agt_missing',
-      'agr_missing',
-    ),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const created = service.importMarkdown(createScope(), {
-    markdown: baseMarkdown,
-  })
-
-  assert.equal(created.ok, true)
-
-  const parsedCreated = parseAgentMarkdown(created.value.markdown)
-
-  assert.equal(parsedCreated.ok, true)
-
-  const updatedMarkdown = serializeAgentMarkdown({
-    ...parsedCreated.value,
-    frontmatter: {
-      ...parsedCreated.value.frontmatter,
-      name: 'Bravo',
-      slug: 'bravo',
-    },
-    instructionsMd: 'You are Bravo.\n\nWrite directly.',
-  })
-
-  const updated = service.importMarkdown(createScope(), {
-    markdown: updatedMarkdown,
-  })
-
-  assert.equal(updated.ok, true)
-  assert.equal(updated.value.created, false)
-  assert.equal(updated.value.agent.slug, 'bravo')
-  assert.equal(updated.value.agent.name, 'Bravo')
-  assert.equal(updated.value.revision.id, 'agr_alpha_v2')
-  assert.equal(updated.value.revision.version, 2)
-
-  const exported = service.exportMarkdown(createScope(), {
-    agentId: updated.value.agent.id,
-  })
-
-  assert.equal(exported.ok, true)
-
-  const parsedExport = parseAgentMarkdown(exported.value.markdown)
-
-  assert.equal(parsedExport.ok, true)
-  assert.equal(
-    parsedExport.value.frontmatter.description,
-    'Coordinates planning and execution work.',
-  )
-  assert.equal(parsedExport.value.frontmatter.name, 'Bravo')
-  assert.equal(parsedExport.value.frontmatter.slug, 'bravo')
-  assert.equal(parsedExport.value.frontmatter.revisionId, 'agr_alpha_v2')
-  assert.equal(parsedExport.value.instructionsMd, 'You are Bravo.\n\nWrite directly.')
-})
-
 test('agent sync import rejects stale revision ids and invalid child-agent references', () => {
   const { runtime } = createTestHarness()
 
@@ -380,177 +381,153 @@ test('agent sync import rejects stale revision ids and invalid child-agent refer
   assert.match(missingChild.error.message, /subagent slug "missing-child"/)
 })
 
-test('agent sync import rejects invalid tool policy from zod validation', () => {
-  const { runtime } = createTestHarness()
+test('agent sync derives sandbox and browser grants from runtime policy', async () => {
+  {
+    const { runtime } = createTestHarness()
 
-  seedTenantAccount(runtime)
+    seedTenantAccount(runtime)
 
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
 
-  const invalidMarkdown = `${baseMarkdown.replace(
-    '  native:\n    - suspend_run\n',
-    '  native:\n    - suspend_run\n    - suspend_run\n',
-  )}`
+    const result = service.importMarkdown(createScope(), {
+      markdown: `${baseMarkdown.replace(
+        'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\n',
+        'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\nsandbox:\n  enabled: true\n  vault:\n    mode: read_write\n    allowed_roots:\n      - /vault/overment\n',
+      )}`,
+    })
 
-  const result = service.importMarkdown(createScope(), {
-    markdown: invalidMarkdown,
-  })
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.value.revision.toolPolicyJson, {
+      native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
+    })
+    assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
+      native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
+    })
+  }
 
-  assert.equal(result.ok, false)
-  assert.equal(result.error.type, 'validation')
-  assert.match(result.error.message, /duplicate entry "suspend_run"/)
+  {
+    const { runtime } = createTestHarness()
+
+    seedTenantAccount(runtime)
+
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
+
+    const result = service.importMarkdown(createScope(), {
+      markdown: `${baseMarkdown.replace(
+        'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\n',
+        'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\nsandbox:\n  enabled: true\n  runtime:\n    default_engine: lo\n    allowed_engines:\n      - lo\n  vault:\n    mode: read_write\n    allowed_roots:\n      - /vault/overment\n',
+      )}`,
+    })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.value.revision.toolPolicyJson, {
+      native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
+    })
+    assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
+      native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
+    })
+  }
+
+  {
+    const { runtime } = createTestHarness()
+
+    seedTenantAccount(runtime)
+
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
+
+    const result = service.importMarkdown(createScope(), {
+      markdown: `${baseMarkdown.replace(
+        '  native:\n    - suspend_run\n',
+        '  native:\n    - suspend_run\n    - execute\n    - commit_sandbox_writeback\n',
+      )}`,
+    })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.value.revision.toolPolicyJson, {
+      native: ['suspend_run'],
+    })
+  }
+
+  {
+    const { runtime } = createTestHarness()
+
+    seedTenantAccount(runtime)
+
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
+
+    const result = service.importMarkdown(createScope(), {
+      markdown: `${baseMarkdown.replace(
+        'memory:\n  profile_scope: true\n  child_promotion: explicit\n',
+        'kernel:\n  enabled: true\n  browser:\n    max_duration_sec: 90\n  outputs:\n    allow_pdf: true\nmemory:\n  profile_scope: true\n  child_promotion: explicit\n',
+      )}`,
+    })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.value.revision.toolPolicyJson, {
+      native: ['suspend_run', 'browse'],
+    })
+    assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
+      native: ['suspend_run', 'browse'],
+    })
+    assert.equal((result.value.revision.kernelPolicyJson as { enabled: boolean }).enabled, true)
+    assert.equal(
+      (
+        result.value.revision.kernelPolicyJson as {
+          browser: { maxDurationSec: number }
+        }
+      ).browser.maxDurationSec,
+      90,
+    )
+    assert.equal(
+      (
+        result.value.revision.resolvedConfigJson.kernel as {
+          outputs: { allowPdf: boolean }
+        }
+      ).outputs.allowPdf,
+      true,
+    )
+  }
+
+  {
+    const { runtime } = createTestHarness()
+
+    seedTenantAccount(runtime)
+
+    const service = createAgentSyncService({
+      createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
+      db: runtime.db,
+      now: () => testNow,
+    })
+
+    const result = service.importMarkdown(createScope(), {
+      markdown: `${baseMarkdown.replace(
+        '  native:\n    - suspend_run\n',
+        '  native:\n    - suspend_run\n    - browse\n',
+      )}`,
+    })
+
+    assert.equal(result.ok, true)
+    assert.deepEqual(result.value.revision.toolPolicyJson, {
+      native: ['suspend_run'],
+    })
+  }
 })
-
-test('agent sync derives sandbox native grants from sandbox policy', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const result = service.importMarkdown(createScope(), {
-    markdown: `${baseMarkdown.replace(
-      'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\n',
-      'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\nsandbox:\n  enabled: true\n  vault:\n    mode: read_write\n    allowed_roots:\n      - /vault/overment\n',
-    )}`,
-  })
-
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.value.revision.toolPolicyJson, {
-    native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
-  })
-  assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
-    native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
-  })
-})
-
-test('agent sync derives only execute for lo-only sandbox policy', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const result = service.importMarkdown(createScope(), {
-    markdown: `${baseMarkdown.replace(
-      'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\n',
-      'tools:\n  native:\n    - suspend_run\n  tool_profile_id: tpf_default\nsandbox:\n  enabled: true\n  runtime:\n    default_engine: lo\n    allowed_engines:\n      - lo\n  vault:\n    mode: read_write\n    allowed_roots:\n      - /vault/overment\n',
-    )}`,
-  })
-
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.value.revision.toolPolicyJson, {
-    native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
-  })
-  assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
-    native: ['suspend_run', 'execute', 'commit_sandbox_writeback'],
-  })
-})
-
-test('agent sync strips sandbox native grants when sandbox policy does not enable them', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const result = service.importMarkdown(createScope(), {
-    markdown: `${baseMarkdown.replace(
-      '  native:\n    - suspend_run\n',
-      '  native:\n    - suspend_run\n    - execute\n    - commit_sandbox_writeback\n',
-    )}`,
-  })
-
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.value.revision.toolPolicyJson, {
-    native: ['suspend_run'],
-  })
-})
-
-test('agent sync derives browser native grants from kernel policy', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const result = service.importMarkdown(createScope(), {
-    markdown: `${baseMarkdown.replace(
-      'memory:\n  profile_scope: true\n  child_promotion: explicit\n',
-      'kernel:\n  enabled: true\n  browser:\n    max_duration_sec: 90\n  outputs:\n    allow_pdf: true\nmemory:\n  profile_scope: true\n  child_promotion: explicit\n',
-    )}`,
-  })
-
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.value.revision.toolPolicyJson, {
-    native: ['suspend_run', 'browse'],
-  })
-  assert.deepEqual(result.value.revision.resolvedConfigJson.tools, {
-    native: ['suspend_run', 'browse'],
-  })
-  assert.equal((result.value.revision.kernelPolicyJson as { enabled: boolean }).enabled, true)
-  assert.equal(
-    (
-      result.value.revision.kernelPolicyJson as {
-        browser: { maxDurationSec: number }
-      }
-    ).browser.maxDurationSec,
-    90,
-  )
-  assert.equal(
-    (
-      result.value.revision.resolvedConfigJson.kernel as {
-        outputs: { allowPdf: boolean }
-      }
-    ).outputs.allowPdf,
-    true,
-  )
-})
-
-test('agent sync strips browser native grants when kernel policy does not enable them', () => {
-  const { runtime } = createTestHarness()
-
-  seedTenantAccount(runtime)
-
-  const service = createAgentSyncService({
-    createId: createIdFactory('agt_alpha', 'agr_alpha_v1'),
-    db: runtime.db,
-    now: () => testNow,
-  })
-
-  const result = service.importMarkdown(createScope(), {
-    markdown: `${baseMarkdown.replace(
-      '  native:\n    - suspend_run\n',
-      '  native:\n    - suspend_run\n    - browse\n',
-    )}`,
-  })
-
-  assert.equal(result.ok, true)
-  assert.deepEqual(result.value.revision.toolPolicyJson, {
-    native: ['suspend_run'],
-  })
-})
-
 test('agent sync import resolves declared subagent links by slug', () => {
   const { runtime } = createTestHarness()
 
