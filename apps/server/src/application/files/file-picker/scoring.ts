@@ -1,5 +1,7 @@
 import type { IndexedEntry } from './types'
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 const extensionBoost = (extension: string): number => {
   switch (extension) {
     case 'rs':
@@ -122,14 +124,210 @@ const mapNameIndicesToPathIndices = (entry: IndexedEntry, indices: readonly numb
   return indices.map((index) => startIndex + index)
 }
 
+const normalizeQuery = (query: string): string => {
+  const normalizedSeparators = query
+    .trim()
+    .toLowerCase()
+    .replaceAll('\\', '/')
+    .replace(/\/{2,}/g, '/')
+
+  return normalizedSeparators.replace(/^\.\//u, '').replace(/^\/+/, '')
+}
+
 const recencyBoost = (mtimeMs: number, nowMs: number): number => {
   if (mtimeMs <= 0) {
     return 0
   }
 
-  const ageHours = Math.max(0, nowMs - mtimeMs) / (1000 * 60 * 60)
+  const ageDays = Math.max(0, nowMs - mtimeMs) / DAY_MS
 
-  return Math.round(500 * 0.97 ** ageHours)
+  if (ageDays > 365) {
+    return 0
+  }
+
+  // Recency breaks close matches without overpowering filename/path relevance.
+  return Math.round(600 * 0.5 ** (ageDays / 30))
+}
+
+const pathCost = (entry: IndexedEntry, query: string): number => {
+  const unmatchedPathLength = Math.max(0, entry.pathLower.length - query.length)
+
+  return entry.depth * 100 + unmatchedPathLength * 3
+}
+
+const fileStem = (fileName: string): string => {
+  const extensionIndex = fileName.lastIndexOf('.')
+  return extensionIndex > 0 ? fileName.slice(0, extensionIndex) : fileName
+}
+
+const hasBoundaryAt = (target: string, index: number): boolean =>
+  index === 0 || '/-_. '.includes(target[index - 1] ?? '')
+
+const scoreFilenameMatch = (
+  entry: IndexedEntry,
+  query: string,
+): { indices: number[]; score: number } | null => {
+  if (!query) {
+    return null
+  }
+
+  const fuzzyMatch = fuzzyIndices(entry.nameLower, query)
+  if (!fuzzyMatch) {
+    return null
+  }
+
+  let score = 120_000 + fuzzyMatch.score * 3
+  const substringIndex = entry.nameLower.indexOf(query)
+
+  if (entry.nameLower === query) {
+    score += 500_000
+  } else if (fileStem(entry.nameLower) === query) {
+    score += 450_000
+  } else if (entry.nameLower.startsWith(query)) {
+    score += 250_000
+  } else if (substringIndex >= 0 && hasBoundaryAt(entry.nameLower, substringIndex)) {
+    score += 180_000
+  } else if (substringIndex >= 0) {
+    score += 100_000
+  }
+
+  return {
+    indices: mapNameIndicesToPathIndices(entry, fuzzyMatch.indices),
+    score,
+  }
+}
+
+const matchesPathComponents = (path: string, query: string): boolean => {
+  const pathParts = path.split('/').filter(Boolean)
+  const queryParts = query.split('/').filter(Boolean)
+  let pathIndex = 0
+
+  for (const queryPart of queryParts) {
+    let matched = false
+
+    while (pathIndex < pathParts.length) {
+      const pathPart = pathParts[pathIndex] ?? ''
+      pathIndex += 1
+
+      if (fuzzyIndices(pathPart, queryPart)) {
+        matched = true
+        break
+      }
+    }
+
+    if (!matched) {
+      return false
+    }
+  }
+
+  return queryParts.length > 0
+}
+
+const scorePathMatch = (
+  entry: IndexedEntry,
+  query: string,
+  pathIntent: boolean,
+): { indices: number[]; score: number } | null => {
+  if (pathIntent && !matchesPathComponents(entry.pathLower, query)) {
+    return null
+  }
+
+  const fuzzyMatch = fuzzyIndices(entry.pathLower, query)
+  if (!fuzzyMatch) {
+    return null
+  }
+
+  let score = fuzzyMatch.score
+  const substringIndex = entry.pathLower.indexOf(query)
+
+  if (entry.pathLower === query) {
+    score += 700_000
+  } else if (entry.pathLower.endsWith(`/${query}`)) {
+    score += 500_000
+  } else if (entry.pathLower.startsWith(query)) {
+    score += pathIntent ? 300_000 : 80_000
+  } else if (substringIndex >= 0 && hasBoundaryAt(entry.pathLower, substringIndex)) {
+    score += pathIntent ? 160_000 : 70_000
+  } else if (substringIndex >= 0) {
+    score += pathIntent ? 100_000 : 40_000
+  } else if (pathIntent) {
+    score += 20_000
+  }
+
+  return {
+    indices: fuzzyMatch.indices,
+    score,
+  }
+}
+
+const scoreSingleQuery = (
+  entry: IndexedEntry,
+  query: string,
+  nowMs: number,
+): { matchIndices: number[]; score: number } | null => {
+  const pathIntent = query.includes('/')
+  const filenameQuery = pathIntent ? (query.split('/').at(-1) ?? '') : query
+  const filenameMatch = scoreFilenameMatch(entry, filenameQuery)
+  const pathMatch = scorePathMatch(entry, query, pathIntent)
+
+  if ((pathIntent && !pathMatch) || (!filenameMatch && !pathMatch)) {
+    return null
+  }
+
+  return {
+    matchIndices: dedupeSortedIndices([
+      ...(pathMatch?.indices ?? []),
+      ...(filenameMatch?.indices ?? []),
+    ]),
+    score:
+      (pathMatch?.score ?? 0) +
+      (filenameMatch?.score ?? 0) +
+      recencyBoost(entry.mtimeMs, nowMs) +
+      extensionBoost(entry.extension) -
+      pathCost(entry, query),
+  }
+}
+
+const scoreMultiTermQuery = (
+  entry: IndexedEntry,
+  query: string,
+  nowMs: number,
+): { matchIndices: number[]; score: number } | null => {
+  const parts = query.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) {
+    return null
+  }
+
+  let score = 0
+  const collectedIndices: number[] = []
+
+  for (const part of parts) {
+    const pathMatch = scorePathMatch(entry, part, part.includes('/'))
+    if (!pathMatch) {
+      return null
+    }
+
+    score += pathMatch.score
+    collectedIndices.push(...pathMatch.indices)
+  }
+
+  const finalPart = parts.at(-1) ?? ''
+  const filenameQuery = finalPart.split('/').at(-1) ?? ''
+  const filenameMatch = scoreFilenameMatch(entry, filenameQuery)
+
+  if (filenameMatch) {
+    score += filenameMatch.score
+    collectedIndices.push(...filenameMatch.indices)
+  }
+
+  return {
+    matchIndices: dedupeSortedIndices(collectedIndices),
+    score:
+      score +
+      recencyBoost(entry.mtimeMs, nowMs) +
+      extensionBoost(entry.extension) -
+      pathCost(entry, query),
+  }
 }
 
 export const scoreEntry = (
@@ -137,106 +335,17 @@ export const scoreEntry = (
   normalizedQuery: string,
   nowMs: number = Date.now(),
 ): { matchIndices: number[]; score: number } | null => {
-  if (!normalizedQuery) {
+  const query = normalizeQuery(normalizedQuery)
+
+  if (!query) {
     return {
       matchIndices: [],
-      score: recencyBoost(entry.mtimeMs, nowMs) + extensionBoost(entry.extension) - entry.depth * 5,
+      score:
+        recencyBoost(entry.mtimeMs, nowMs) + extensionBoost(entry.extension) - pathCost(entry, ''),
     }
   }
 
-  if (normalizedQuery.includes(' ')) {
-    const parts = normalizedQuery.split(/\s+/).filter(Boolean)
-
-    if (parts.length === 0) {
-      return {
-        matchIndices: [],
-        score:
-          recencyBoost(entry.mtimeMs, nowMs) + extensionBoost(entry.extension) - entry.depth * 5,
-      }
-    }
-
-    let score = 0
-    const collectedIndices: number[] = []
-
-    for (const part of parts) {
-      const match = fuzzyIndices(entry.pathLower, part)
-
-      if (!match) {
-        return null
-      }
-
-      score += match.score
-      collectedIndices.push(...match.indices)
-    }
-
-    const lastPart = parts.at(-1) ?? ''
-    if (lastPart) {
-      if (entry.nameLower.includes(lastPart)) {
-        score += 5_000
-      }
-
-      if (entry.nameLower.startsWith(lastPart)) {
-        score += 10_000
-      }
-    }
-
-    score += extensionBoost(entry.extension)
-    score -= entry.depth * 10
-
-    return {
-      matchIndices: dedupeSortedIndices(collectedIndices),
-      score,
-    }
-  }
-
-  const queryIsFilenameLike = normalizedQuery.includes('.') || !normalizedQuery.includes('/')
-  const nameMatch = fuzzyIndices(entry.nameLower, normalizedQuery)
-  const pathMatch = fuzzyIndices(entry.pathLower, normalizedQuery)
-
-  if (!nameMatch && !pathMatch) {
-    return null
-  }
-
-  if (!nameMatch && pathMatch && queryIsFilenameLike) {
-    if (!entry.pathLower.includes(normalizedQuery)) {
-      return null
-    }
-  }
-
-  let score = 0
-  const collectedIndices: number[] = []
-
-  if (nameMatch && pathMatch) {
-    score += nameMatch.score * 2 + pathMatch.score
-    collectedIndices.push(
-      ...pathMatch.indices,
-      ...mapNameIndicesToPathIndices(entry, nameMatch.indices),
-    )
-  } else if (nameMatch) {
-    score += nameMatch.score * 2
-    collectedIndices.push(...mapNameIndicesToPathIndices(entry, nameMatch.indices))
-  } else if (pathMatch) {
-    score += pathMatch.score
-    collectedIndices.push(...pathMatch.indices)
-  }
-
-  if (entry.nameLower === normalizedQuery) {
-    score += 100_000
-  }
-
-  if (entry.nameLower.startsWith(normalizedQuery)) {
-    score += 10_000
-  }
-
-  if (entry.nameLower.includes(normalizedQuery)) {
-    score += 1_000
-  }
-
-  score += extensionBoost(entry.extension)
-  score -= entry.depth * 10
-
-  return {
-    matchIndices: dedupeSortedIndices(collectedIndices),
-    score,
-  }
+  return query.includes(' ')
+    ? scoreMultiTermQuery(entry, query, nowMs)
+    : scoreSingleQuery(entry, query, nowMs)
 }

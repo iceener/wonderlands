@@ -11,13 +11,41 @@ export interface TriggerCallbacks {
   onKeyDown: (props: { event: KeyboardEvent; view: EditorView }) => boolean
 }
 
+export interface TriggerActivationContext {
+  editor: Editor
+  query: string
+  range: Range
+  text: string
+}
+
 export interface TriggerConfig {
   name: string
   char: string
   callbacks: TriggerCallbacks
+  shouldActivate?: (context: TriggerActivationContext) => boolean
 }
 
-export const createSuggestionTrigger = ({ name, char, callbacks }: TriggerConfig): Extension => {
+export const isTextBoundaryPrefix = (textBeforeTrigger: string): boolean =>
+  textBeforeTrigger.length === 0 || /\s$/u.test(textBeforeTrigger)
+
+export const isTriggerAtTextBoundary = (editor: Editor, range: Range): boolean => {
+  const triggerPosition = editor.state.doc.resolve(range.from)
+  const textBeforeTrigger = triggerPosition.parent.textBetween(
+    0,
+    triggerPosition.parentOffset,
+    undefined,
+    '\ufffc',
+  )
+
+  return isTextBoundaryPrefix(textBeforeTrigger)
+}
+
+export const createSuggestionTrigger = ({
+  name,
+  char,
+  callbacks,
+  shouldActivate,
+}: TriggerConfig): Extension => {
   const pluginKey = new PluginKey(name)
   const readPasteState = (editor: Editor): { _pasteInProgress?: boolean } =>
     editor as unknown as { _pasteInProgress?: boolean }
@@ -35,13 +63,14 @@ export const createSuggestionTrigger = ({ name, char, callbacks }: TriggerConfig
           allowSpaces: false,
           startOfLine: false,
 
-          shouldShow: ({ editor: ed, transaction }) => {
+          shouldShow: ({ editor: ed, query, range, text, transaction }) => {
             // Skip if our custom paste handler is active
             if (readPasteState(ed)._pasteInProgress) return false
             // Skip if ProseMirror's native paste handler created this transaction
             if (transaction.getMeta('paste') || transaction.getMeta('uiEvent') === 'paste')
               return false
-            return true
+
+            return shouldActivate?.({ editor: ed, query, range, text }) ?? true
           },
 
           render: () => ({

@@ -21,7 +21,11 @@ import {
   createLargeTextPasteAttachment,
 } from '../../prompt-editor/large-paste'
 import { validateModelVisibleImageMarkdown } from '../../prompt-editor/markdown'
-import { createSuggestionTrigger, exitSuggestion } from '../../prompt-editor/suggestion-trigger'
+import {
+  createSuggestionTrigger,
+  exitSuggestion,
+  isTriggerAtTextBoundary,
+} from '../../prompt-editor/suggestion-trigger'
 import TiptapPromptEditor from '../../prompt-editor/TiptapPromptEditor.svelte'
 import type { LargeTextPastePayload, PromptEditorHandle } from '../../prompt-editor/types'
 import { listAgents } from '../../services/api'
@@ -302,6 +306,7 @@ const slashProvider: PaletteProvider = {
 const slashTrigger = createSuggestionTrigger({
   name: 'slash-commands',
   char: '/',
+  shouldActivate: ({ editor, range }) => isTriggerAtTextBoundary(editor, range),
   callbacks: {
     onActivate: ({ query, range, editor }) => {
       closeFilePicker(false)

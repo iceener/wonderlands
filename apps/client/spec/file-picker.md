@@ -14,7 +14,7 @@ Add a `#`-triggered file picker to the TipTap prompt editor that:
 - Keep the current markdown-first prompt boundary.
 - Do not overload `/v1/files` for workspace filesystem search.
 - Resolve workspace roots server-side from the authenticated account and tenant.
-- Keep `/` slash commands working as they do now.
+- Activate `/` slash commands only at a text boundary; a slash inside an active `#path`, URL, or ordinary token remains literal.
 - Preserve normal markdown heading behavior for `# ` at the start of a line.
 
 ## Search Contract
@@ -29,9 +29,12 @@ Implement the file search flow using the ranking model described for the ACP pic
 - top-K selection instead of sorting the full result set
 
 ### Query Modes
-- Empty query: return files ordered by shallow depth, with extension boosts.
-- Multi-part query: every space-separated part must match; score all parts, boost the last part against the filename.
-- Single-term query: score filename and full path independently; weight filename matches more heavily.
+- Empty query: return files ordered by recency and shallow/short paths, with small extension boosts.
+- Multi-part query: every space-separated part must match; score all parts and strongly boost the final filename term.
+- Single-term query: score filename and full path independently; filename matches outrank matches found only in directory names.
+- Path query: normalize leading, repeated, and Windows-style separators; match slash-delimited components in order and reward exact/prefix paths.
+- Recency is a secondary tie-breaker only and must never outrank a materially better filename or path match.
+- Return file records only; traversed directories are searchable as path components, not selectable results.
 
 ### Result Model
 Every result should carry enough data for:

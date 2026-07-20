@@ -4,6 +4,9 @@ import type { ScoredEntry } from './types'
  * Bounded min-heap that retains only the top-K highest-scoring candidates
  * seen so far, avoiding a full sort of the entire indexed entry set.
  */
+const compareQuality = (left: ScoredEntry, right: ScoredEntry): number =>
+  left.score - right.score || right.entry.relativePath.localeCompare(left.entry.relativePath)
+
 export class TopKHeap {
   private readonly values: ScoredEntry[] = []
 
@@ -20,7 +23,7 @@ export class TopKHeap {
       return
     }
 
-    if (this.values[0] && candidate.score <= this.values[0].score) {
+    if (this.values[0] && compareQuality(candidate, this.values[0]) <= 0) {
       return
     }
 
@@ -29,13 +32,7 @@ export class TopKHeap {
   }
 
   toSortedArray(): ScoredEntry[] {
-    return this.values
-      .slice()
-      .sort(
-        (left, right) =>
-          right.score - left.score ||
-          left.entry.relativePath.localeCompare(right.entry.relativePath),
-      )
+    return this.values.slice().sort((left, right) => compareQuality(right, left))
   }
 
   private bubbleUp(startIndex: number): void {
@@ -44,7 +41,7 @@ export class TopKHeap {
     while (index > 0) {
       const parentIndex = Math.floor((index - 1) / 2)
 
-      if (this.values[parentIndex]!.score <= this.values[index]!.score) {
+      if (compareQuality(this.values[parentIndex]!, this.values[index]!) <= 0) {
         break
       }
 
@@ -66,14 +63,14 @@ export class TopKHeap {
 
       if (
         leftIndex < this.values.length &&
-        this.values[leftIndex]!.score < this.values[smallestIndex]!.score
+        compareQuality(this.values[leftIndex]!, this.values[smallestIndex]!) < 0
       ) {
         smallestIndex = leftIndex
       }
 
       if (
         rightIndex < this.values.length &&
-        this.values[rightIndex]!.score < this.values[smallestIndex]!.score
+        compareQuality(this.values[rightIndex]!, this.values[smallestIndex]!) < 0
       ) {
         smallestIndex = rightIndex
       }
