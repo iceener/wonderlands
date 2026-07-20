@@ -3,6 +3,7 @@ dist/
 *.log
 .DS_Store
 *.lock
+!bun.lock
 *.lockb
 
 .env

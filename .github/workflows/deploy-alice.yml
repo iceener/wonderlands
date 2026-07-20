@@ -35,7 +35,7 @@ jobs:
 
       - name: Install standalone MCP dependencies
         run: |
-          npm ci --prefix mcp/files-mcp
+          bun install --cwd mcp/files-mcp --frozen-lockfile
           bun install --cwd mcp/shared --frozen-lockfile
 
       - name: Run release validation
