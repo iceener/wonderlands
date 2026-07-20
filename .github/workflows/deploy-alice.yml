@@ -11,8 +11,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '24'
+      NODE_OPTIONS: --max-old-space-size=1024
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install workspace dependencies
+        run: npm ci --include=dev
+
+      - name: Install standalone MCP dependencies
+        run: |
+          npm ci --prefix mcp/files-mcp
+          bun install --cwd mcp/shared --frozen-lockfile
+
+      - name: Run release validation
+        run: npm run test:release
+
   deploy:
     name: Deploy Wonderlands app to VPS
+    needs: validate
     runs-on: self-hosted
     env:
       NODE_VERSION: '24'
