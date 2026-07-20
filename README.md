@@ -206,21 +206,36 @@ If you accidentally exposed a real API key, revoke/rotate it with the provider b
 
 ## Workspace Commands
 
-Run these from the repo root:
+Run the default fast validation loop from the repo root:
 
 ```bash
 npm run typecheck
-npm run test
 npm run lint
+npm run test
 ```
 
-Useful app-specific commands:
+`npm run test` runs the fast server, client, Files MCP, and shared MCP suites. Broader integration, timing, subprocess, and race coverage lives in the extended tier:
 
 ```bash
-npm run typecheck --workspace @wonderlands/server
-npm run typecheck --workspace @wonderlands/client
-npm run test --workspace @wonderlands/server
-npm run test --workspace @wonderlands/client
+npm run test:extended
+```
+
+Run the complete release gate before deployment-sensitive changes:
+
+```bash
+npm run test:release
+```
+
+The release gate runs typechecking, linting, fast and extended tests, standalone MCP typechecks, and the production client build. The production deployment workflow must pass this gate before deployment begins.
+
+Useful package-specific commands:
+
+```bash
+npm run test:fast --workspace @wonderlands/server
+npm run test:extended --workspace @wonderlands/server
+npm run test:fast --workspace @wonderlands/client
+npm run test:extended --workspace @wonderlands/client
+npm run test:mcp
 npm run kernel:up
 npm run kernel:down
 ```
