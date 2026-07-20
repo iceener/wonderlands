@@ -69,194 +69,191 @@ const registerFunctionTool = (
     name: input.name,
   })
 }
-test(
-  'execute run calls the AI interaction seam and persists assistant output, usage, and events',
-  async () => {
-    const { app, runtime } = createTestHarness({
-      AUTH_MODE: 'api_key',
-      NODE_ENV: 'test',
-    })
-    const { headers } = seedApiKeyAuth(runtime)
-    const bootstrap = await bootstrapRun(app, headers)
+test('execute run calls the AI interaction seam and persists assistant output, usage, and events', async () => {
+  const { app, runtime } = createTestHarness({
+    AUTH_MODE: 'api_key',
+    NODE_ENV: 'test',
+  })
+  const { headers } = seedApiKeyAuth(runtime)
+  const bootstrap = await bootstrapRun(app, headers)
 
-    let capturedRequest: AiInteractionRequest | null = null
+  let capturedRequest: AiInteractionRequest | null = null
 
-    runtime.services.ai.interactions.generate = async (request) => {
-      capturedRequest = request
+  runtime.services.ai.interactions.generate = async (request) => {
+    capturedRequest = request
 
-      return ok<AiInteractionResponse>({
-        messages: [
-          {
-            content: [
-              {
-                text: 'Start with run execution, then add SSE and retries.',
-                type: 'text',
-              },
-            ],
-            role: 'assistant',
-          },
-        ],
-        model: 'gpt-5.4',
-        output: [
-          {
-            content: [
-              {
-                text: 'Start with run execution, then add SSE and retries.',
-                type: 'text',
-              },
-            ],
-            role: 'assistant',
-            type: 'message',
-          },
-        ],
-        outputText: 'Start with run execution, then add SSE and retries.',
-        provider: 'openai',
-        providerRequestId: 'req_openai_123',
-        raw: { stub: true },
-        responseId: 'resp_openai_123',
-        status: 'completed',
-        toolCalls: [],
-        usage: {
-          cachedTokens: 10,
-          inputTokens: 120,
-          outputTokens: 32,
-          reasoningTokens: 8,
-          totalTokens: 152,
+    return ok<AiInteractionResponse>({
+      messages: [
+        {
+          content: [
+            {
+              text: 'Start with run execution, then add SSE and retries.',
+              type: 'text',
+            },
+          ],
+          role: 'assistant',
         },
-      })
-    }
-
-    const response = await app.request(`http://local/v1/runs/${bootstrap.data.runId}/execute`, {
-      body: JSON.stringify({
-        maxOutputTokens: 128,
-      }),
-      headers: {
-        ...headers,
-        'content-type': 'application/json',
-      },
-      method: 'POST',
-    })
-
-    const body = await response.json()
-
-    assert.equal(response.status, 200)
-    assert.equal(body.ok, true)
-    assert.ok(capturedRequest)
-    assert.equal(capturedRequest?.maxOutputTokens, 128)
-    assert.equal(capturedRequest?.messages.length, 1)
-    assert.deepEqual(capturedRequest?.messages[0], {
-      content: [{ text: 'Plan the next milestone for the API backend', type: 'text' }],
-      role: 'user',
-    })
-
-    const runRow = runtime.db.select().from(runs).get()
-    const _failedResultJson = runRow?.resultJson as {
-      assistantMessageId?: string
-      outputText?: string
-    } | null
-    const itemRows = runtime.db.select().from(items).all()
-    const messageRows = runtime.db.select().from(sessionMessages).all()
-    const usageRows = runtime.db.select().from(usageLedger).all()
-    const eventRows = runtime.db.select().from(domainEvents).all()
-    const outboxRows = runtime.db.select().from(eventOutbox).all()
-
-    assert.equal(runRow?.status, 'completed')
-    assert.equal(runRow?.version, 4)
-    assert.equal(runRow?.turnCount, 1)
-    assert.deepEqual(runRow?.resultJson, {
-      assistantMessageId: body.data.assistantMessageId,
+      ],
       model: 'gpt-5.4',
+      output: [
+        {
+          content: [
+            {
+              text: 'Start with run execution, then add SSE and retries.',
+              type: 'text',
+            },
+          ],
+          role: 'assistant',
+          type: 'message',
+        },
+      ],
       outputText: 'Start with run execution, then add SSE and retries.',
       provider: 'openai',
       providerRequestId: 'req_openai_123',
+      raw: { stub: true },
       responseId: 'resp_openai_123',
-      usage: body.data.usage,
+      status: 'completed',
+      toolCalls: [],
+      usage: {
+        cachedTokens: 10,
+        inputTokens: 120,
+        outputTokens: 32,
+        reasoningTokens: 8,
+        totalTokens: 152,
+      },
     })
+  }
 
-    assert.equal(itemRows.length, 2)
-    assert.equal(itemRows[1]?.role, 'assistant')
-    assert.equal(itemRows[1]?.sequence, 2)
-    assert.deepEqual(itemRows[1]?.content, [
-      { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
-    ])
+  const response = await app.request(`http://local/v1/runs/${bootstrap.data.runId}/execute`, {
+    body: JSON.stringify({
+      maxOutputTokens: 128,
+    }),
+    headers: {
+      ...headers,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  })
 
-    assert.equal(messageRows.length, 2)
-    assert.equal(messageRows[1]?.authorKind, 'assistant')
-    assert.equal(messageRows[1]?.sequence, 2)
-    assert.deepEqual(messageRows[1]?.content, [
-      { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
-    ])
+  const body = await response.json()
 
-    assert.equal(usageRows.length, 1)
-    assert.equal(usageRows[0]?.provider, 'openai')
-    assert.equal(usageRows[0]?.model, 'gpt-5.4')
-    assert.equal(usageRows[0]?.inputTokens, 120)
-    assert.equal(usageRows[0]?.outputTokens, 32)
-    assert.equal(usageRows[0]?.cachedTokens, 10)
-    assert.equal(usageRows[0]?.estimatedOutputTokens, 128)
-    assert.equal(typeof usageRows[0]?.estimatedInputTokens, 'number')
-    assert.equal((usageRows[0]?.estimatedInputTokens ?? 0) > 0, true)
+  assert.equal(response.status, 200)
+  assert.equal(body.ok, true)
+  assert.ok(capturedRequest)
+  assert.equal(capturedRequest?.maxOutputTokens, 128)
+  assert.equal(capturedRequest?.messages.length, 1)
+  assert.deepEqual(capturedRequest?.messages[0], {
+    content: [{ text: 'Plan the next milestone for the API backend', type: 'text' }],
+    role: 'user',
+  })
 
-    const eventTypes = eventRows
-      .slice()
-      .sort((left, right) => left.eventNo - right.eventNo)
-      .map((event) => event.type)
+  const runRow = runtime.db.select().from(runs).get()
+  const _failedResultJson = runRow?.resultJson as {
+    assistantMessageId?: string
+    outputText?: string
+  } | null
+  const itemRows = runtime.db.select().from(items).all()
+  const messageRows = runtime.db.select().from(sessionMessages).all()
+  const usageRows = runtime.db.select().from(usageLedger).all()
+  const eventRows = runtime.db.select().from(domainEvents).all()
+  const outboxRows = runtime.db.select().from(eventOutbox).all()
 
-    assert.deepEqual(eventTypes, [
-      'workspace.created',
-      'workspace.resolved',
-      'session.created',
-      'thread.created',
-      'message.posted',
-      'job.created',
-      'job.queued',
-      'run.created',
-      'run.started',
-      'turn.started',
-      'progress.reported',
-      'generation.started',
-      'progress.reported',
-      'stream.delta',
-      'stream.done',
-      'generation.completed',
-      'turn.completed',
-      'progress.reported',
-      'message.posted',
-      'run.completed',
-      'job.completed',
-      'progress.reported',
-    ])
-    const expectedOutboxRows = eventRows.reduce(
-      (total, event) =>
-        total + (event.category === 'telemetry' ? 1 : 2) + (event.type === 'run.completed' ? 1 : 0),
-      0,
-    )
+  assert.equal(runRow?.status, 'completed')
+  assert.equal(runRow?.version, 4)
+  assert.equal(runRow?.turnCount, 1)
+  assert.deepEqual(runRow?.resultJson, {
+    assistantMessageId: body.data.assistantMessageId,
+    model: 'gpt-5.4',
+    outputText: 'Start with run execution, then add SSE and retries.',
+    provider: 'openai',
+    providerRequestId: 'req_openai_123',
+    responseId: 'resp_openai_123',
+    usage: body.data.usage,
+  })
 
-    assert.equal(outboxRows.length, expectedOutboxRows)
-    const telemetryTypes = new Set([
-      'generation.started',
-      'generation.completed',
-      'progress.reported',
-      'stream.delta',
-      'stream.done',
-      'turn.completed',
-      'turn.started',
-    ])
+  assert.equal(itemRows.length, 2)
+  assert.equal(itemRows[1]?.role, 'assistant')
+  assert.equal(itemRows[1]?.sequence, 2)
+  assert.deepEqual(itemRows[1]?.content, [
+    { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
+  ])
 
-    assert.equal(
-      eventRows
-        .filter((event) => telemetryTypes.has(event.type))
-        .every((event) => event.category === 'telemetry'),
-      true,
-    )
-    assert.equal(
-      eventRows
-        .filter((event) => !telemetryTypes.has(event.type))
-        .every((event) => event.category === 'domain'),
-      true,
-    )
-  },
-)
+  assert.equal(messageRows.length, 2)
+  assert.equal(messageRows[1]?.authorKind, 'assistant')
+  assert.equal(messageRows[1]?.sequence, 2)
+  assert.deepEqual(messageRows[1]?.content, [
+    { text: 'Start with run execution, then add SSE and retries.', type: 'text' },
+  ])
+
+  assert.equal(usageRows.length, 1)
+  assert.equal(usageRows[0]?.provider, 'openai')
+  assert.equal(usageRows[0]?.model, 'gpt-5.4')
+  assert.equal(usageRows[0]?.inputTokens, 120)
+  assert.equal(usageRows[0]?.outputTokens, 32)
+  assert.equal(usageRows[0]?.cachedTokens, 10)
+  assert.equal(usageRows[0]?.estimatedOutputTokens, 128)
+  assert.equal(typeof usageRows[0]?.estimatedInputTokens, 'number')
+  assert.equal((usageRows[0]?.estimatedInputTokens ?? 0) > 0, true)
+
+  const eventTypes = eventRows
+    .slice()
+    .sort((left, right) => left.eventNo - right.eventNo)
+    .map((event) => event.type)
+
+  assert.deepEqual(eventTypes, [
+    'workspace.created',
+    'workspace.resolved',
+    'session.created',
+    'thread.created',
+    'message.posted',
+    'job.created',
+    'job.queued',
+    'run.created',
+    'run.started',
+    'turn.started',
+    'progress.reported',
+    'generation.started',
+    'progress.reported',
+    'stream.delta',
+    'stream.done',
+    'generation.completed',
+    'turn.completed',
+    'progress.reported',
+    'message.posted',
+    'run.completed',
+    'job.completed',
+    'progress.reported',
+  ])
+  const expectedOutboxRows = eventRows.reduce(
+    (total, event) =>
+      total + (event.category === 'telemetry' ? 1 : 2) + (event.type === 'run.completed' ? 1 : 0),
+    0,
+  )
+
+  assert.equal(outboxRows.length, expectedOutboxRows)
+  const telemetryTypes = new Set([
+    'generation.started',
+    'generation.completed',
+    'progress.reported',
+    'stream.delta',
+    'stream.done',
+    'turn.completed',
+    'turn.started',
+  ])
+
+  assert.equal(
+    eventRows
+      .filter((event) => telemetryTypes.has(event.type))
+      .every((event) => event.category === 'telemetry'),
+    true,
+  )
+  assert.equal(
+    eventRows
+      .filter((event) => !telemetryTypes.has(event.type))
+      .every((event) => event.category === 'domain'),
+    true,
+  )
+})
 
 test('execute run falls back to assistant message text when the provider omits outputText', async () => {
   const { app, runtime } = createTestHarness({

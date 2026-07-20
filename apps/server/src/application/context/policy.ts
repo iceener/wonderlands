@@ -247,11 +247,7 @@ const scanStructuredValue = (
         add('unsafe_file_body', entryPath)
       }
 
-      visit(
-        entry,
-        entryPath,
-        options.allowJsonSchemaNames && jsonSchemaNameMapKeys.has(key),
-      )
+      visit(entry, entryPath, options.allowJsonSchemaNames && jsonSchemaNameMapKeys.has(key))
     }
 
     ancestors.delete(current)
@@ -264,7 +260,8 @@ const scanStructuredValue = (
 const timestampPattern =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](\d{2}):(\d{2}))$/
 
-const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+const isLeapYear = (year: number): boolean =>
+  year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
 
 const parseTimestamp = (value: string, field: string): number => {
   const match = typeof value === 'string' ? timestampPattern.exec(value) : null
@@ -377,7 +374,9 @@ const scanArtifactPayload = (artifact: ContextArtifact): readonly ContextPolicyR
 const compareText = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0
 
-const toStableReasons = (reasons: readonly ContextPolicyReason[]): readonly ContextPolicyReason[] => {
+const toStableReasons = (
+  reasons: readonly ContextPolicyReason[],
+): readonly ContextPolicyReason[] => {
   const uniqueReasons = new Map<string, ContextPolicyReason>()
 
   for (const reason of reasons) {

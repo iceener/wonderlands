@@ -135,7 +135,8 @@ describe('context artifact policy', () => {
       /valid expiresAt/,
     )
     assert.throws(
-      () => decide(createArtifact('invalid_calendar_date', { capturedAt: '2026-02-30T00:00:00.000Z' })),
+      () =>
+        decide(createArtifact('invalid_calendar_date', { capturedAt: '2026-02-30T00:00:00.000Z' })),
       /valid capturedAt/,
     )
   })
@@ -427,10 +428,13 @@ describe('context artifact policy', () => {
       requestArtifacts.map((artifact) => artifact.payload.kind),
       ['tools', 'native_tools', 'request_options', 'metadata'],
     )
-    assert.deepEqual(
-      [...new Set(artifacts.map((artifact) => artifact.payload.kind))].sort(),
-      ['messages', 'metadata', 'native_tools', 'request_options', 'tools'],
-    )
+    assert.deepEqual([...new Set(artifacts.map((artifact) => artifact.payload.kind))].sort(), [
+      'messages',
+      'metadata',
+      'native_tools',
+      'request_options',
+      'tools',
+    ])
     assert.ok(decisions.every((decision) => decision.outcome === 'allow'))
     assert.ok(decisions.every((decision) => Object.isFrozen(decision.reasons)))
   })
@@ -446,9 +450,15 @@ describe('context artifact policy', () => {
             parameters: {
               additionalProperties: false,
               properties: {
-                accountId: { description: 'An account identifier supplied by the user.', type: 'string' },
+                accountId: {
+                  description: 'An account identifier supplied by the user.',
+                  type: 'string',
+                },
                 body: { description: 'A request body supplied at call time.', type: 'string' },
-                cookies: { description: 'Whether browser cookies should be exported.', type: 'boolean' },
+                cookies: {
+                  description: 'Whether browser cookies should be exported.',
+                  type: 'boolean',
+                },
                 password: { description: 'A password supplied at call time.', type: 'string' },
               },
               type: 'object',
@@ -464,13 +474,18 @@ describe('context artifact policy', () => {
     const credentialOutsideSchema = createArtifact('tool_definition_secret', {
       payload: unsafePayload({
         kind: 'tools',
-        tools: [{ authorization: 'Bearer must-not-cross', kind: 'function', name: 'unsafe', parameters: {} }],
+        tools: [
+          {
+            authorization: 'Bearer must-not-cross',
+            kind: 'function',
+            name: 'unsafe',
+            parameters: {},
+          },
+        ],
       }),
       visibility: 'request',
     })
-    assert.deepEqual(reasonCodes(decide(credentialOutsideSchema)), [
-      'unsafe_credential_field',
-    ])
+    assert.deepEqual(reasonCodes(decide(credentialOutsideSchema)), ['unsafe_credential_field'])
   })
 
   test('returns stable sorted and de-duplicated reasons for repeated aliases', () => {
@@ -491,8 +506,14 @@ describe('context artifact policy', () => {
       payload: unsafePayload({
         kind: 'request_options',
         options: {
-          a: { storage_key: 'private/storage/must-not-cross', Authorization: 'Bearer must-not-cross' },
-          z: { storage_key: 'private/storage/must-not-cross', Authorization: 'Bearer must-not-cross' },
+          a: {
+            storage_key: 'private/storage/must-not-cross',
+            Authorization: 'Bearer must-not-cross',
+          },
+          z: {
+            storage_key: 'private/storage/must-not-cross',
+            Authorization: 'Bearer must-not-cross',
+          },
         },
       }),
       visibility: 'request',
@@ -512,7 +533,8 @@ describe('context artifact policy', () => {
 
   test('fails closed for unsupported payloads, malformed family shapes, and validation modes', () => {
     assert.throws(
-      () => decide(createArtifact('unknown_payload', { payload: unsafePayload({ kind: 'future' }) })),
+      () =>
+        decide(createArtifact('unknown_payload', { payload: unsafePayload({ kind: 'future' }) })),
       /unsupported payload kind/,
     )
     assert.throws(
