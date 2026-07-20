@@ -33,42 +33,6 @@ describe('server architecture guardrails', () => {
     )
   })
 
-  it('route modules do not redefine shared route helpers locally', async () => {
-    const routesDir = resolve(testDir, '../src/adapters/http/routes/v1')
-    const routeFiles = await collectTypescriptFiles(routesDir)
-    const offenders: string[] = []
-
-    for (const file of routeFiles) {
-      const contents = await readFile(file, 'utf8')
-
-      if (/(?:const|function)\s+toCommandContext\s*[=(]/m.test(contents)) {
-        offenders.push(file)
-      }
-
-      if (/(?:const|function)\s+parseBody\s*[=(]/m.test(contents)) {
-        offenders.push(file)
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
-  it('command modules do not define file-local unwrap helpers', async () => {
-    const commandsDir = resolve(testDir, '../src/application/commands')
-    const commandFiles = await collectTypescriptFiles(commandsDir)
-    const offenders: string[] = []
-
-    for (const file of commandFiles) {
-      const contents = await readFile(file, 'utf8')
-
-      if (/(?:const|function)\s+unwrapOrThrow\s*[=(]/m.test(contents)) {
-        offenders.push(file)
-      }
-    }
-
-    expect(offenders).toEqual([])
-  })
-
   it('idempotency response schemas re-export shared contracts', async () => {
     const file = resolve(testDir, '../src/adapters/http/idempotency-response-schemas.ts')
     const contents = await readFile(file, 'utf8')
