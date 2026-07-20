@@ -12,6 +12,7 @@ import {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const extendedTier = process.env.TEST_TIER === 'extended'
   const backendOrigin = env.VITE_BACKEND_ORIGIN || 'http://127.0.0.1:3000'
   const appShellBasePathWithoutSlash = appShellBasePath.replace(/\/+$/u, '')
 
@@ -60,7 +61,11 @@ export default defineConfig(({ mode }) => {
     test: {
       globals: false,
       environment: 'node',
-      include: ['src/**/*.test.ts', 'shared/**/*.test.ts'],
+      exclude: extendedTier ? [] : ['src/**/*.extended.test.ts', 'shared/**/*.extended.test.ts'],
+      include: extendedTier
+        ? ['src/**/*.extended.test.ts', 'shared/**/*.extended.test.ts']
+        : ['src/**/*.test.ts', 'shared/**/*.test.ts'],
+      passWithNoTests: extendedTier,
       setupFiles: ['./src/test-preload.ts'],
       restoreMocks: true,
     },

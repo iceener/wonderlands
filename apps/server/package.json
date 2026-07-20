@@ -15,7 +15,9 @@
     "format": "biome format .",
     "format:fix": "biome format --write .",
     "start": "tsx src/index.ts",
-    "test": "vitest run --config ./vitest.config.ts",
+    "test": "npm run test:fast",
+    "test:fast": "vitest run --config ./vitest.config.ts",
+    "test:extended": "TEST_TIER=extended vitest run --config ./vitest.config.ts",
     "test:watch": "vitest --config ./vitest.config.ts",
     "typecheck": "tsc --noEmit"
   },
