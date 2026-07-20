@@ -1,13 +1,3 @@
-/**
- * Smoke tests for @wonderlands/mcp-shared.
- *
- * These cover the pieces genuinely shared between the standalone stdio MCP
- * servers (mcp/web, mcp/files-mcp): capabilities, the server builder, and
- * the logger/error utilities. Per-server behavior (tools, prompts,
- * resources, config) is exercised by each server's own test suite - it is
- * intentionally not duplicated here.
- */
-
 import { describe, expect, test } from 'bun:test';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { buildCapabilities } from '../src/core/capabilities.js';
@@ -23,23 +13,18 @@ import {
 } from '../src/utils/errors.js';
 import { logger } from '../src/utils/logger.js';
 
-describe('buildCapabilities', () => {
-  test('declares tools, prompts, resources, and logging support', () => {
-    const capabilities = buildCapabilities();
-
-    expect(capabilities).toEqual({
+describe('@wonderlands/mcp-shared', () => {
+  test('declares the complete shared capability set', () => {
+    expect(buildCapabilities()).toEqual({
       tools: { listChanged: true },
       prompts: { listChanged: true },
       resources: { listChanged: true, subscribe: true },
       logging: {},
     });
   });
-});
 
-describe('buildServer', () => {
-  test('creates an McpServer and invokes the supplied registrars', () => {
+  test('builds an MCP server and invokes every supplied registrar in order', () => {
     const calls: string[] = [];
-
     const server = buildServer({
       name: 'smoke-test-server',
       version: '0.0.0',
@@ -53,68 +38,75 @@ describe('buildServer', () => {
     expect(calls).toEqual(['tools', 'prompts', 'resources']);
   });
 
-  test('does not throw when registrars are omitted', () => {
-    expect(() => buildServer({ name: 'smoke-test-server-2', version: '0.0.0' })).not.toThrow();
-  });
-});
-
-describe('logger', () => {
-  test('exposes debug/info/warning/error without a connected server', () => {
-    expect(() => logger.debug('smoke', { message: 'debug message' })).not.toThrow();
-    expect(() => logger.info('smoke', { message: 'info message' })).not.toThrow();
-    expect(() => logger.warning('smoke', { message: 'warning message' })).not.toThrow();
-    expect(() => logger.error('smoke', { message: 'error message' })).not.toThrow();
-  });
-});
-
-describe('error utilities', () => {
-  test('toolError produces a structured error CallToolResult', () => {
-    const result = toolError('boom', ToolErrorCodes.NOT_FOUND, { id: 1 });
-
-    expect(result.isError).toBe(true);
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain('NOT_FOUND');
-    expect(text).toContain('boom');
+  test('supports omitted registrars and disconnected logger methods as no-ops', () => {
+    expect(() => buildServer({ name: 'minimal-server', version: '0.0.0' })).not.toThrow();
+    expect(() => {
+      logger.debug('smoke', { message: 'debug message' });
+      logger.info('smoke', { message: 'info message' });
+      logger.warning('smoke', { message: 'warning message' });
+      logger.error('smoke', { message: 'error message' });
+    }).not.toThrow();
   });
 
-  test('validationError formats zod-style issues', () => {
-    const result = validationError([{ path: ['name'], message: 'Required' }]);
+  test('formats structured, validation, and cancellation errors', () => {
+    const structured = toolError('boom', ToolErrorCodes.NOT_FOUND, { id: 1 });
+    const validation = validationError([{ path: ['items', 0, 'name'], message: 'Required' }]);
+    const cancelled = cancelledError('Stopped by caller');
 
-    expect(result.isError).toBe(true);
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain('name');
-    expect(text).toContain('Required');
-  });
-
-  test('cancelledError returns a plain cancellation result', () => {
-    const result = cancelledError();
-    expect(result.isError).toBe(true);
-  });
-
-  test('wrapHandler converts thrown ToolError into an error result', async () => {
-    const handler = wrapHandler(async () => {
-      throw new ToolError('nope', ToolErrorCodes.FORBIDDEN);
+    expect(structured.isError).toBe(true);
+    expect((structured.content[0] as { text: string }).text).toContain(
+      'Error [NOT_FOUND]: boom\n\nDetails: {\n  "id": 1\n}',
+    );
+    expect((validation.content[0] as { text: string }).text).toContain('items.0.name: Required');
+    expect(cancelled).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'Stopped by caller' }],
     });
+  });
 
+  test('wrapHandler preserves thrown ToolError code and details', async () => {
+    const handler = wrapHandler(async () => {
+      throw new ToolError('nope', ToolErrorCodes.FORBIDDEN, { resource: 'secret' });
+    });
     const result = await handler(undefined);
-    expect(result.isError).toBe(true);
     const text = (result.content[0] as { text: string }).text;
+
+    expect(result.isError).toBe(true);
     expect(text).toContain('FORBIDDEN');
+    expect(text).toContain('secret');
   });
 
-  test('wrapHandler converts unexpected errors into internal errors', async () => {
-    const handler = wrapHandler(async () => {
-      throw new Error('unexpected');
-    });
+  test('wrapHandler converts unexpected thrown values to internal errors', async () => {
+    for (const thrown of [new Error('unexpected'), 'string failure']) {
+      const handler = wrapHandler(async () => {
+        throw thrown;
+      });
+      const result = await handler(undefined);
+      const text = (result.content[0] as { text: string }).text;
 
-    const result = await handler(undefined);
-    expect(result.isError).toBe(true);
-    const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain('INTERNAL_ERROR');
+      expect(result.isError).toBe(true);
+      expect(text).toContain('INTERNAL_ERROR');
+      expect(text).toContain(thrown instanceof Error ? thrown.message : thrown);
+    }
   });
 
-  test('assertTool throws a ToolError when the condition is false', () => {
-    expect(() => assertTool(false, 'must be true', ToolErrorCodes.VALIDATION)).toThrow(ToolError);
+  test('assertTool narrows truthy values and throws structured failures', () => {
     expect(() => assertTool(true, 'must be true')).not.toThrow();
+    expect(() =>
+      assertTool(false, 'must be true', ToolErrorCodes.VALIDATION, { field: 'enabled' }),
+    ).toThrow(ToolError);
+
+    try {
+      assertTool(false, 'must be true', ToolErrorCodes.VALIDATION, { field: 'enabled' });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolError);
+      expect(error).toEqual(
+        expect.objectContaining({
+          message: 'must be true',
+          code: ToolErrorCodes.VALIDATION,
+          details: { field: 'enabled' },
+        }),
+      );
+    }
   });
 });

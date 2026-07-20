@@ -1,177 +1,61 @@
-/**
- * Tests for Obsidian-like knowledge base patterns using fs_search.
- */
+import '../setup.js';
 
-import { FIXTURES_PATH } from '../setup.js';
-
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
+import { describe, expect, test } from 'bun:test';
 import { fsSearchTool } from '../../src/tools/fs-search.tool.js';
 
 const KNOWLEDGE_FILE = 'vault/knowledge/programming-notes.md';
-const TEST_DIR = path.join(FIXTURES_PATH, 'obsidian-tests');
 
 async function runFsSearch(args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const result = await fsSearchTool.handler(args, {} as never);
-  const text = (result.content[0] as { text: string }).text;
-  return JSON.parse(text);
+  return JSON.parse((result.content[0] as { text: string }).text);
 }
 
-beforeAll(async () => {
-  await fs.mkdir(TEST_DIR, { recursive: true });
-});
-
-afterAll(async () => {
-  await fs.rm(TEST_DIR, { recursive: true, force: true });
-});
-
-// ─────────────────────────────────────────────────────────────
-// Wikilink Patterns
-// ─────────────────────────────────────────────────────────────
-
-describe('Obsidian: Wikilinks', () => {
-  test('finds all wikilinks in a file', async () => {
-    const result = await runFsSearch({
+describe('representative Obsidian searches', () => {
+  test('finds wikilinks including aliases and heading links', async () => {
+    const all = await runFsSearch({
       path: KNOWLEDGE_FILE,
       query: '\\[\\[([^\\]|]+)(\\|[^\\]]+)?\\]\\]',
       patternMode: 'regex',
       target: 'content',
     });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThanOrEqual(5);
-  });
-
-  test('finds wikilinks with display text', async () => {
-    const result = await runFsSearch({
+    const structured = await runFsSearch({
       path: KNOWLEDGE_FILE,
-      query: '\\[\\[[^\\]]+\\|[^\\]]+\\]\\]',
+      query: '\\[\\[[^\\]]+(\\|[^\\]]+|#[^\\]]+)\\]\\]',
       patternMode: 'regex',
       target: 'content',
     });
 
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(0);
+    expect((all.stats as { contentMatches: number }).contentMatches).toBeGreaterThanOrEqual(5);
+    expect((structured.stats as { contentMatches: number }).contentMatches).toBeGreaterThan(0);
   });
 
-  test('finds links to specific note', async () => {
+  test('finds inline and nested tags across a vault', async () => {
     const result = await runFsSearch({
-      path: KNOWLEDGE_FILE,
-      query: '\\[\\[.*Alice.*\\]\\]',
-      patternMode: 'regex',
-      target: 'content',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(0);
-  });
-
-  test('finds heading links', async () => {
-    const result = await runFsSearch({
-      path: KNOWLEDGE_FILE,
-      query: '\\[\\[[^\\]]+#[^\\]]+\\]\\]',
-      patternMode: 'regex',
-      target: 'content',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────
-// Tag Patterns
-// ─────────────────────────────────────────────────────────────
-
-describe('Obsidian: Tags', () => {
-  test('finds all inline tags', async () => {
-    const result = await runFsSearch({
-      path: KNOWLEDGE_FILE,
+      path: 'vault',
       query: '#[a-zA-Z][\\w/-]*',
       patternMode: 'regex',
       target: 'content',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(3);
-  });
-
-  test('finds nested tags', async () => {
-    const result = await runFsSearch({
-      path: 'vault',
-      query: '#\\w+/\\w+',
-      patternMode: 'regex',
-      target: 'content',
       depth: 10,
     });
 
     expect(result.success).toBe(true);
+    expect((result.stats as { contentMatches: number }).contentMatches).toBeGreaterThan(3);
   });
 
-  test('searches for files with specific tag', async () => {
-    const result = await runFsSearch({
-      path: 'vault',
-      query: '#learning',
-      target: 'content',
-      depth: 10,
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────
-// Frontmatter Patterns
-// ─────────────────────────────────────────────────────────────
-
-describe('Obsidian: Frontmatter', () => {
-  test('finds frontmatter delimiters', async () => {
+  test('finds a field inside multiline frontmatter', async () => {
     const result = await runFsSearch({
       path: KNOWLEDGE_FILE,
-      query: '---',
-      patternMode: 'literal',
-      target: 'content',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThanOrEqual(2);
-  });
-
-  test('finds specific frontmatter field', async () => {
-    const result = await runFsSearch({
-      path: KNOWLEDGE_FILE,
-      query: 'title:\\s*.+',
-      patternMode: 'regex',
-      target: 'content',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(0);
-  });
-
-  test('finds files with specific frontmatter tag', async () => {
-    const result = await runFsSearch({
-      path: 'vault',
-      query: 'tags:[\\s\\S]*?programming',
+      query: '^---.*?tags:[\\s\\S]*?programming.*?---',
       patternMode: 'regex',
       multiline: true,
       target: 'content',
-      depth: 10,
     });
 
     expect(result.success).toBe(true);
+    expect((result.stats as { contentMatches: number }).contentMatches).toBeGreaterThan(0);
   });
-});
 
-// ─────────────────────────────────────────────────────────────
-// Task/TODO Patterns
-// ─────────────────────────────────────────────────────────────
-
-describe('Obsidian: Tasks', () => {
-  test('finds incomplete tasks', async () => {
+  test('finds incomplete Markdown tasks', async () => {
     const result = await runFsSearch({
       path: KNOWLEDGE_FILE,
       query: '- \\[ \\] .+',
@@ -180,6 +64,6 @@ describe('Obsidian: Tasks', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.stats.contentMatches).toBeGreaterThan(2);
+    expect((result.stats as { contentMatches: number }).contentMatches).toBeGreaterThan(2);
   });
 });

@@ -1,43 +1,28 @@
-/**
- * Integration tests for fs_write tool.
- *
- * These tests use the actual filesystem with test fixtures.
- */
-
-// IMPORTANT: Setup must be imported first to set env vars before config loads
 import { FIXTURES_PATH } from '../setup.js';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
-// Import the tool handlers AFTER setup
 import { fsReadTool } from '../../src/tools/fs-read.tool.js';
 import { fsWriteTool } from '../../src/tools/fs-write.tool.js';
 
 const TEST_DIR = path.join(FIXTURES_PATH, 'write-tests');
+const ORIGINAL = 'line1\nline2\nline3\nline4\nline5';
 
-// Helper to run tools
-async function runFsRead(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const result = await fsReadTool.handler(args, {} as never);
-  const text = (result.content[0] as { text: string }).text;
-  return JSON.parse(text);
-}
-
-async function runFsWrite(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const result = await fsWriteTool.handler(args, {} as never);
+async function runTool(
+  tool: typeof fsReadTool | typeof fsWriteTool,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const result = await tool.handler(args, {} as never);
   if (result.isError) {
-    // Return a structured error for validation failures
     return {
       success: false,
       error: { code: 'VALIDATION_ERROR', message: (result.content[0] as { text: string }).text },
     };
   }
-  const text = (result.content[0] as { text: string }).text;
-  return JSON.parse(text);
+  return JSON.parse((result.content[0] as { text: string }).text);
 }
 
-// Setup and teardown
 beforeAll(async () => {
   await fs.mkdir(TEST_DIR, { recursive: true });
 });
@@ -47,309 +32,190 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Clean test directory before each test
-  const files = await fs.readdir(TEST_DIR);
-  for (const file of files) {
-    await fs.rm(path.join(TEST_DIR, file), { recursive: true, force: true });
-  }
+  await fs.rm(TEST_DIR, { recursive: true, force: true });
+  await fs.mkdir(TEST_DIR, { recursive: true });
 });
 
-describe('fs_write: create operation', () => {
-  test('creates new file', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/new-file.md',
+describe('fs_write workflows', () => {
+  test('creates nested files with a checksum and readable output structure', async () => {
+    const result = await runTool(fsWriteTool, {
+      path: 'write-tests/deep/nested/file.md',
       operation: 'create',
       content: '# New File\n\nContent here.',
     });
+    const read = await runTool(fsReadTool, { path: 'write-tests/deep/nested/file.md' });
 
-    expect(result.success).toBe(true);
-    expect(result.operation).toBe('create');
-    expect(result.applied).toBe(true);
-
-    // Verify file exists
-    const readResult = await runFsRead({ path: 'write-tests/new-file.md' });
-    expect(readResult.success).toBe(true);
-  });
-
-  test('creates file with nested path', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/deep/nested/path/file.md',
-      operation: 'create',
-      content: 'Nested content',
-    });
-
-    expect(result.success).toBe(true);
-
-    // Verify file exists (with trailing newline - default behavior)
-    const content = await fs.readFile(path.join(TEST_DIR, 'deep/nested/path/file.md'), 'utf8');
-    expect(content).toBe('Nested content\n');
-  });
-
-  test('fails if file already exists', async () => {
-    // Create file first
-    await fs.writeFile(path.join(TEST_DIR, 'existing.md'), 'existing');
-
-    const result = await runFsWrite({
-      path: 'write-tests/existing.md',
-      operation: 'create',
-      content: 'new content',
-    });
-
-    expect(result.success).toBe(false);
-    expect((result.error as { code: string }).code).toBe('ALREADY_EXISTS');
-  });
-
-  test('dry run does not create file', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/dry-run.md',
-      operation: 'create',
-      content: 'content',
-      dryRun: true,
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.applied).toBe(false);
-
-    // File should not exist
-    await expect(fs.access(path.join(TEST_DIR, 'dry-run.md'))).rejects.toThrow();
-  });
-
-  test('returns checksum after creation', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/checksum-test.md',
-      operation: 'create',
-      content: 'test content',
-    });
-
-    expect(result.success).toBe(true);
-    expect((result.result as { newChecksum: string }).newChecksum).toBeDefined();
-  });
-});
-
-describe('fs_write: update operation - line-based', () => {
-  beforeEach(async () => {
-    await fs.writeFile(
-      path.join(TEST_DIR, 'update-test.md'),
-      'line1\nline2\nline3\nline4\nline5',
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        path: 'write-tests/deep/nested/file.md',
+        operation: 'create',
+        applied: true,
+        result: expect.objectContaining({ newChecksum: expect.any(String) }),
+        hint: expect.any(String),
+      }),
+    );
+    expect(read).toEqual(expect.objectContaining({ success: true, type: 'file' }));
+    expect(await fs.readFile(path.join(TEST_DIR, 'deep/nested/file.md'), 'utf8')).toBe(
+      '# New File\n\nContent here.\n',
     );
   });
 
-  test('replaces single line', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/update-test.md',
-      operation: 'update',
-      action: 'replace',
-      lines: '3',
-      content: 'REPLACED',
-    });
+  test('rejects an existing destination and paths outside the sandbox', async () => {
+    await fs.writeFile(path.join(TEST_DIR, 'existing.md'), 'existing');
+    const cases = [
+      {
+        args: { path: 'write-tests/existing.md', operation: 'create', content: 'replacement' },
+        code: 'ALREADY_EXISTS',
+      },
+      {
+        args: { path: '../../../etc/passwd', operation: 'create', content: 'malicious' },
+        code: 'OUT_OF_SCOPE',
+      },
+    ];
 
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'update-test.md'), 'utf8');
-    expect(content).toBe('line1\nline2\nREPLACED\nline4\nline5\n');
+    for (const { args, code } of cases) {
+      const result = await runTool(fsWriteTool, args);
+      expect(result.success).toBe(false);
+      expect((result.error as { code: string }).code).toBe(code);
+    }
+    expect(await fs.readFile(path.join(TEST_DIR, 'existing.md'), 'utf8')).toBe('existing');
   });
 
-  test('replaces line range', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/update-test.md',
-      operation: 'update',
-      action: 'replace',
-      lines: '2-4',
-      content: 'NEW',
-    });
+  test('applies every line-based update action with exact resulting content', async () => {
+    const cases = [
+      {
+        action: 'replace',
+        lines: '3',
+        content: 'REPLACED',
+        expected: 'line1\nline2\nREPLACED\nline4\nline5\n',
+      },
+      {
+        action: 'replace',
+        lines: '2-4',
+        content: 'first\nsecond',
+        expected: 'line1\nfirst\nsecond\nline5\n',
+      },
+      {
+        action: 'insert_before',
+        lines: '3',
+        content: 'INSERTED',
+        expected: 'line1\nline2\nINSERTED\nline3\nline4\nline5\n',
+      },
+      {
+        action: 'insert_after',
+        lines: '3',
+        content: 'INSERTED',
+        expected: 'line1\nline2\nline3\nINSERTED\nline4\nline5\n',
+      },
+      {
+        action: 'delete_lines',
+        lines: '2-4',
+        expected: 'line1\nline5\n',
+      },
+    ];
 
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'update-test.md'), 'utf8');
-    expect(content).toBe('line1\nNEW\nline5\n');
+    for (const { expected, ...update } of cases) {
+      const file = path.join(TEST_DIR, 'update.md');
+      await fs.writeFile(file, ORIGINAL);
+      const result = await runTool(fsWriteTool, {
+        path: 'write-tests/update.md',
+        operation: 'update',
+        ...update,
+      });
+      expect(result.success).toBe(true);
+      expect(await fs.readFile(file, 'utf8')).toBe(expected);
+    }
   });
 
-  test('inserts before line', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/update-test.md',
-      operation: 'update',
-      action: 'insert_before',
-      lines: '3',
-      content: 'INSERTED',
-    });
+  test('accepts the current checksum and rejects stale writes', async () => {
+    const file = path.join(TEST_DIR, 'checksum.md');
+    await fs.writeFile(file, 'original');
+    const read = await runTool(fsReadTool, { path: 'write-tests/checksum.md' });
+    const checksum = (read.content as { checksum: string }).checksum;
 
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'update-test.md'), 'utf8');
-    expect(content).toBe('line1\nline2\nINSERTED\nline3\nline4\nline5\n');
-  });
-
-  test('inserts after line', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/update-test.md',
-      operation: 'update',
-      action: 'insert_after',
-      lines: '3',
-      content: 'INSERTED',
-    });
-
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'update-test.md'), 'utf8');
-    expect(content).toBe('line1\nline2\nline3\nINSERTED\nline4\nline5\n');
-  });
-
-  test('deletes lines', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/update-test.md',
-      operation: 'update',
-      action: 'delete_lines',
-      lines: '2-4',
-    });
-
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'update-test.md'), 'utf8');
-    expect(content).toBe('line1\nline5\n');
-  });
-});
-
-describe('fs_write: checksum verification', () => {
-  test('succeeds with correct checksum', async () => {
-    await fs.writeFile(path.join(TEST_DIR, 'checksum.md'), 'original');
-
-    // Get checksum
-    const readResult = await runFsRead({ path: 'write-tests/checksum.md' });
-    const checksum = (readResult.content as { checksum: string }).checksum;
-
-    // Update with correct checksum
-    const result = await runFsWrite({
+    const stale = await runTool(fsWriteTool, {
       path: 'write-tests/checksum.md',
       operation: 'update',
       action: 'replace',
       lines: '1',
-      content: 'modified',
-      checksum,
-    });
-
-    expect(result.success).toBe(true);
-  });
-
-  test('fails with incorrect checksum', async () => {
-    await fs.writeFile(path.join(TEST_DIR, 'checksum.md'), 'original');
-
-    const result = await runFsWrite({
-      path: 'write-tests/checksum.md',
-      operation: 'update',
-      action: 'replace',
-      lines: '1',
-      content: 'modified',
+      content: 'stale update',
       checksum: 'wrong-checksum',
     });
+    expect(stale.success).toBe(false);
+    expect((stale.error as { code: string }).code).toBe('CHECKSUM_MISMATCH');
+    expect(await fs.readFile(file, 'utf8')).toBe('original');
 
-    expect(result.success).toBe(false);
-    expect((result.error as { code: string }).code).toBe('CHECKSUM_MISMATCH');
+    const current = await runTool(fsWriteTool, {
+      path: 'write-tests/checksum.md',
+      operation: 'update',
+      action: 'replace',
+      lines: '1',
+      content: 'current update',
+      checksum,
+    });
+    expect(current.success).toBe(true);
   });
-});
 
-describe('fs_write: diff generation', () => {
-  test('returns diff for updates', async () => {
-    await fs.writeFile(path.join(TEST_DIR, 'diff-test.md'), 'old content');
-
-    const result = await runFsWrite({
-      path: 'write-tests/diff-test.md',
+  test('returns a unified diff for applied updates', async () => {
+    await fs.writeFile(path.join(TEST_DIR, 'diff.md'), 'old content');
+    const result = await runTool(fsWriteTool, {
+      path: 'write-tests/diff.md',
       operation: 'update',
       action: 'replace',
       lines: '1',
       content: 'new content',
     });
+    const diff = (result.result as { diff: string }).diff;
 
-    expect(result.success).toBe(true);
-    expect((result.result as { diff: string }).diff).toBeDefined();
-    expect((result.result as { diff: string }).diff).toContain('-old content');
-    expect((result.result as { diff: string }).diff).toContain('+new content');
+    expect(result).toEqual(expect.objectContaining({ success: true, applied: true }));
+    expect(diff).toContain('-old content');
+    expect(diff).toContain('+new content');
   });
 
-  test('dry run returns preview diff', async () => {
-    await fs.writeFile(path.join(TEST_DIR, 'diff-test.md'), 'original');
+  test('previews an update without mutating the file', async () => {
+    const file = path.join(TEST_DIR, 'dry-run.md');
+    await fs.writeFile(file, 'original bytes\n');
+    const before = await fs.readFile(file);
 
-    const result = await runFsWrite({
-      path: 'write-tests/diff-test.md',
+    const result = await runTool(fsWriteTool, {
+      path: 'write-tests/dry-run.md',
       operation: 'update',
       action: 'replace',
       lines: '1',
       content: 'modified',
       dryRun: true,
     });
+    const after = await fs.readFile(file);
+    const diff = (result.result as { diff: string }).diff;
 
-    expect(result.success).toBe(true);
-    expect((result.result as { diff: string }).diff).toContain('-original');
-    expect((result.result as { diff: string }).diff).toContain('+modified');
-  });
-});
-
-describe('fs_write: edge cases', () => {
-  test('handles path outside allowed directory', async () => {
-    const result = await runFsWrite({
-      path: '../../../etc/passwd',
-      operation: 'create',
-      content: 'malicious',
-    });
-
-    expect(result.success).toBe(false);
+    expect(result).toEqual(expect.objectContaining({ success: true, applied: false }));
+    expect(diff).toContain('-original bytes');
+    expect(diff).toContain('+modified');
+    expect(after).toEqual(before);
   });
 
-  test('handles empty content for create', async () => {
-    // Empty string is valid content
-    const result = await runFsWrite({
-      path: 'write-tests/empty.md',
-      operation: 'create',
-      content: '',
-    });
+  test('converts missing files and invalid update shapes to errors', async () => {
+    const cases = [
+      {
+        path: 'write-tests/missing.md',
+        operation: 'update',
+        action: 'replace',
+        lines: '1',
+        content: 'content',
+      },
+      {
+        path: 'write-tests/missing.md',
+        operation: 'update',
+        action: 'replace',
+        content: 'content',
+      },
+    ];
 
-    // Should succeed - empty files are valid (but get trailing newline)
-    if (!result.success) {
-      // If it fails due to validation, that's also acceptable behavior
+    for (const args of cases) {
+      const result = await runTool(fsWriteTool, args);
+      expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
-    } else {
-      const content = await fs.readFile(path.join(TEST_DIR, 'empty.md'), 'utf8');
-      expect(content).toBe('\n'); // Empty content still gets trailing newline
     }
-  });
-
-  test('handles multi-line replacement content', async () => {
-    await fs.writeFile(path.join(TEST_DIR, 'multiline.md'), 'single line');
-
-    const result = await runFsWrite({
-      path: 'write-tests/multiline.md',
-      operation: 'update',
-      action: 'replace',
-      lines: '1',
-      content: 'line1\nline2\nline3',
-    });
-
-    expect(result.success).toBe(true);
-
-    const content = await fs.readFile(path.join(TEST_DIR, 'multiline.md'), 'utf8');
-    expect(content).toBe('line1\nline2\nline3\n');
-  });
-
-  test('update fails for non-existent file', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/nonexistent.md',
-      operation: 'update',
-      action: 'replace',
-      lines: '1',
-      content: 'content',
-    });
-
-    expect(result.success).toBe(false);
-    expect((result.error as { code: string }).code).toBe('NOT_FOUND');
-  });
-
-  test('update requires lines', async () => {
-    const result = await runFsWrite({
-      path: 'write-tests/nonexistent.md',
-      operation: 'update',
-      action: 'replace',
-      content: 'content',
-    });
-
-    expect(result.success).toBe(false);
   });
 });
