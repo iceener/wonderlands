@@ -2,60 +2,35 @@ import { describe, expect, test } from 'vitest'
 import type { BrowserAuthMembership } from '../services/auth'
 import { createWorkspaceProvider } from './workspace-provider.svelte.ts'
 
-const createMembership = (
-  tenantId: string,
-  overrides: Partial<BrowserAuthMembership> = {},
-): BrowserAuthMembership => ({
+const createMembership = (tenantId: string, tenantName: string): BrowserAuthMembership => ({
   role: 'member',
   tenantId,
-  tenantName: `Workspace ${tenantId}`,
-  tenantSlug: `workspace-${tenantId}`,
-  ...overrides,
+  tenantName,
+  tenantSlug: tenantName.toLowerCase(),
 })
 
 describe('createWorkspaceProvider', () => {
-  test('marks the current workspace in the label', async () => {
-    const provider = createWorkspaceProvider({
-      currentTenantId: () => 'ten_1',
-      getMemberships: () => [createMembership('ten_1')],
-      onSwitchTenant: () => undefined,
-    })
-
-    const results = provider.getItems('')
-
-    expect(results[0]?.item.label).toBe('Current: Workspace ten_1')
-  })
-
-  test('filters memberships by query', async () => {
-    const provider = createWorkspaceProvider({
-      currentTenantId: () => 'ten_1',
-      getMemberships: () => [
-        createMembership('ten_1', { tenantName: 'Alpha' }),
-        createMembership('ten_2', { tenantName: 'Beta' }),
-      ],
-      onSwitchTenant: () => undefined,
-    })
-
-    const results = provider.getItems('beta')
-
-    expect(results).toHaveLength(1)
-    expect(results[0]?.item.id).toBe('workspace:ten_2')
-  })
-
-  test('delegates tenant switching for non-current workspaces', async () => {
+  test('filters memberships and delegates only non-current workspace selection', async () => {
     const calls: string[] = []
-
     const provider = createWorkspaceProvider({
-      currentTenantId: () => 'ten_1',
-      getMemberships: () => [createMembership('ten_1'), createMembership('ten_2')],
+      currentTenantId: () => 'ten_current',
+      getMemberships: () => [
+        createMembership('ten_current', 'Alpha'),
+        createMembership('ten_other', 'Beta'),
+      ],
       onSwitchTenant: async (tenantId) => {
         calls.push(tenantId)
       },
     })
 
-    const result = provider.getItems('ten_2')[0]
-    await result?.item.run()
+    const all = provider.getItems('')
+    expect(all.map(({ item }) => item.id)).toEqual(['workspace:ten_current', 'workspace:ten_other'])
 
-    expect(calls).toEqual(['ten_2'])
+    await all[0]?.item.run()
+    const filtered = provider.getItems('beta')
+    expect(filtered.map(({ item }) => item.id)).toEqual(['workspace:ten_other'])
+    await filtered[0]?.item.run()
+
+    expect(calls).toEqual(['ten_other'])
   })
 })

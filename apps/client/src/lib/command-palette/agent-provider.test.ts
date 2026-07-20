@@ -6,122 +6,80 @@ const createAgent = (
   id: string,
   name: string,
   visibility: BackendAgentSummary['visibility'],
-  overrides: Partial<BackendAgentSummary> = {},
+  isDefaultForAccount = false,
 ): BackendAgentSummary => ({
   activeRevisionId: 'rev_1',
   activeRevisionVersion: 1,
   createdAt: '2026-03-30T10:00:00.000Z',
   description: null,
   id: asAgentId(id),
-  isDefaultForAccount: false,
+  isDefaultForAccount,
   kind: 'specialist',
   name,
   ownerAccountId: 'acc_1',
-  slug: name.toLowerCase().replace(/\s+/g, '-'),
+  slug: name.toLowerCase(),
   status: 'active',
   updatedAt: '2026-03-30T10:00:00.000Z',
   visibility,
-  ...overrides,
 })
 
-describe('createAgentProvider', () => {
-  test('calls listAgents on first getItems and reuses the cached list', async () => {
-    let listCalls = 0
+const flush = async (): Promise<void> => {
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
+describe('createAgentProvider', () => {
+  test('loads once, filters the cached visibility groups, and delegates selection', async () => {
+    let listCalls = 0
+    const selected: string[] = []
     const provider = createAgentProvider({
       listAgents: async () => {
         listCalls += 1
         return [
-          createAgent('agt_1', 'Researcher', 'account_private'),
-          createAgent('agt_2', 'Reviewer', 'tenant_shared'),
+          createAgent('agt_private', 'Alpha', 'account_private', true),
+          createAgent('agt_shared', 'Beta', 'tenant_shared'),
+          createAgent('agt_system', 'Gamma', 'system'),
         ]
       },
-      onSelectAgent: () => undefined,
+      onSelectAgent: (agent) => selected.push(agent.id),
     })
 
     provider.getItems('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const first = provider.getItems('')
-    const second = provider.getItems('review')
+    await flush()
+    const all = provider.getItems('')
+    const filtered = provider.getItems('beta')
 
     expect(listCalls).toBe(1)
-    expect(first).toHaveLength(2)
-    expect(second).toHaveLength(1)
-    expect(second[0]?.item.label).toBe('Reviewer')
-  })
-
-  test('groups agents by visibility and marks the default account agent', async () => {
-    const provider = createAgentProvider({
-      listAgents: async () => [
-        createAgent('agt_1', 'Personal Planner', 'account_private', {
-          isDefaultForAccount: true,
-        }),
-        createAgent('agt_2', 'Team Reviewer', 'tenant_shared'),
-        createAgent('agt_3', 'System Analyst', 'system'),
-      ],
-      onSelectAgent: () => undefined,
-    })
-
-    provider.getItems('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const results = provider.getItems('')
-
-    expect(results.map((result) => result.item.group)).toEqual([
-      'My Agents',
-      'Shared Agents',
-      'System',
+    expect(all.map(({ item }) => [item.id, item.group])).toEqual([
+      ['agt_private', 'My Agents'],
+      ['agt_shared', 'Shared Agents'],
+      ['agt_system', 'System'],
     ])
-    expect(results[0]?.item.shortcutHint).toBe('default')
+    expect(all[0]?.item.shortcutHint).toBe('default')
+    expect(filtered.map(({ item }) => item.id)).toEqual(['agt_shared'])
+
+    if (filtered[0]) provider.onSelect(filtered[0].item)
+    await flush()
+    expect(selected).toEqual(['agt_shared'])
   })
 
-  test('calls onSelectAgent when an item is selected', async () => {
-    const selected: string[] = []
-
-    const provider = createAgentProvider({
-      listAgents: async () => [createAgent('agt_1', 'Researcher', 'account_private')],
-      onSelectAgent: (agent) => {
-        selected.push(agent.id)
-      },
-    })
-
-    provider.getItems('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const item = provider.getItems('research')[0]?.item
-    expect(item).toBeDefined()
-
-    if (item) {
-      provider.onSelect(item)
-    }
-
-    expect(selected).toEqual(['agt_1'])
-  })
-
-  test('resets the cache on dismiss so the next open refetches agents', async () => {
+  test('clears its async cache on dismiss and refetches on the next read', async () => {
     let listCalls = 0
-
     const provider = createAgentProvider({
       listAgents: async () => {
         listCalls += 1
-        return [createAgent(`agt_${listCalls}`, 'Researcher', 'account_private')]
+        return [createAgent(`agt_${listCalls}`, 'Alpha', 'account_private')]
       },
       onSelectAgent: () => undefined,
     })
 
     provider.getItems('')
-    await Promise.resolve()
-    await Promise.resolve()
+    await flush()
     provider.onDismiss?.()
-
     provider.getItems('')
-    await Promise.resolve()
-    await Promise.resolve()
+    await flush()
 
     expect(listCalls).toBe(2)
+    expect(provider.getItems('')[0]?.item.id).toBe('agt_2')
   })
 })

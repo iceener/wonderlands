@@ -27,36 +27,33 @@ const keyboardEvent = (
 })
 
 describe('conversation-dialog-keyboard', () => {
-  test('maps escape to close', () => {
-    expect(getConversationDialogKeyAction(keyboardEvent({ key: 'Escape' }))).toBe('close')
-  })
+  test('maps Escape and supported Enter variants to dialog actions', () => {
+    const scenarios = [
+      [{ key: 'Escape' }, 'close'],
+      [{ key: 'Enter' }, 'submit'],
+      [{ ctrlKey: true, key: 'Enter' }, 'submit'],
+      [{ key: 'Enter', metaKey: true }, 'submit'],
+    ] as const
 
-  test('maps plain enter and mod+enter to submit', () => {
-    expect(getConversationDialogKeyAction(keyboardEvent({ key: 'Enter' }))).toBe('submit')
-    expect(getConversationDialogKeyAction(keyboardEvent({ ctrlKey: true, key: 'Enter' }))).toBe(
-      'submit',
-    )
-    expect(getConversationDialogKeyAction(keyboardEvent({ key: 'Enter', metaKey: true }))).toBe(
-      'submit',
-    )
-  })
-
-  test('ignores composing, prevented, and shifted enter events', () => {
-    expect(
-      getConversationDialogKeyAction(keyboardEvent({ isComposing: true, key: 'Escape' })),
-    ).toBeNull()
-    expect(
-      getConversationDialogKeyAction(keyboardEvent({ defaultPrevented: true, key: 'Enter' })),
-    ).toBeNull()
-    expect(
-      getConversationDialogKeyAction(keyboardEvent({ key: 'Enter', shiftKey: true })),
-    ).toBeNull()
-    expect(getConversationDialogKeyAction(keyboardEvent({ altKey: true, key: 'Enter' }))).toBeNull()
-  })
-
-  test('detects modified submit keys', () => {
+    for (const [event, action] of scenarios) {
+      expect(getConversationDialogKeyAction(keyboardEvent(event))).toBe(action)
+    }
     expect(isModifiedPrimarySubmit(keyboardEvent({ ctrlKey: true }))).toBe(true)
     expect(isModifiedPrimarySubmit(keyboardEvent({ metaKey: true }))).toBe(true)
     expect(isModifiedPrimarySubmit(keyboardEvent())).toBe(false)
+  })
+
+  test('ignores unrelated, composing, prevented, shifted, and alt-modified keys', () => {
+    const ignored = [
+      { key: 'ArrowDown' },
+      { isComposing: true, key: 'Escape' },
+      { defaultPrevented: true, key: 'Enter' },
+      { key: 'Enter', shiftKey: true },
+      { altKey: true, key: 'Enter' },
+    ]
+
+    for (const event of ignored) {
+      expect(getConversationDialogKeyAction(keyboardEvent(event))).toBeNull()
+    }
   })
 })

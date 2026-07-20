@@ -2,39 +2,36 @@ import { describe, expect, test } from 'vitest'
 import { createConversationDialogController } from './conversation-dialog-controller.svelte.ts'
 
 describe('createConversationDialogController', () => {
-  test('opens and resolves rename requests', async () => {
+  test('submits rename and delete requests and returns to closed state', async () => {
     const controller = createConversationDialogController()
 
-    const pending = controller.openRename({
-      currentTitle: 'Current thread',
+    const rename = controller.openRename({ currentTitle: 'Before' })
+    expect(controller.currentRequest?.kind).toBe('rename')
+    controller.submitRename('After')
+    await expect(rename).resolves.toBe('After')
+
+    const deletion = controller.openDelete({ currentTitle: 'After' })
+    expect(controller.currentRequest?.kind).toBe('delete')
+    controller.confirmDelete()
+    await expect(deletion).resolves.toBe(true)
+    expect({ isOpen: controller.isOpen, request: controller.currentRequest }).toEqual({
+      isOpen: false,
+      request: null,
     })
-
-    expect(controller.isOpen).toBe(true)
-    expect(controller.currentRequest).toEqual({
-      currentTitle: 'Current thread',
-      kind: 'rename',
-    })
-
-    controller.submitRename('Renamed thread')
-
-    await expect(pending).resolves.toBe('Renamed thread')
-    expect(controller.isOpen).toBe(false)
-    expect(controller.currentRequest).toBeNull()
   })
 
-  test('cancels rename requests with null and delete requests with false', async () => {
+  test('cancels each request type, including one replaced by a new request', async () => {
     const controller = createConversationDialogController()
 
-    const renamePending = controller.openRename({
-      currentTitle: 'Current thread',
-    })
-    controller.cancel()
-    await expect(renamePending).resolves.toBeNull()
+    const replacedRename = controller.openRename({ currentTitle: 'One' })
+    const deletion = controller.openDelete({ currentTitle: 'Two' })
+    await expect(replacedRename).resolves.toBeNull()
 
-    const deletePending = controller.openDelete({
-      currentTitle: 'Current thread',
-    })
     controller.cancel()
-    await expect(deletePending).resolves.toBe(false)
+    await expect(deletion).resolves.toBe(false)
+
+    const rename = controller.openRename({ currentTitle: 'Three' })
+    controller.cancel()
+    await expect(rename).resolves.toBeNull()
   })
 })

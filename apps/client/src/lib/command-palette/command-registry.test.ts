@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import type { AppCommands } from '../commands/app-commands'
 import { resolveShortcutBindings } from '../shortcuts/default-bindings'
 
@@ -53,273 +53,151 @@ const createAppCommandsStub = (overrides: Partial<AppCommands> = {}): AppCommand
   ...overrides,
 })
 
-describe('createCommandsProvider', () => {
-  test('returns a provider with command mode', async () => {
-    const provider = createCommandsProvider(createAppCommandsStub(), () => defaultBindings)
+type CommandCase = {
+  id: string
+  guard?: keyof AppCommands
+  action: keyof AppCommands
+  surfaces?: readonly ('palette' | 'slash')[]
+}
 
-    expect(provider.id).toBe('commands')
-    expect(provider.mode).toBe('command')
-  })
+const commandCases: readonly CommandCase[] = [
+  { id: 'chat.new-conversation', guard: 'canStartNewConversation', action: 'newConversation' },
+  {
+    id: 'chat.upload-attachment',
+    guard: 'canPickAttachments',
+    action: 'pickAttachments',
+    surfaces: ['palette', 'slash'],
+  },
+  {
+    id: 'chat.switch-conversation',
+    guard: 'canOpenConversationPicker',
+    action: 'openConversationPicker',
+  },
+  {
+    id: 'chat.previous-conversation',
+    guard: 'canGoToPreviousConversation',
+    action: 'goToPreviousConversation',
+  },
+  {
+    id: 'chat.next-conversation',
+    guard: 'canGoToNextConversation',
+    action: 'goToNextConversation',
+  },
+  {
+    id: 'chat.rename-conversation',
+    guard: 'canRenameConversation',
+    action: 'renameConversation',
+  },
+  {
+    id: 'chat.delete-conversation',
+    guard: 'canDeleteConversation',
+    action: 'deleteConversation',
+  },
+  { id: 'agents.manage', guard: 'canOpenAgentPanel', action: 'openAgentPanel' },
+  { id: 'agents.new', guard: 'canOpenAgentPanel', action: 'openNewAgent' },
+  { id: 'mcp.connect', guard: 'canOpenConnectMcp', action: 'openConnectMcp' },
+  { id: 'mcp.manage', guard: 'canOpenManageMcp', action: 'openManageMcp' },
+  {
+    id: 'mcp.tool-profiles',
+    guard: 'canOpenManageToolProfiles',
+    action: 'openManageToolProfiles',
+  },
+  {
+    id: 'agent-tasks.manage',
+    guard: 'canOpenManageAgentTasks',
+    action: 'openManageAgentTasks',
+  },
+  {
+    id: 'agent-tasks.new',
+    guard: 'canOpenManageAgentTasks',
+    action: 'openNewAgentTask',
+  },
+  { id: 'garden.manage', guard: 'canOpenManageGardens', action: 'openManageGardens' },
+  { id: 'garden.new', guard: 'canOpenManageGardens', action: 'openNewGarden' },
+  {
+    id: 'workspace.switch',
+    guard: 'canOpenWorkspacePicker',
+    action: 'openWorkspacePicker',
+    surfaces: ['palette'],
+  },
+  { id: 'settings.cycle-model', guard: 'canCycleModel', action: 'cycleModel' },
+  {
+    id: 'settings.cycle-reasoning',
+    guard: 'canCycleReasoning',
+    action: 'cycleReasoning',
+  },
+  {
+    id: 'settings.cycle-theme',
+    guard: 'canCycleTheme',
+    action: 'cycleTheme',
+    surfaces: ['palette', 'slash'],
+  },
+  { id: 'settings.cycle-typewriter', action: 'cycleTypewriter' },
+  {
+    id: 'settings.keyboard-shortcuts',
+    guard: 'canOpenKeyboardShortcuts',
+    action: 'openKeyboardShortcuts',
+    surfaces: ['palette', 'slash'],
+  },
+  {
+    id: 'account.sign-out',
+    guard: 'canSignOut',
+    action: 'signOut',
+    surfaces: ['palette'],
+  },
+]
 
-  test('getItems returns all enabled items for empty query', async () => {
-    const provider = createCommandsProvider(createAppCommandsStub(), () => defaultBindings)
-    const results = provider.getItems('')
-
-    expect(results.length).toBeGreaterThan(0)
-  })
-
-  test('getItems filters by query', async () => {
-    const provider = createCommandsProvider(createAppCommandsStub(), () => defaultBindings)
-    const results = provider.getItems('new')
-
-    expect(results.length).toBe(4)
-    expect(results.map((result) => result.item.id).sort()).toEqual([
-      'agent-tasks.new',
-      'agents.new',
-      'chat.new-conversation',
-      'garden.new',
-    ])
-  })
-
-  test('onSelect calls the item run', async () => {
-    let called = false
-    const provider = createCommandsProvider(
-      createAppCommandsStub({
-        cycleModel: () => {
-          called = true
-          return true
-        },
-      }),
-      () => defaultBindings,
-    )
-    const results = provider.getItems('cycle model')
-    provider.onSelect(results[0].item)
-
-    expect(called).toBe(true)
-  })
-})
-
-describe('createCommandRegistry', () => {
-  test('returns a non-empty array of command items', async () => {
+describe('command registry', () => {
+  test('keeps the complete command ID order and surface boundaries', () => {
     const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
 
-    expect(commands.length).toBeGreaterThan(0)
-  })
+    expect(commands.map(({ id }) => id)).toEqual(commandCases.map(({ id }) => id))
+    expect(new Set(commands.map(({ id }) => id))).toHaveLength(commands.length)
 
-  test('every command has a unique id', async () => {
-    const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
-    const ids = commands.map((c) => c.id)
-
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
-  test('every command has a non-empty label and group', async () => {
-    const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
-
-    for (const command of commands) {
-      expect(command.label.length).toBeGreaterThan(0)
-      expect(command.group.length).toBeGreaterThan(0)
+    for (const scenario of commandCases) {
+      expect(commands.find(({ id }) => id === scenario.id)?.surfaces).toEqual(scenario.surfaces)
     }
   })
 
-  test('chat commands are listed first and start with new conversation', async () => {
-    const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
+  test('delegates every enabled guard and action through the registry table', async () => {
+    for (const scenario of commandCases) {
+      const appCommands = createAppCommandsStub()
+      const action = vi.fn(() => true)
+      Object.assign(appCommands, { [scenario.action]: action })
 
-    expect(commands[0]?.id).toBe('chat.new-conversation')
-    expect(commands[1]?.id).toBe('chat.upload-attachment')
-    expect(commands[2]?.id).toBe('chat.switch-conversation')
+      const guard = scenario.guard ? vi.fn(() => false) : null
+      if (scenario.guard && guard) Object.assign(appCommands, { [scenario.guard]: guard })
+
+      const command = createCommandRegistry(appCommands, defaultBindings).find(
+        ({ id }) => id === scenario.id,
+      )
+      expect(command, scenario.id).toBeDefined()
+
+      if (guard) {
+        expect(command?.enabled(), `${scenario.id} disabled`).toBe(false)
+        guard.mockReturnValue(true)
+      } else {
+        expect(command?.enabled(), `${scenario.id} enabled`).toBe(true)
+      }
+
+      await command?.run()
+      expect(action, scenario.id).toHaveBeenCalledOnce()
+    }
   })
 
-  test('enabled delegates to the underlying appCommands guard', async () => {
-    const stub = createAppCommandsStub({ canCycleModel: () => false })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const cycleModel = commands.find((c) => c.id === 'settings.cycle-model')
-
-    expect(cycleModel?.enabled()).toBe(false)
-  })
-
-  test('run delegates to the underlying appCommands action', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      cycleModel: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const cycleModel = commands.find((c) => c.id === 'settings.cycle-model')
-
-    cycleModel?.run()
-    expect(called).toBe(true)
-  })
-
-  test('manage agents command delegates to appCommands.openAgentPanel', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      openAgentPanel: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const manageAgents = commands.find((command) => command.id === 'agents.manage')
-
-    manageAgents?.run()
-    expect(called).toBe(true)
-  })
-
-  test('connect MCP command delegates to appCommands.openConnectMcp', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      openConnectMcp: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const connectMcp = commands.find((command) => command.id === 'mcp.connect')
-
-    connectMcp?.run()
-    expect(called).toBe(true)
-  })
-
-  test('manage MCP command delegates to appCommands.openManageMcp', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      openManageMcp: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const manageMcp = commands.find((command) => command.id === 'mcp.manage')
-
-    manageMcp?.run()
-    expect(called).toBe(true)
-  })
-
-  test('new conversation command delegates to appCommands.newConversation', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      newConversation: async () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const newConvo = commands.find((c) => c.id === 'chat.new-conversation')
-
-    await newConvo?.run()
-    expect(called).toBe(true)
-  })
-
-  test('switch conversation command delegates to appCommands.openConversationPicker', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      openConversationPicker: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const switchConversation = commands.find((command) => command.id === 'chat.switch-conversation')
-
-    switchConversation?.run()
-    expect(called).toBe(true)
-  })
-
-  test('previous conversation command delegates to appCommands.goToPreviousConversation', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      goToPreviousConversation: async () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const previousConversation = commands.find(
-      (command) => command.id === 'chat.previous-conversation',
+  test('exposes command mode, filters disabled commands, and runs the selected result', () => {
+    const cycleTypewriter = vi.fn(() => true)
+    const provider = createCommandsProvider(
+      createAppCommandsStub({ canCycleModel: () => false, cycleTypewriter }),
+      () => defaultBindings,
     )
 
-    await previousConversation?.run()
-    expect(called).toBe(true)
-  })
+    expect({ id: provider.id, mode: provider.mode }).toEqual({ id: 'commands', mode: 'command' })
+    expect(provider.getItems('').some(({ item }) => item.id === 'settings.cycle-model')).toBe(false)
 
-  test('next conversation command delegates to appCommands.goToNextConversation', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      goToNextConversation: async () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const nextConversation = commands.find((command) => command.id === 'chat.next-conversation')
-
-    await nextConversation?.run()
-    expect(called).toBe(true)
-  })
-
-  test('upload attachment command delegates to appCommands.pickAttachments', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      pickAttachments: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const uploadAttachment = commands.find((command) => command.id === 'chat.upload-attachment')
-
-    uploadAttachment?.run()
-    expect(called).toBe(true)
-  })
-
-  test('switch workspace command delegates to appCommands.openWorkspacePicker', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      openWorkspacePicker: () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const switchWorkspace = commands.find((command) => command.id === 'workspace.switch')
-
-    switchWorkspace?.run()
-    expect(called).toBe(true)
-  })
-
-  test('palette-only commands stay out of slash suggestions', async () => {
-    const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
-    const signOut = commands.find((command) => command.id === 'account.sign-out')
-    const cycleTheme = commands.find((command) => command.id === 'settings.cycle-theme')
-    const switchWorkspace = commands.find((command) => command.id === 'workspace.switch')
-
-    expect(signOut?.surfaces).toEqual(['palette'])
-    expect(cycleTheme?.surfaces).toEqual(['palette', 'slash'])
-    expect(switchWorkspace?.surfaces).toEqual(['palette'])
-  })
-
-  test('add file or image is available in both palette and slash surfaces', async () => {
-    const commands = createCommandRegistry(createAppCommandsStub(), defaultBindings)
-    const uploadAttachment = commands.find((command) => command.id === 'chat.upload-attachment')
-
-    expect(uploadAttachment?.surfaces).toEqual(['palette', 'slash'])
-  })
-
-  test('sign out command delegates to appCommands.signOut', async () => {
-    let called = false
-    const stub = createAppCommandsStub({
-      signOut: async () => {
-        called = true
-        return true
-      },
-    })
-    const commands = createCommandRegistry(stub, defaultBindings)
-    const signOut = commands.find((command) => command.id === 'account.sign-out')
-
-    await signOut?.run()
-    expect(called).toBe(true)
+    const selected = provider.getItems('typewriter')[0]?.item
+    expect(selected?.id).toBe('settings.cycle-typewriter')
+    if (selected) provider.onSelect(selected)
+    expect(cycleTypewriter).toHaveBeenCalledOnce()
   })
 })

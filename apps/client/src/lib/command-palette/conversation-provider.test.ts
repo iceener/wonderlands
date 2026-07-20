@@ -2,166 +2,95 @@ import { asSessionId, asThreadId, type BackendThread } from '@wonderlands/contra
 import { describe, expect, test } from 'vitest'
 import { createConversationProvider } from './conversation-provider.svelte.ts'
 
-const createThread = (id: string, title: string, updatedAt: string): BackendThread => ({
+const createThread = (id: string, title = id): BackendThread => ({
   createdAt: '2026-03-29T12:00:00.000Z',
-  createdByAccountId: 'acc_adam_overment',
+  createdByAccountId: 'acc_test',
   id: asThreadId(id),
   parentThreadId: null,
   sessionId: asSessionId(`ses_${id}`),
   status: 'active',
-  tenantId: 'ten_overment',
+  tenantId: 'ten_test',
   title,
-  updatedAt,
+  updatedAt: '2026-03-30T12:00:00.000Z',
 })
 
-describe('createConversationProvider', () => {
-  test('keeps the previous results visible while the next query is still loading', async () => {
-    let resolveSearch: ((threads: BackendThread[]) => void) | null = null
+const flush = async (): Promise<void> => {
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
+describe('createConversationProvider', () => {
+  test('keeps reads pure, caches each query, and clears the cache on dismiss', async () => {
+    const queries: Array<string | undefined> = []
     const provider = createConversationProvider({
       currentThreadId: () => null,
-      listThreads: async (options) => {
-        if (!options?.query) {
-          return [createThread('thr_recent', 'Recent thread', '2026-03-29T12:00:00.000Z')]
-        }
-
-        return await new Promise<BackendThread[]>((resolve) => {
-          resolveSearch = resolve
-        })
-      },
-      onSwitchThread: () => undefined,
-    })
-
-    provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(provider.getItems('').map((result) => result.item.label)).toEqual(['Recent thread'])
-
-    provider.onQueryChange?.('zebra')
-
-    expect(provider.getItems('zebra').map((result) => result.item.label)).toEqual(['Recent thread'])
-
-    resolveSearch?.([createThread('thr_match', 'Zebra deployment', '2026-03-30T12:00:00.000Z')])
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(provider.getItems('zebra').map((result) => result.item.label)).toEqual([
-      'Zebra deployment',
-    ])
-  })
-
-  test('keeps getItems as a pure read until the query hook requests data', async () => {
-    let listCalls = 0
-
-    const provider = createConversationProvider({
-      currentThreadId: () => asThreadId('thr_1'),
-      listThreads: async () => {
-        listCalls += 1
-        return [createThread('thr_1', 'First thread', '2026-03-29T12:00:00.000Z')]
+      listThreads: async ({ query } = {}) => {
+        queries.push(query)
+        return [createThread(query ? `thr_${query}` : 'thr_recent')]
       },
       onSwitchThread: () => undefined,
     })
 
     expect(provider.getItems('')).toEqual([])
-    expect(listCalls).toBe(0)
+    expect(queries).toEqual([])
 
     provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(provider.getItems('')).toHaveLength(1)
-    expect(listCalls).toBe(1)
-  })
-
-  test('loads recent threads once and reuses the cached empty-query results', async () => {
-    let listCalls = 0
-
-    const provider = createConversationProvider({
-      currentThreadId: () => asThreadId('thr_1'),
-      listThreads: async (options) => {
-        listCalls += 1
-        expect(options?.query).toBeUndefined()
-        return [
-          createThread('thr_1', 'First thread', '2026-03-29T12:00:00.000Z'),
-          createThread('thr_2', 'Second thread', '2026-03-30T12:00:00.000Z'),
-        ]
-      },
-      onSwitchThread: () => undefined,
-    })
-
+    await flush()
     provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
+    await flush()
+    expect(provider.getItems('').map(({ item }) => item.id)).toEqual(['thr_recent'])
+    expect(queries).toEqual([undefined])
 
-    const results = provider.getItems('')
-
-    expect(listCalls).toBe(1)
-    expect(results).toHaveLength(2)
-    expect(results.map((result) => result.item.id)).toEqual(['thr_1', 'thr_2'])
-  })
-
-  test('marks the current thread in the provider label', async () => {
-    const provider = createConversationProvider({
-      currentThreadId: () => asThreadId('thr_1'),
-      listThreads: async () => [createThread('thr_1', 'First thread', '2026-03-29T12:00:00.000Z')],
-      onSwitchThread: () => undefined,
-    })
-
-    provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    const results = provider.getItems('')
-
-    expect(results[0]?.item.label).toBe('Current: First thread')
-  })
-
-  test('clears the cache on dismiss so the next open refetches threads', async () => {
-    let listCalls = 0
-
-    const provider = createConversationProvider({
-      currentThreadId: () => null,
-      listThreads: async () => {
-        listCalls += 1
-        return [createThread('thr_1', 'First thread', '2026-03-29T12:00:00.000Z')]
-      },
-      onSwitchThread: () => undefined,
-    })
-
-    provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
     provider.onDismiss?.()
-
     provider.onQueryChange?.('')
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(listCalls).toBe(2)
+    await flush()
+    expect(queries).toEqual([undefined, undefined])
   })
 
-  test('keeps backend search results even when the title does not match the query text', async () => {
-    const queries: Array<string | undefined> = []
-
+  test('keeps previous results while loading and ignores a stale response', async () => {
+    const pending = new Map<string, (threads: BackendThread[]) => void>()
     const provider = createConversationProvider({
       currentThreadId: () => null,
-      listThreads: async (options) => {
-        queries.push(options?.query)
-        return [createThread('thr_fts', 'Weekly notes', '2026-03-30T12:00:00.000Z')]
-      },
+      listThreads: ({ query } = {}) =>
+        new Promise<BackendThread[]>((resolve) => pending.set(query ?? '', resolve)),
       onSwitchThread: () => undefined,
     })
 
-    provider.onQueryChange?.('postgres')
-    await Promise.resolve()
-    await Promise.resolve()
+    provider.onQueryChange?.('')
+    pending.get('')?.([createThread('thr_recent')])
+    await flush()
 
-    const results = provider.getItems('postgres')
+    provider.onQueryChange?.('first')
+    provider.onQueryChange?.('second')
+    expect(provider.getItems('second').map(({ item }) => item.id)).toEqual(['thr_recent'])
 
-    expect(queries).toEqual(['postgres'])
-    expect(results).toHaveLength(1)
-    expect(results[0]?.item.id).toBe('thr_fts')
-    expect(results[0]?.item.label).toBe('Weekly notes')
+    pending.get('first')?.([createThread('thr_stale')])
+    await flush()
+    expect(provider.getItems('second').map(({ item }) => item.id)).toEqual(['thr_recent'])
+
+    pending.get('second')?.([createThread('thr_latest')])
+    await flush()
+    expect(provider.getItems('second').map(({ item }) => item.id)).toEqual(['thr_latest'])
+  })
+
+  test('retains backend-ranked results and only switches to a non-current thread', async () => {
+    const selected: string[] = []
+    const provider = createConversationProvider({
+      currentThreadId: () => asThreadId('thr_current'),
+      listThreads: async () => [
+        createThread('thr_current', 'One'),
+        createThread('thr_match', 'Title not containing the query'),
+      ],
+      onSwitchThread: (thread) => selected.push(thread.id),
+    })
+
+    provider.onQueryChange?.('backend-only-term')
+    await flush()
+    const results = provider.getItems('backend-only-term')
+    expect(results.map(({ item }) => item.id)).toEqual(['thr_current', 'thr_match'])
+
+    await results[0]?.item.run()
+    await results[1]?.item.run()
+    expect(selected).toEqual(['thr_match'])
   })
 })

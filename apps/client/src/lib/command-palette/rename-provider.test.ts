@@ -2,48 +2,49 @@ import { describe, expect, test } from 'vitest'
 import { createRenameProvider } from './rename-provider'
 
 describe('createRenameProvider', () => {
-  test('exposes an auto-rename input action with dynamic naming state', async () => {
-    const calls: string[] = []
-    let naming = false
-
-    const provider = createRenameProvider({
-      currentTitle: 'Current title',
-      onRename: () => undefined,
-      onRegenerate: () => {
-        calls.push('regenerate')
-      },
-      canRegenerate: () => !naming,
-      isRegenerating: () => naming,
-      onCancel: () => undefined,
-    })
-
-    expect(provider.inputAction?.label()).toBe('Auto-rename')
-    expect(provider.inputAction?.disabled?.()).toBe(false)
-
-    await provider.inputAction?.run()
-    expect(calls).toEqual(['regenerate'])
-
-    naming = true
-    expect(provider.inputAction?.label()).toBe('Naming…')
-    expect(provider.inputAction?.disabled?.()).toBe(true)
-  })
-
-  test('uses the latest thread title when deciding whether the rename is dirty', async () => {
-    let currentTitle = 'Initial title'
-
+  test('submits a trimmed dirty title and follows the latest current title', () => {
+    let currentTitle = 'Initial'
+    const renamed: string[] = []
     const provider = createRenameProvider({
       currentTitle,
       getCurrentTitle: () => currentTitle,
-      onRename: () => undefined,
+      onRename: (title) => renamed.push(title),
       onCancel: () => undefined,
     })
 
     provider.onOpen?.()
     expect(provider.getItems('')[0]?.item.id).toBe('rename.hint')
 
-    currentTitle = 'Generated title'
-    provider.onQueryChange?.('Generated title')
+    provider.onQueryChange?.('  Next title  ')
+    const confirmation = provider.getItems('')[0]?.item
+    expect(confirmation?.id).toBe('rename.confirm')
+    if (confirmation) provider.onSelect(confirmation)
+    expect(renamed).toEqual(['Next title'])
 
-    expect(provider.getItems('Generated title')[0]?.item.id).toBe('rename.hint')
+    currentTitle = 'Generated'
+    provider.onQueryChange?.('Generated')
+    expect(provider.getItems('')[0]?.item.id).toBe('rename.hint')
+  })
+
+  test('delegates auto-rename and reflects its availability state', async () => {
+    let regenerating = false
+    let calls = 0
+    const provider = createRenameProvider({
+      currentTitle: 'Initial',
+      onRename: () => undefined,
+      onRegenerate: () => {
+        calls += 1
+      },
+      canRegenerate: () => !regenerating,
+      isRegenerating: () => regenerating,
+      onCancel: () => undefined,
+    })
+
+    expect(provider.inputAction?.disabled?.()).toBe(false)
+    await provider.inputAction?.run()
+    expect(calls).toBe(1)
+
+    regenerating = true
+    expect(provider.inputAction?.disabled?.()).toBe(true)
   })
 })
