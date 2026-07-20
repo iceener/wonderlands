@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
+import { writeFile } from 'node:fs/promises'
 import { describe, expect, test, vi } from 'vitest'
+import { createFileRepository } from '../../src/adapters/persistence/sqlite/files/file-repository'
 import { createJobRepository } from '../../src/adapters/persistence/sqlite/runtime/job-repository'
 import { createRunDependencyRepository } from '../../src/adapters/persistence/sqlite/runtime/run-dependency-repository'
 import { createToolExecutionRepository } from '../../src/adapters/persistence/sqlite/runtime/tool-execution-repository'
+import { createSandboxExecutionFileRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-execution-file-repository'
 import { createSandboxExecutionRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-execution-repository'
 import { createSandboxExecutionPackageRepository } from '../../src/adapters/persistence/sqlite/sandbox/sandbox-package-repository'
 import { createSandboxExecutionService } from '../../src/application/sandbox/sandbox-execution-service'
@@ -274,7 +277,7 @@ describe('sandbox worker', () => {
     assert.equal(job.value.status, 'completed')
   })
 
-  test('stores standard resultJson for execute executions', async () => {
+  test('persists attached output metadata in the standard execute resultJson', async () => {
     const { config, runtime } = createTestHarness()
     const { accountId, tenantId } = seedApiKeyAuth(runtime, {
       accountId: 'acc_execute_worker',
@@ -339,6 +342,9 @@ describe('sandbox worker', () => {
         network: {
           mode: 'off',
         },
+        outputs: {
+          attachGlobs: ['**/*.txt'],
+        },
         runtime: 'node',
         source: {
           kind: 'inline_script',
@@ -365,8 +371,10 @@ describe('sandbox worker', () => {
     const runner: SandboxRunner = {
       provider: 'local_dev',
       supportedRuntimes: ['node'],
-      runExecution: vi.fn(async () =>
-        ok({
+      runExecution: vi.fn(async (preparedExecution) => {
+        await writeFile(`${preparedExecution.outputRootRef}/result.txt`, 'sandbox artifact', 'utf8')
+
+        return ok({
           completedAt: '2026-04-04T10:00:03.000Z',
           durationMs: 3000,
           errorText: null,
@@ -381,8 +389,8 @@ describe('sandbox worker', () => {
           stderrText: null,
           stdoutText: '{"ok":true}\n{"track":"Freyja"}\n',
           vaultAccessMode: 'read_only',
-        }),
-      ),
+        })
+      }),
     }
 
     const worker = createSandboxWorker({
@@ -397,18 +405,46 @@ describe('sandbox worker', () => {
     assert.equal(processed, 1)
 
     const job = createJobRepository(runtime.db).getById(scope, jobId)
+    const sandboxFiles = createSandboxExecutionFileRepository(runtime.db).listBySandboxExecutionId(
+      scope,
+      executionId,
+    )
 
     assert.equal(job.ok, true)
+    assert.equal(sandboxFiles.ok, true)
 
-    if (!job.ok) {
-      throw new Error('expected execute job to load')
+    if (!job.ok || !sandboxFiles.ok) {
+      throw new Error('expected execute job and sandbox output to load')
+    }
+
+    const generatedOutput = sandboxFiles.value.find((file) => file.role === 'generated_output')
+
+    assert.ok(generatedOutput?.createdFileId)
+
+    const persistedFile = createFileRepository(runtime.db).getById(
+      scope,
+      generatedOutput.createdFileId,
+    )
+
+    assert.equal(persistedFile.ok, true)
+
+    if (!persistedFile.ok) {
+      throw new Error('expected promoted sandbox output file to load')
     }
 
     assert.deepEqual(job.value.resultJson, {
       durationMs: 3000,
       effectiveNetworkMode: 'off',
       failure: null,
-      files: [],
+      files: [
+        {
+          fileId: persistedFile.value.id,
+          mimeType: 'text/plain',
+          originalFilename: 'result.txt',
+          sandboxPath: '/output/result.txt',
+          sizeBytes: 16,
+        },
+      ],
       isolation: {
         cwd: '/work',
         effectiveNetworkMode: 'off',
@@ -425,7 +461,8 @@ describe('sandbox worker', () => {
       kind: 'sandbox_result',
       outputDir: '/output',
       packages: [],
-      presentationHint: 'No files were attached from this sandbox run.',
+      presentationHint:
+        'Files listed in files are already attached to the conversation UI. In the follow-up reply, tell the user the file is attached by filename instead of pasting raw API or /vault paths unless asked.',
       provider: 'local_dev',
       runtime: 'node',
       sandboxExecutionId: executionId,
