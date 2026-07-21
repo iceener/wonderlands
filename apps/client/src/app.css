@@ -411,13 +411,21 @@
     font-size: 0.8125em;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.01em;
+    word-break: normal;
+    overflow-wrap: break-word;
   }
 
   .md-body th {
     font-family: var(--font-heading);
     color: var(--color-text-secondary);
     font-weight: 500;
+    white-space: nowrap;
     border-bottom-color: var(--color-border-strong);
+  }
+
+  .md-body td > a:only-child,
+  .md-body td > code:only-child {
+    white-space: nowrap;
   }
 
   .md-body td {
