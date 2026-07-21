@@ -223,7 +223,8 @@
     font-size: 0.9375rem;
     line-height: 1.8;
     color: var(--color-text-primary);
-    word-break: break-word;
+    word-break: normal;
+    overflow-wrap: break-word;
     letter-spacing: 0.008em;
   }
 
@@ -423,8 +424,8 @@
     border-bottom-color: var(--color-border-strong);
   }
 
-  .md-body td > a:only-child,
-  .md-body td > code:only-child {
+  .md-body td:has(> a:only-child),
+  .md-body td:has(> code:only-child) {
     white-space: nowrap;
   }
 
