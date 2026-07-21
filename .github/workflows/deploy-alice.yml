@@ -96,6 +96,9 @@ jobs:
       - name: Migrate database
         run: npm run db:migrate --workspace @wonderlands/server
 
+      - name: Rebuild and publish active Garden sites
+        run: npm run garden:rebuild-active --workspace @wonderlands/server
+
       - name: Restart PM2 process
         run: |
           set -euo pipefail
