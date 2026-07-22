@@ -335,6 +335,7 @@ Should stay private.
   assert.match(publicIndex.content, /const normalizeSearchResultHref = \(value\) =>/)
   assert.match(publicIndex.content, /resolved\.pathname\.endsWith\('\.html'\)/)
   assert.match(publicIndex.content, /data-pagefind-body/)
+  assert.match(publicIndex.content, /\.garden-content h1\[tabindex="-1"\]:focus\{outline:none\}/)
   assert.doesNotMatch(publicIndex.content, /pagefind\.filters\(/)
   assert.match(publicIndex.content, />Home</)
   assert.match(publicIndex.content, />Signal</)

@@ -828,6 +828,7 @@ body.no-scroll{overflow:hidden}
 .garden-search-subresult:hover{border-left-color:var(--accent);text-decoration:none}
 
 .garden-content{min-width:0;view-transition-name:content}
+.garden-content h1[tabindex="-1"]:focus{outline:none}
 main{max-width:var(--content-width);width:100%;margin:0 auto;padding:3.25rem 1.5rem 6rem}
 main>section,main>article,.page-searchable{line-height:1.7;letter-spacing:0;word-break:normal;overflow-wrap:break-word}
 .page-title{font-family:var(--font-sans);font-size:clamp(1.85rem,1.5rem + 1.4vw,2.35rem);font-weight:600;line-height:1.12;letter-spacing:-.035em;color:var(--fg-strong);margin:0 0 2.5rem;text-wrap:balance}
